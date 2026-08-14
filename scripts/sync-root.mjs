@@ -22,8 +22,13 @@ import {
   ask,
   checkLocalApi,
   checkRemoteApi,
+  abortOnAuthFailure,
 } from './sync-utils.mjs';
-import { login, getAuthHeaders } from './sync-auth.mjs';
+import {
+  resolveWriteToken,
+  getAuthHeaders,
+  getEnvToken,
+} from './sync-auth.mjs';
 
 // === 設定 ===
 const LOCAL_API = 'http://localhost:8788';
@@ -115,6 +120,7 @@ async function listCollection(apiBase, collection) {
       `${apiBase}/api/root/${collection}?include_deleted=true`,
       { headers: authHeaders(apiBase) }
     );
+    abortOnAuthFailure(res, `主站 ${collection}`, apiBase);
     if (!res.ok) return [];
     const json = await safeJson(res);
     return json?.ok ? json.data || [] : [];
@@ -651,6 +657,7 @@ async function listR2Keys(apiBase) {
     const res = await fetch(`${apiBase}/api/root/assets?limit=500`, {
       headers: authHeaders(apiBase),
     });
+    abortOnAuthFailure(res, '主站 R2 資產', apiBase);
     if (!res.ok) return [];
     const json = await safeJson(res);
     const items = json?.ok ? json.data?.items || [] : [];
@@ -666,6 +673,7 @@ async function listDeletedRootAssets(apiBase) {
     const res = await fetch(`${apiBase}/api/root/assets/deleted`, {
       headers: authHeaders(apiBase),
     });
+    abortOnAuthFailure(res, '主站資產刪除紀錄', apiBase);
     if (!res.ok) return [];
     const json = await safeJson(res);
     return json?.ok ? json.data || [] : [];
@@ -971,13 +979,21 @@ async function main() {
     if (envToken) {
       remoteToken = envToken;
     } else {
-      const result = await login(REMOTE_API);
-      if (!result) {
+      // 獨立執行：有 API_TOKEN 環境變數就用，沒有才互動登入
+      const token = await resolveWriteToken({
+        loginApiUrl: REMOTE_API,
+        purpose: '同步',
+      });
+      if (!token) {
         console.error('\n❌ 認證失敗，無法繼續同步\n');
         process.exit(1);
       }
-      remoteToken = result.token;
+      remoteToken = token;
     }
+  } else {
+    // dry-run 不強制登入，但有 API_TOKEN 就帶上——旗標註冊表與 key 說明
+    // 兩個端點掛了 isAuthorized，不帶 token 會被靜默跳過，差異表少一截
+    remoteToken = process.env.SYNC_REMOTE_TOKEN || getEnvToken();
   }
 
   let totalPush = 0,

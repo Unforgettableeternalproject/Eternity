@@ -17,15 +17,51 @@ import { Markdown } from '@tiptap/markdown';
 import { MarkdownPaste } from './MarkdownPaste';
 import UepDialogueNode from './UepDialogueNode';
 import InlineAudioNode from './InlineAudioNode';
+import ProgressMarkerNode from './ProgressMarkerNode';
+import EchoSpotNode, {
+  buildEchoSpotAttributes,
+  collectEchoSpotIssues,
+  type EchoSpotAttributes,
+} from './EchoSpotNode';
+import EchoSongPicker, { type EchoSongChoice } from './EchoSongPicker';
+import VisualClueNode, {
+  collectVisualClueIssues,
+  type VisualClueAttributes,
+} from './VisualClueNode';
+import VisualsGalleryPicker, {
+  type VisualsGalleryChoice,
+} from './VisualsGalleryPicker';
+import { UepEntityMark, UepCueMark } from './UepEmbedMarks';
+import EntityInfoChip from './EntityInfoChip';
+import FlagPicker from './FlagPicker';
+import GateConditionEditor from './GateConditionEditor';
+import { parseFlagsAttr, serializeFlagsAttr } from '../../progress/markers';
+import {
+  parseGateCondition,
+  resolveInProgressContainer,
+} from '../../progress/gating';
+import type { GateCondition } from '../../progress/gating';
+import { collectEmbeds } from '../../embed';
+import EntityIndexPicker, { loadEmbeddableEntries } from './EntityIndexPicker';
+import { useDragAutoScroll } from './useDragAutoScroll';
+import { EntitySuggest } from './EntitySuggestExtension';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getToast,
+  getDialog,
   extractAssetKey,
   deleteAsset,
+  formatInterlinkKey,
   htmlToMarkdown,
+  resolveProgressToggles,
 } from './editorHelpers';
-import { resolveEditorMode } from './editorModeRegistry';
+import {
+  resolveEditorMode,
+  resolveGateFlagPrefix,
+  resolveGatePanelMode,
+} from './editorModeRegistry';
 import { ZONES } from '../../data/zones';
+import { canonicalizePagePath } from '../../lib/pagePath';
 import EditorPageTree from './EditorPageTree';
 import EditorInspector, {
   Section as InspectorSection,
@@ -48,11 +84,13 @@ import ConceptsEditorBody, {
   serializeConceptsContent,
   type ConceptsEditorData,
 } from './ConceptsEditorBody';
+import { collectEntityKeyIssues } from './EntityKeyField';
 import StorageDialogueEditor from './StorageDialogueEditor';
 import ChangelogEditorBody, { type ChangelogMeta } from './ChangelogEditorBody';
 import ThoughtStream from './ThoughtStream';
 import StorageSubcatEditor, { type SubcatDef } from './StorageSubcatEditor';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
+import { UploadSpinner } from './UploadSpinner';
 import './StorageDialogueEditor.css';
 import './ChangelogEditorBody.css';
 import './ThoughtStream.css';
@@ -103,6 +141,40 @@ const FONT_SIZES = [
   { label: '特大', value: '26px' },
 ];
 
+function createEchoSpotId(): string {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID();
+  }
+  return `spot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createVisualClueId(): string {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID();
+  }
+  return `clue-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * `uep_flags` 的一列。
+ *
+ * bubble 只編輯 `label`，但 `PUT /api/flags/:name` 是全覆蓋語意（`updateFlag`
+ * 對未提供的欄位寫 NULL），所以另外兩欄也要留著原封不動送回去，否則在編輯器
+ * 改一次標籤就會把 /admin/settings 填好的說明與類別清空。
+ */
+interface FlagRegistryRow {
+  name: string;
+  label: string | null;
+  description: string | null;
+  category: string | null;
+}
+
 // === Props ===
 interface RichEditorProps {
   initialContent: string;
@@ -142,6 +214,9 @@ export default function RichEditor({
   const zone = ZONES.find((z) => z.id === zoneId || z.slug === zoneId);
   const accentMain = zone?.main ?? '#3A3A3A';
   const isEntryMode = !pageSlug;
+  const currentPageId = canonicalizePagePath(
+    pageSlug ? [area, pageSlug].join('/') : area
+  );
 
   // State — dirty 由多來源聯合判斷
   const initialContentRef = useRef(initialContent || '<p></p>');
@@ -171,6 +246,69 @@ export default function RichEditor({
   const [depth, setDepth] = useState(initialDepth || 0);
   const [hidden, setHidden] = useState(initialMetadata?.hidden === true);
   const [locked, setLocked] = useState(initialMetadata?.locked === true);
+  // 進度頁：本頁的解鎖倚賴同層前一個進度頁完成（鏈條件由 effectiveGate 動態注入）
+  const [progressPage, setProgressPage] = useState(
+    initialMetadata?.progressPage === true
+  );
+  // 豁免：不繼承容器進度（切斷點，子樹一併豁免）——番外/特別篇提前開放用
+  const [gateExempt, setGateExempt] = useState(
+    initialMetadata?.gateExempt === true
+  );
+  /**
+   * 這兩個欄位在 `/admin/settings` 的進度總覽也改得到（metadata-only PATCH），
+   * 所以存檔時要分辨「使用者在這個編輯器改過」與「只是開頁當下的快照」——
+   * 後者一律讓伺服器的值贏，否則開著編輯器期間在總覽切的開關會被靜默還原。
+   */
+  const progressPageTouchedRef = useRef(false);
+  const gateExemptTouchedRef = useRef(false);
+  /*
+   * 容器繼承偵測：往上走**完整祖先鏈**，判定本頁是否位於生效中的進度容器內。
+   * 為 true 時 GateConditionEditor 把進度頁 toggle 顯示為繼承（禁用，僅剩
+   * 豁免選項），並套用「豁免與自標進度頁互斥」。
+   *
+   * ⚠️ 曾經只 fetch 直接父頁一次判 `progressPage === true`——三層巢狀
+   * （chapter 自標 → arc 被動繼承 → section）時 arc 的 raw 是 false，
+   * section 會被判成不在容器內，與 /admin/settings 的進度總覽結論分裂。
+   * 規則現在共用 `resolveInProgressContainer`，兩處只會有同一個答案。
+   *
+   * 逐層 fetch 而不是抓整棵樹：這個編輯器跨所有 area，而 tree 端點是
+   * 分區的；巢狀最深五層，實際請求數是個位數且只在換頁時發生。
+   */
+  const [parentIsProgressContainer, setParentIsProgressContainer] =
+    useState(false);
+  useEffect(() => {
+    if (!parentId) {
+      setParentIsProgressContainer(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    let cancelled = false;
+    void resolveInProgressContainer(parentId, async (id) => {
+      const res = await fetch(`${apiBase}/api/content/${id}`, {
+        signal: ctrl.signal,
+      });
+      if (!res.ok) return null;
+      const json = (await res.json()) as {
+        data?: { metadata?: Record<string, unknown> | null; parentId?: string };
+      };
+      return json.data ?? null;
+    })
+      .then((inContainer) => {
+        if (!cancelled) setParentIsProgressContainer(inContainer);
+      })
+      .catch(() => {
+        // 靜默失敗：找不到祖先（新建頁面／已刪）或請求被中止 → 視為未繼承
+      });
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+    };
+  }, [parentId, apiBase]);
+  // 進度條件（Epic 2 內容閘門）——parseGateCondition 兼容平鋪與巢狀，
+  // 存檔時一律正規化為巢狀 metadata.gate
+  const [gate, setGate] = useState<GateCondition | null>(() =>
+    parseGateCondition(initialMetadata || null)
+  );
   const [icon, setIcon] = useState(initialMetadata?.icon || '');
   const [description, setDescription] = useState(
     initialMetadata?.description || ''
@@ -184,6 +322,9 @@ export default function RichEditor({
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // 編輯器中欄 scroll 容器：供 draggable atom 拖曳靠近上下緣自動捲動（#5）
+  const editorSurfaceRef = useRef<HTMLElement>(null);
+  useDragAutoScroll(editorSurfaceRef);
 
   // 字型大小自訂輸入
   const [customFontSize, setCustomFontSize] = useState('');
@@ -195,9 +336,45 @@ export default function RichEditor({
   const [linkPageTree, setLinkPageTree] = useState<any[]>([]);
   const [linkPageTreeLoading, setLinkPageTreeLoading] = useState(false);
 
+  // 嵌入標記 popover 狀態（Epic 2 — entity inline mark；
+  // cue 工具已撤下，等浮島階段以旗標式/浮鈕重新設計）
+  // 面板開啟時當前標記的 ref（唯讀顯示用；引用一律經 EntityIndexPicker 選定）
+  const [entityRef, setEntityRef] = useState('');
+  const [echoSongPickerOpen, setEchoSongPickerOpen] = useState(false);
+  const [visualsGalleryPickerOpen, setVisualsGalleryPickerOpen] =
+    useState(false);
+  const [visualsPickerIntent, setVisualsPickerIntent] = useState<
+    | 'insert-gallery'
+    | 'retarget'
+    | 'default-image'
+    | 'insert-gate'
+    | 'retarget-gate'
+  >('insert-gallery');
+  const [echoesValidationIssues, setEchoesValidationIssues] = useState<
+    string[]
+  >([]);
+  const [visualsValidationIssues, setVisualsValidationIssues] = useState<
+    string[]
+  >([]);
+
   // 從 registry 解析 mode
   const editorMode = resolveEditorMode({ area, zoneId, pageType, pageSlug });
   const modeId = editorMode.id;
+  // PROGRESS GATE 面板分級（S8 下半場 V-B.18）：full 全套／minimal 只留
+  // 條件欄位／none 整塊移除。僅動 UI，metadata 求值行為不變。
+  const gatePanelMode = resolveGatePanelMode({
+    area,
+    zoneId,
+    pageType,
+    pageSlug,
+  });
+  // 自訂旗標欄的前綴限縮：Storage 對話只吃 `uep-` 系統旗標
+  const gateFlagPrefix = resolveGateFlagPrefix({
+    area,
+    zoneId,
+    pageType,
+    pageSlug,
+  });
 
   // 相容用 shorthand（供渲染判斷使用）
   const isEchoes = modeId === 'echoes.song';
@@ -216,7 +393,7 @@ export default function RichEditor({
   const isVisualsArea = area === 'visuals' || zoneId === 'visuals';
   const isPageType = modeId === 'homepage' && !isEntryMode;
   const [echoesData, setEchoesData] = useState<EchoesData>(() =>
-    parseEchoesData(initialMetadata || {})
+    parseEchoesData(initialMetadata || {}, currentPageId)
   );
   const [visualsData, setVisualsData] = useState<VisualsData>(() =>
     parseVisualsData(initialMetadata || {})
@@ -282,6 +459,21 @@ export default function RichEditor({
       TableCell,
       UepDialogueNode,
       InlineAudioNode,
+      ProgressMarkerNode,
+      EchoSpotNode,
+      VisualClueNode,
+      UepEntityMark,
+      UepCueMark,
+      // entity 自動偵測（S7-D-3）：打字命中匹配詞 → Tab 套 entity mark。
+      // 僅 history——interactive embedding 是 History 文章專屬
+      // （艾斯維爾 2026-07-07 定案），其他區域不掛偵測。
+      ...(area === 'history'
+        ? [
+            EntitySuggest.configure({
+              fetchEntries: () => loadEmbeddableEntries(apiBase),
+            }),
+          ]
+        : []),
       Markdown,
       MarkdownPaste,
     ],
@@ -320,10 +512,88 @@ export default function RichEditor({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  /**
+   * 讀伺服器上這一頁最新的 metadata；讀不到（新頁面、離線、壞回應）回 null。
+   * 只在存檔路徑上用，作為 PUT 整份 metadata 的底稿。
+   */
+  const fetchLatestMetadata = useCallback(async (): Promise<Record<
+    string,
+    any
+  > | null> => {
+    try {
+      const res = await fetch(`${apiBase}/api/content/${area}/${pageSlug}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const meta = json?.data?.metadata;
+      return meta && typeof meta === 'object' && !Array.isArray(meta)
+        ? (meta as Record<string, any>)
+        : null;
+    } catch {
+      return null;
+    }
+  }, [apiBase, area, pageSlug]);
+
   // Save handler
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
     if (editorMode.needsTipTap && !editor) return;
+
+    // entityKey 硬驗證（S7-B 驗收回饋）：輸入層只警告不阻擋打字，
+    // 存檔是資料進 D1 的最後關卡——非法/重複 key 直接擋下
+    if (isConcepts) {
+      const entityKeyIssues = collectEntityKeyIssues(conceptsData.data);
+      if (entityKeyIssues.length > 0) {
+        getToast().error(
+          `entityKey 驗證未通過：${entityKeyIssues[0]}` +
+            (entityKeyIssues.length > 1
+              ? `（共 ${entityKeyIssues.length} 項）`
+              : '')
+        );
+        return;
+      }
+    }
+    if (isEchoes && echoesValidationIssues.length > 0) {
+      getToast().error(
+        `Echoes 資料驗證未通過：${echoesValidationIssues[0]}` +
+          (echoesValidationIssues.length > 1
+            ? `（共 ${echoesValidationIssues.length} 項）`
+            : '')
+      );
+      return;
+    }
+    // Visuals entityKey/插圖 ID 唯一性硬驗證（S8 下半場 V-B.16，同 Echoes）
+    if (isVisuals && visualsValidationIssues.length > 0) {
+      getToast().error(
+        `Visuals 資料驗證未通過：${visualsValidationIssues[0]}` +
+          (visualsValidationIssues.length > 1
+            ? `（共 ${visualsValidationIssues.length} 項）`
+            : '')
+      );
+      return;
+    }
+    // Visual Clue 成對錨點配對驗證（S8 下半場 V-D.28）：孤兒/亂序/
+    // 目標缺失直接擋存檔——第一層防禦，前台另有孤兒容錯
+    if (editorMode.needsTipTap && editor) {
+      const clueIssues = collectVisualClueIssues(editor.state.doc);
+      if (clueIssues.length > 0) {
+        getToast().error(
+          `視覺線索驗證未通過：${clueIssues[0].message}` +
+            (clueIssues.length > 1 ? `（共 ${clueIssues.length} 項）` : '')
+        );
+        return;
+      }
+      // Echo Spot spotId 唯一性驗證（S8 全區驗證 #9）：複製貼上沿用同
+      // spotId，前台單次造訪去重會誤併兩個 spot——存檔前擋下
+      const spotIssues = collectEchoSpotIssues(editor.state.doc);
+      if (spotIssues.length > 0) {
+        getToast().error(
+          `回聲點驗證未通過：${spotIssues[0]}` +
+            (spotIssues.length > 1 ? `（共 ${spotIssues.length} 項）` : '')
+        );
+        return;
+      }
+    }
+
     setSaveStatus('saving');
     try {
       const content =
@@ -351,18 +621,77 @@ export default function RichEditor({
                   ];
 
       const isVisualsDivision = isVisualsArea && pageType === 'division';
+
+      // 嵌入摘要（Epic 2）：掃描 HTML 中的 entity/cue 標記寫入
+      // metadata.related/cues——island 只讀摘要，不必解析整篇 HTML。
+      // 只在 editor HTML 實際被持久化的模式計算（echoes/visuals/
+      // storage 特化模式不存 editor HTML，摘要會失真）。
+      const persistsEditorHtml =
+        editorMode.needsTipTap &&
+        editor &&
+        !isEchoes &&
+        !isVisuals &&
+        !isStorageDialogue &&
+        !isStorageChangelog;
+      const embedSummary = persistsEditorHtml
+        ? collectEmbeds(
+            new DOMParser().parseFromString(editor.getHTML(), 'text/html').body
+          )
+        : null;
+
+      // 存檔前重讀伺服器上的 metadata 當底。這個 PUT 送的是**整份** metadata，
+      // 用開頁當下的 initialMetadata 當底的話，編輯期間別處寫進去的欄位會
+      // 被一起還原——`/admin/settings` 的進度總覽就是這樣一條路（它走
+      // metadata-only 的 PATCH，不碰 content）。讀不到就退回舊行為，
+      // 存檔本身不該因為這一次額外請求失敗而中斷。
+      const latestMetadata = await fetchLatestMetadata();
+      const metadataBase = latestMetadata ?? initialMetadata ?? {};
+
+      // 這兩個 toggle 兩邊都改得到：使用者在這個編輯器動過就以編輯器為準，
+      // 沒動過則採用伺服器的最新值（總覽剛切的那個）
+      const { progressPage: nextProgressPage, gateExempt: nextGateExempt } =
+        resolveProgressToggles(
+          latestMetadata,
+          { progressPage, gateExempt },
+          {
+            progressPage: progressPageTouchedRef.current,
+            gateExempt: gateExemptTouchedRef.current,
+          }
+        );
+
       const metadata: Record<string, any> = {
-        ...(initialMetadata || {}),
+        ...metadataBase,
         ...(hidden ? { hidden: true } : { hidden: undefined }),
         ...(locked ? { locked: true } : { locked: undefined }),
+        // 進度頁 toggle：true 才寫入，false 一律清除以維持存檔精簡
+        ...(nextProgressPage
+          ? { progressPage: true }
+          : { progressPage: undefined }),
+        // 豁免 toggle：同上，true 才寫入
+        ...(nextGateExempt ? { gateExempt: true } : { gateExempt: undefined }),
+        // 進度條件一律存巢狀 gate；平鋪形狀的舊鍵一併清除避免雙重來源
+        gate: gate ?? undefined,
+        requiresFlags: undefined,
+        pristineOnly: undefined,
+        // 嵌入摘要：有標記才寫入；標記全移除時一併清除
+        ...(embedSummary
+          ? {
+              related:
+                embedSummary.related.length > 0
+                  ? embedSummary.related
+                  : undefined,
+              cues:
+                embedSummary.cues.length > 0 ? embedSummary.cues : undefined,
+            }
+          : {}),
         ...(icon ? { icon } : { icon: undefined }),
         ...(description ? { description } : { description: undefined }),
         ...(isEchoes ? serializeEchoesData(echoesData) : {}),
         ...(isVisuals ? serializeVisualsData(visualsData) : {}),
         ...(isConcepts
           ? {
-              type_group: initialMetadata?.type_group,
-              era: initialMetadata?.era,
+              type_group: metadataBase.type_group,
+              era: metadataBase.era,
               stack_style: conceptsStackStyle,
             }
           : {}),
@@ -403,6 +732,12 @@ export default function RichEditor({
       // 更新快照並重置 dirty
       if (editor) initialContentRef.current = editor.getHTML();
       initialTitleRef.current = title;
+      // 採用了伺服器的值就同步回 UI，否則 Inspector 的勾選會與剛存進去的
+      // 內容不一致；touched 一併歸零，下一輪重新以伺服器為準
+      if (nextProgressPage !== progressPage) setProgressPage(nextProgressPage);
+      if (nextGateExempt !== gateExempt) setGateExempt(nextGateExempt);
+      progressPageTouchedRef.current = false;
+      gateExemptTouchedRef.current = false;
       window.dispatchEvent(new Event('concepts-editor-saved'));
       resetDirty();
       setSaveStatus('saved');
@@ -419,6 +754,8 @@ export default function RichEditor({
     echoesData,
     visualsData,
     conceptsData,
+    echoesValidationIssues,
+    visualsValidationIssues,
     conceptsStackStyle,
     storageDialogueBlocks,
     changelogBlocks,
@@ -433,6 +770,10 @@ export default function RichEditor({
     depth,
     hidden,
     locked,
+    progressPage,
+    gateExempt,
+    fetchLatestMetadata,
+    gate,
     icon,
     description,
     layout,
@@ -468,17 +809,40 @@ export default function RichEditor({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
-  // beforeunload
+  // dirty state 的同步 ref——beforeunload 讀 ref 而非 state，
+  // 讓 SPA 內守衛（handleBeforeNavigate）在使用者確認捨棄變更後
+  // 立刻 bypass 原生 beforeunload，避免二次跳原生 alert
+  const dirtyRef = useRef(isDirty);
+  useEffect(() => {
+    dirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  // beforeunload — 關瀏覽器 / 換域 / 未經守衛的 hard navigation 才走這裡
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
+      if (dirtyRef.current) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [isDirty]);
+  }, []);
+
+  // 樹狀 / 選單導航前的守衛——用 UepDialog 取代瀏覽器原生 alert
+  const handleBeforeNavigate = useCallback(async (): Promise<boolean> => {
+    if (!dirtyRef.current) return true;
+    const ok = await getDialog().confirm(
+      '這頁有未儲存的變更，離開將會捨棄。要繼續嗎？',
+      {
+        title: '未儲存的變更',
+        confirmText: '捨棄變更並離開',
+        cancelText: '留在此頁',
+      }
+    );
+    if (ok) dirtyRef.current = false; // bypass 後續 beforeunload
+    return ok;
+  }, []);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -527,6 +891,34 @@ export default function RichEditor({
   const [audioPickerSearch, setAudioPickerSearch] = useState('');
   const [audioReplaceMode, setAudioReplaceMode] = useState(false);
 
+  // 進度標記 node 選取與編輯草稿（Epic 2 掃描線）
+  const [selectedMarker, setSelectedMarker] = useState<{
+    pos: number;
+    grantsFlags: string;
+    label: string;
+  } | null>(null);
+  const [markerDraft, setMarkerDraft] = useState<{
+    grantsFlags: string;
+    label: string;
+  }>({ grantsFlags: '', label: '' });
+  /**
+   * 授予旗標在 `uep_flags` 註冊表裡的標籤草稿。
+   *
+   * 存的是註冊表那一份，不是節點屬性——旗標標籤是全域的，同一個旗標在別處
+   * 被授予時看到的也是同一份。刻意不同時寫回節點的 `data-label`，那會製造
+   * 兩份各自漂移的資料。
+   */
+  const [flagLabelDraft, setFlagLabelDraft] = useState('');
+  /** 該旗標註冊表現值——寫回時要原封不動帶上 bubble 不編輯的那兩欄 */
+  const [flagRegistryRow, setFlagRegistryRow] =
+    useState<FlagRegistryRow | null>(null);
+  const [selectedEchoSpot, setSelectedEchoSpot] = useState<
+    (EchoSpotAttributes & { pos: number }) | null
+  >(null);
+  const [selectedVisualClue, setSelectedVisualClue] = useState<
+    (VisualClueAttributes & { pos: number }) | null
+  >(null);
+
   useEffect(() => {
     if (!editor) return;
 
@@ -557,6 +949,264 @@ export default function RichEditor({
       editor.off('transaction', syncSelectedImage);
     };
   }, [editor]);
+
+  // Echo Spot node 選取追蹤：可重新挑曲或刪除，不把錯綁變成永久資料。
+  useEffect(() => {
+    if (!editor) return;
+    const syncSelectedEchoSpot = () => {
+      const selection = editor.state.selection as any;
+      const next =
+        selection.node?.type?.name === 'echoSpot'
+          ? ({
+              pos: selection.from,
+              ...selection.node.attrs,
+            } as EchoSpotAttributes & {
+              pos: number;
+            })
+          : null;
+      setSelectedEchoSpot((current) =>
+        current?.pos === next?.pos && current?.songId === next?.songId
+          ? current
+          : next
+      );
+    };
+    syncSelectedEchoSpot();
+    editor.on('selectionUpdate', syncSelectedEchoSpot);
+    editor.on('transaction', syncSelectedEchoSpot);
+    return () => {
+      editor.off('selectionUpdate', syncSelectedEchoSpot);
+      editor.off('transaction', syncSelectedEchoSpot);
+    };
+  }, [editor]);
+
+  // Visual Clue node 選取追蹤（S8 下半場 V-D）：可重選畫廊、跳到對應
+  // 錨點、成對刪除——孤兒錨點不該由使用者手動收拾。
+  useEffect(() => {
+    if (!editor) return;
+    const syncSelectedVisualClue = () => {
+      const selection = editor.state.selection as any;
+      const next =
+        selection.node?.type?.name === 'visualClue'
+          ? ({
+              pos: selection.from,
+              ...selection.node.attrs,
+            } as VisualClueAttributes & { pos: number })
+          : null;
+      setSelectedVisualClue((current) =>
+        current?.pos === next?.pos &&
+        current?.clueId === next?.clueId &&
+        current?.targetKey === next?.targetKey
+          ? current
+          : next
+      );
+    };
+    syncSelectedVisualClue();
+    editor.on('selectionUpdate', syncSelectedVisualClue);
+    editor.on('transaction', syncSelectedVisualClue);
+    return () => {
+      editor.off('selectionUpdate', syncSelectedVisualClue);
+      editor.off('transaction', syncSelectedVisualClue);
+    };
+  }, [editor]);
+
+  /** 找出同 clueId 的所有錨點位置（文件順序） */
+  const findVisualCluePositions = (clueId: string) => {
+    if (!editor || !clueId) return [];
+    const found: {
+      pos: number;
+      edge: 'start' | 'gate' | 'end';
+      size: number;
+    }[] = [];
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'visualClue' && node.attrs.clueId === clueId) {
+        found.push({
+          pos,
+          edge:
+            node.attrs.edge === 'end'
+              ? 'end'
+              : node.attrs.edge === 'gate'
+                ? 'gate'
+                : 'start',
+          size: node.nodeSize,
+        });
+      }
+      return true;
+    });
+    return found;
+  };
+
+  const applyVisualsGalleryChoice = (gallery: VisualsGalleryChoice) => {
+    if (!editor) return;
+    const requiresImage = [
+      'default-image',
+      'insert-gate',
+      'retarget-gate',
+    ].includes(visualsPickerIntent);
+    if (requiresImage && !gallery.selectedImageId) {
+      getToast().info('請選擇 gallery 內的一張圖片。');
+      return;
+    }
+
+    if (
+      visualsPickerIntent === 'insert-gate' &&
+      selectedVisualClue &&
+      selectedVisualClue.edge !== 'gate'
+    ) {
+      if (selectedVisualClue.galleryId !== gallery.id) {
+        getToast().error('切圖 Gate 必須選擇目前 clue gallery 內的圖片。');
+        return;
+      }
+      const selectedNode = editor.state.doc.nodeAt(selectedVisualClue.pos);
+      if (!selectedNode) return;
+      const insertPos =
+        selectedVisualClue.edge === 'end'
+          ? selectedVisualClue.pos
+          : selectedVisualClue.pos + selectedNode.nodeSize;
+      const gate = editor.schema.nodes.visualClue.create({
+        ...selectedVisualClue,
+        edge: 'gate',
+        imageId: gallery.selectedImageId,
+        imageTitle: gallery.selectedImageTitle || '',
+        imageFile: gallery.selectedImageFile || '',
+      });
+      editor.view.dispatch(editor.state.tr.insert(insertPos, gate));
+    } else if (
+      visualsPickerIntent === 'retarget-gate' &&
+      selectedVisualClue?.edge === 'gate'
+    ) {
+      if (selectedVisualClue.galleryId !== gallery.id) {
+        getToast().error('切圖 Gate 必須留在原本的 gallery。');
+        return;
+      }
+      const node = editor.state.doc.nodeAt(selectedVisualClue.pos);
+      if (node?.type.name === 'visualClue') {
+        editor.view.dispatch(
+          editor.state.tr.setNodeMarkup(selectedVisualClue.pos, undefined, {
+            ...node.attrs,
+            imageId: gallery.selectedImageId,
+            imageTitle: gallery.selectedImageTitle || '',
+            imageFile: gallery.selectedImageFile || '',
+          })
+        );
+      }
+    } else if (
+      selectedVisualClue &&
+      ['retarget', 'default-image'].includes(visualsPickerIntent)
+    ) {
+      if (
+        visualsPickerIntent === 'default-image' &&
+        selectedVisualClue.galleryId !== gallery.id
+      ) {
+        getToast().error('預設圖片必須來自目前 clue 的 gallery。');
+        return;
+      }
+      // 重選目標：同 clueId 的起訖錨點一起改，配對不變
+      const anchors = findVisualCluePositions(selectedVisualClue.clueId);
+      if (anchors.length > 0) {
+        let tr = editor.state.tr;
+        for (const anchor of anchors) {
+          if (anchor.edge === 'gate') continue;
+          const node = editor.state.doc.nodeAt(anchor.pos);
+          if (node?.type.name !== 'visualClue') continue;
+          tr = tr.setNodeMarkup(anchor.pos, undefined, {
+            ...node.attrs,
+            ...(visualsPickerIntent === 'retarget'
+              ? {
+                  targetType: gallery.targetType,
+                  targetKey: gallery.targetKey,
+                  galleryId: gallery.id,
+                  title: gallery.title,
+                }
+              : {}),
+            imageId: gallery.selectedImageId || '',
+            imageTitle: gallery.selectedImageTitle || '',
+            imageFile: gallery.selectedImageFile || '',
+          });
+        }
+        // 重選 gallery 後舊 gate 的 imageId 已不再可靠；明確移除，避免
+        // 保存出「目標已換但切圖點仍引用舊 gallery 圖片」的壞資料。
+        if (visualsPickerIntent === 'retarget') {
+          for (const anchor of [...anchors]
+            .filter((item) => item.edge === 'gate')
+            .sort((a, b) => b.pos - a.pos)) {
+            tr = tr.delete(anchor.pos, anchor.pos + anchor.size);
+          }
+        }
+        editor.view.dispatch(tr);
+      }
+    } else {
+      editor
+        .chain()
+        .focus()
+        .insertVisualCluePair({
+          clueId: createVisualClueId(),
+          targetType: gallery.targetType,
+          targetKey: gallery.targetKey,
+          galleryId: gallery.id,
+          title: gallery.title,
+          imageId: gallery.selectedImageId,
+          imageTitle: gallery.selectedImageTitle,
+          imageFile: gallery.selectedImageFile,
+        })
+        .run();
+    }
+    setVisualsGalleryPickerOpen(false);
+  };
+
+  /** 成對刪除：孤兒錨點是資料錯誤，刪除一律連同對應錨點 */
+  const deleteVisualCluePair = () => {
+    if (!editor || !selectedVisualClue) return;
+    if (selectedVisualClue.edge === 'gate') {
+      const node = editor.state.doc.nodeAt(selectedVisualClue.pos);
+      if (node?.type.name === 'visualClue') {
+        editor.view.dispatch(
+          editor.state.tr.delete(
+            selectedVisualClue.pos,
+            selectedVisualClue.pos + node.nodeSize
+          )
+        );
+      }
+      setSelectedVisualClue(null);
+      return;
+    }
+    const anchors = findVisualCluePositions(selectedVisualClue.clueId);
+    // 位置由後往前刪，前面的 pos 不受影響
+    let tr = editor.state.tr;
+    for (const anchor of [...anchors].sort((a, b) => b.pos - a.pos)) {
+      tr = tr.delete(anchor.pos, anchor.pos + anchor.size);
+    }
+    editor.view.dispatch(tr);
+    setSelectedVisualClue(null);
+  };
+
+  /** 跳到同 clueId 的另一端錨點（選取 + 捲到可見） */
+  const jumpToVisualCluePartner = () => {
+    if (!editor || !selectedVisualClue) return;
+    const partner = findVisualCluePositions(selectedVisualClue.clueId).find(
+      (anchor) => anchor.pos !== selectedVisualClue.pos
+    );
+    if (!partner) return;
+    editor.chain().focus().setNodeSelection(partner.pos).scrollIntoView().run();
+  };
+
+  const applyEchoSongChoice = (song: EchoSongChoice) => {
+    if (!editor) return;
+    const attrs = buildEchoSpotAttributes(
+      song,
+      selectedEchoSpot?.spotId || createEchoSpotId()
+    );
+    if (selectedEchoSpot) {
+      const node = editor.state.doc.nodeAt(selectedEchoSpot.pos);
+      if (node?.type.name === 'echoSpot') {
+        editor.view.dispatch(
+          editor.state.tr.setNodeMarkup(selectedEchoSpot.pos, undefined, attrs)
+        );
+      }
+    } else {
+      editor.chain().focus().setEchoSpot(attrs).run();
+    }
+    setEchoSongPickerOpen(false);
+  };
 
   useEffect(() => {
     if (!editor || !selectedImage || imgDeleteConfirm) return;
@@ -610,6 +1260,124 @@ export default function RichEditor({
       editor.off('transaction', syncSelectedAudio);
     };
   }, [editor]);
+
+  // 進度標記 node 選取追蹤
+  useEffect(() => {
+    if (!editor) return;
+
+    const syncSelectedMarker = () => {
+      const selection = editor.state.selection as any;
+      let next: { pos: number; grantsFlags: string; label: string } | null =
+        null;
+
+      if (selection.node?.type?.name === 'progressMarker') {
+        const attrs = selection.node.attrs || {};
+        next = {
+          pos: selection.from,
+          grantsFlags: serializeFlagsAttr(
+            Array.isArray(attrs.grantsFlags) ? attrs.grantsFlags : []
+          ),
+          label: attrs.label || '',
+        };
+      }
+
+      setSelectedMarker((current) =>
+        current?.pos === next?.pos &&
+        current?.grantsFlags === next?.grantsFlags &&
+        current?.label === next?.label
+          ? current
+          : next
+      );
+    };
+
+    syncSelectedMarker();
+    editor.on('selectionUpdate', syncSelectedMarker);
+    editor.on('transaction', syncSelectedMarker);
+
+    return () => {
+      editor.off('selectionUpdate', syncSelectedMarker);
+      editor.off('transaction', syncSelectedMarker);
+    };
+  }, [editor]);
+
+  // 選到不同標記時重設編輯草稿
+  useEffect(() => {
+    if (!selectedMarker) return;
+    setMarkerDraft({
+      grantsFlags: selectedMarker.grantsFlags,
+      label: selectedMarker.label,
+    });
+    // 標籤住在註冊表而不是節點屬性，開 bubble 時要現查
+    const name = parseFlagsAttr(selectedMarker.grantsFlags)[0];
+    if (!name) {
+      setFlagLabelDraft('');
+      setFlagRegistryRow(null);
+      return;
+    }
+    let cancelled = false;
+    void fetch('/api/flags')
+      .then((res) => res.json())
+      .then((json: { ok?: boolean; data?: { flags?: FlagRegistryRow[] } }) => {
+        if (cancelled) return;
+        const found = json?.data?.flags?.find((flag) => flag.name === name);
+        setFlagLabelDraft(found?.label ?? '');
+        setFlagRegistryRow(found ?? null);
+      })
+      .catch(() => {
+        // 查不到就留空，套用時仍會寫入
+      });
+    return () => {
+      cancelled = true;
+    };
+    // 只在切換到不同位置的標記時重設，避免打字中被覆蓋
+  }, [selectedMarker?.pos]);
+
+  /** marker bubble 目前授予的旗標（單選，一個標記一個旗標） */
+  const selectedFlagName = parseFlagsAttr(markerDraft.grantsFlags)[0] ?? '';
+
+  /**
+   * 把標籤寫進註冊表。
+   *
+   * 走 upsert：新旗標要到存檔時才會被自動註冊，套用當下它可能還不存在，
+   * 所以先 POST（帶 label），撞到 409 才改 PUT。derived 形狀會被 worker
+   * 以 400 拒絕——授予端本來就不該出現 derived 旗標（那類是程式授予的），
+   * 真的填了就照實回報，不靜默吞掉。
+   *
+   * 回傳寫入是否成功，讓呼叫端只在整組都成立時才報成功——標記屬性寫進去了
+   * 但標籤沒寫進註冊表時報「已套用」會是假的。
+   */
+  const saveFlagLabel = async (): Promise<boolean> => {
+    const name = selectedFlagName;
+    if (!name) return true;
+    const label = flagLabelDraft.trim();
+    const send = (method: 'POST' | 'PUT', url: string, body: unknown) =>
+      fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    try {
+      let res = await send('POST', '/api/flags', { name, label });
+      if (res.status === 409) {
+        // PUT 是全覆蓋：只送 label 會把說明與類別清成 NULL，
+        // 所以把 bubble 不編輯的那兩欄照現值帶回去
+        res = await send('PUT', `/api/flags/${encodeURIComponent(name)}`, {
+          label,
+          description: flagRegistryRow?.description ?? null,
+          category: flagRegistryRow?.category ?? null,
+        });
+      }
+      if (!res.ok) {
+        const json = (await res.json()) as { error?: string };
+        getToast().error(json.error || '旗標標籤寫入失敗');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      getToast().error(`旗標標籤寫入失敗：${String(e)}`);
+      return false;
+    }
+  };
 
   // 音訊 node Delete/Backspace 攔截
   useEffect(() => {
@@ -1128,6 +1896,13 @@ export default function RichEditor({
     toggleDropdown('link');
   };
 
+  // 開啟 entity 嵌入面板（選取在既有標記上時顯示當前 ref）
+  const handleOpenEntityDropdown = () => {
+    const attrs = editor.getAttributes('uepEntity');
+    setEntityRef((attrs.ref as string) || '');
+    toggleDropdown('uep-entity');
+  };
+
   // 渲染內部頁面選擇器的樹狀結構
   function renderLinkPageTree(nodes: any[], depth = 0): React.ReactNode {
     return nodes.map((node: any) => (
@@ -1606,11 +2381,12 @@ export default function RichEditor({
                         activeDropdown === 'image' ? null : 'image'
                       )
                     }
-                    title="插入圖片"
+                    title={uploading ? '上傳中...' : '插入圖片'}
                     disabled={uploading}
+                    aria-busy={uploading}
                   >
                     {uploading ? (
-                      '⏳'
+                      <UploadSpinner label={null} />
                     ) : (
                       <svg
                         width="16"
@@ -1933,6 +2709,129 @@ export default function RichEditor({
 
               <div className="tb-sep" />
 
+              {/* 進度標記（Epic 2 掃描線） */}
+              <div className="tb-group">
+                <button
+                  className={`tb-btn ${editor.isActive('progressMarker') ? 'is-active' : ''}`}
+                  onClick={() =>
+                    editor.chain().focus().setProgressMarker().run()
+                  }
+                  title="插入進度標記（掃描線標記點，前台隱形）"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                    <line x1="4" y1="22" x2="4" y2="15" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* 嵌入工具（Epic 2 — entity 互動式引用，與旗標工具分開）。
+                  僅 history：interactive embedding 是 History 文章專屬
+                  （艾斯維爾 2026-07-07 定案），其他區域不出 ◈ 工具。 */}
+              {area === 'history' && (
+                <>
+                  <div className="tb-sep" />
+
+                  <div className="tb-group">
+                    <button
+                      className={`tb-btn ${editor.isActive('echoSpot') ? 'is-active' : ''}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedEchoSpot(null);
+                        setEchoSongPickerOpen(true);
+                      }}
+                      title="插入回聲點（掃描線通過時解鎖並嘗試插播）"
+                    >
+                      ♫
+                    </button>
+                    <button
+                      className={`tb-btn ${editor.isActive('visualClue') ? 'is-active' : ''}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedVisualClue(null);
+                        setVisualsPickerIntent('insert-gallery');
+                        setVisualsGalleryPickerOpen(true);
+                      }}
+                      title="插入視覺線索（成對起訖錨點，區間內側邊浮現書籤按鈕）"
+                    >
+                      ❏
+                    </button>
+                    {/* Entity 引用 */}
+                    <div className="tb-dropdown-wrap">
+                      <button
+                        className={`tb-btn ${editor.isActive('uepEntity') ? 'is-active' : ''}`}
+                        onClick={handleOpenEntityDropdown}
+                        title="標記 entity 引用（角色/地點/術語）"
+                      >
+                        ◈
+                      </button>
+                      {activeDropdown === 'uep-entity' && (
+                        <div className="tb-dropdown tb-link-panel">
+                          {/* 當前引用唯讀顯示——kind 由條目自動推斷，
+                              ref 一律經下方 picker 選定，不再手動輸入 */}
+                          {entityRef && (
+                            <div className="tb-embed-current">
+                              <span className="tb-embed-current-label">
+                                目前引用
+                              </span>
+                              <code className="tb-embed-current-ref">
+                                {entityRef}
+                              </code>
+                            </div>
+                          )}
+                          <EntityIndexPicker
+                            apiBase={apiBase}
+                            onPick={(ref, kind) => {
+                              editor
+                                .chain()
+                                .focus()
+                                .setUepEntity({ kind, ref })
+                                .run();
+                              setActiveDropdown(null);
+                            }}
+                          />
+                          {editor.isActive('uepEntity') && (
+                            <div className="tb-link-actions">
+                              <button
+                                className="tb-link-remove"
+                                onClick={() => {
+                                  editor.chain().focus().unsetUepEntity().run();
+                                  setActiveDropdown(null);
+                                }}
+                              >
+                                移除標記
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {/* Cue 工具已撤下（艾斯維爾 2026-07-03 驗收定案）：
+                    song 不是嵌入而是旗標式播放觸發點（掃描線經過即播放）、
+                    image 是浮動按鈕（小說插圖式，連動 Visuals 浮島）。
+                    兩者的編輯器應用與浮島行為綁定，拆到浮島階段實作。
+                    UepCueMark extension 與 embed 格式層保留（無內容寫入）。 */}
+                  </div>
+
+                  {/* 點擊已嵌入實體文字的浮動資訊 chip（S7 驗收 #8） */}
+                  <EntityInfoChip
+                    editor={editor}
+                    onEdit={handleOpenEntityDropdown}
+                  />
+                </>
+              )}
+
+              <div className="tb-sep" />
+
               {/* 清除格式 */}
               <div className="tb-group">
                 <button
@@ -2047,12 +2946,13 @@ export default function RichEditor({
               currentSlug={pageSlug}
               accent={accentMain}
               refreshKey={treeRefreshKey}
+              beforeNavigate={handleBeforeNavigate}
             />
           </aside>
         )}
 
         {/* Middle — Editor */}
-        <main className="ned-editor">
+        <main className="ned-editor" ref={editorSurfaceRef}>
           {isEntryMode ? (
             <div className="ned-empty-state">
               <div className="ned-empty-icon" style={{ color: accentMain }}>
@@ -2091,15 +2991,22 @@ export default function RichEditor({
                   <EchoesEditorBody
                     accent={accentMain}
                     initialData={echoesData}
+                    apiBase={apiBase}
+                    songId={currentPageId}
                     onDataChange={setEchoesData}
                     onDirty={() => setMetaDirty(true)}
+                    onValidationChange={setEchoesValidationIssues}
                   />
                 ) : isVisuals ? (
                   <VisualsEditorBody
                     accent={accentMain}
                     initialData={visualsData}
+                    apiBase={apiBase}
+                    galleryId={currentPageId}
+                    pageSlug={pageSlug}
                     onDataChange={setVisualsData}
                     onDirty={() => setMetaDirty(true)}
+                    onValidationChange={setVisualsValidationIssues}
                   />
                 ) : isStorageDialogue ? (
                   <>
@@ -2206,13 +3113,15 @@ export default function RichEditor({
                         initialData={conceptsData}
                         onDataChange={setConceptsData}
                         onDirty={setConceptsDirty}
+                        apiBase={apiBase}
+                        pageId={currentPageId}
                       />
                     )}
                     {isEchoesSubcat && (
                       <EchoesSubcatEditor
                         area={area}
                         apiBase={apiBase}
-                        pageId={`${area}/${pageSlug}`}
+                        pageId={currentPageId}
                         pageSlug={pageSlug}
                         accent={accentMain}
                         onDirty={() => setMetaDirty(true)}
@@ -2223,7 +3132,7 @@ export default function RichEditor({
                       <VisualsSubcatEditor
                         area={area}
                         apiBase={apiBase}
-                        pageId={`${area}/${pageSlug}`}
+                        pageId={currentPageId}
                         pageSlug={pageSlug}
                         accent={accentMain}
                         onDirty={() => setMetaDirty(true)}
@@ -2234,7 +3143,7 @@ export default function RichEditor({
                       <ZoneTabsEditor
                         area={area}
                         apiBase={apiBase}
-                        pageId={`${area}/${pageSlug}`}
+                        pageId={currentPageId}
                         accent={accentMain}
                         zoneTabs={zoneTabs}
                         onZoneTabsChange={(tabs) => {
@@ -2277,6 +3186,43 @@ export default function RichEditor({
               pageStatus={pageStatus}
               createdAt={createdAt}
               updatedAt={updatedAt}
+              gateFields={
+                gatePanelMode === 'none' ? undefined : (
+                  <GateConditionEditor
+                    value={gate}
+                    onChange={(next) => {
+                      setGate(next);
+                      setDirtyMetadata(true);
+                    }}
+                    // minimal：progress page / exempt from container 是
+                    // History tree 專屬欄位，媒體 zone 不顯示（不傳
+                    // callback 即收起 toggle）；既有 metadata 值原樣保留
+                    {...(gatePanelMode === 'full'
+                      ? {
+                          isProgressPage: progressPage,
+                          onProgressPageChange: (next: boolean) => {
+                            setProgressPage(next);
+                            progressPageTouchedRef.current = true;
+                            setDirtyMetadata(true);
+                          },
+                          isGateExempt: gateExempt,
+                          onGateExemptChange: (next: boolean) => {
+                            setGateExempt(next);
+                            gateExemptTouchedRef.current = true;
+                            setDirtyMetadata(true);
+                          },
+                          parentIsProgressContainer,
+                          // 誤設偵測只在 full 模式有意義——媒體 zone 沒有
+                          // 容器進度鏈
+                          pageId: currentPageId,
+                        }
+                      : {})}
+                    apiBase={apiBase}
+                    accent={accentMain}
+                    flagPrefix={gateFlagPrefix}
+                  />
+                )
+              }
               modeFields={
                 <>
                   {modeId === 'visuals.division' && (
@@ -2618,6 +3564,272 @@ export default function RichEditor({
             </div>
           );
         })()}
+
+      {/* 進度標記 bubble menu（Epic 2 掃描線） */}
+      {editor && selectedMarker && (
+        <div className="ned-audio-bubble ned-marker-bubble" key="marker-bubble">
+          {/* 標題直接把目前授予的旗標秀出來：bubble 一開始只寫「旗標標記」，
+              但下面的 picker 輸入框在收合狀態下未必看得出選了什麼 */}
+          <span
+            className="ned-audio-bubble-label"
+            title={selectedFlagName || undefined}
+          >
+            ⚑ {selectedFlagName ? '旗標標記' : '進度標記'}
+            {selectedFlagName && (
+              <>
+                <span className="ned-marker-bubble-flag">
+                  {selectedFlagName}
+                </span>
+                {flagLabelDraft.trim() && (
+                  <span className="ned-marker-bubble-flag-label">
+                    {flagLabelDraft.trim()}
+                  </span>
+                )}
+              </>
+            )}
+          </span>
+          <span className="ned-marker-field-label">授予</span>
+          <FlagPicker
+            value={parseFlagsAttr(markerDraft.grantsFlags)}
+            single
+            onChange={(next) =>
+              setMarkerDraft((d) => ({
+                ...d,
+                grantsFlags: serializeFlagsAttr(next),
+              }))
+            }
+            onSelectedLabel={(label) => setFlagLabelDraft(label ?? '')}
+            placeholder="搜尋或輸入旗標…"
+          />
+          {/* 標籤寫的是 uep_flags 註冊表那一份，不是節點屬性——旗標標籤是
+              全域的，同一個旗標被別的標記授予時看到的也是這一份。刻意不
+              同時寫回 data-label 當顯示快取，那會製造兩份會漂移的資料 */}
+          <span className="ned-marker-field-label">標籤</span>
+          <input
+            className="ned-marker-input"
+            type="text"
+            placeholder={selectedFlagName ? '給人看的短名稱' : '先選旗標'}
+            title="這個旗標在註冊表裡的標籤，套用時一併寫入"
+            disabled={!selectedFlagName}
+            value={flagLabelDraft}
+            onChange={(e) => setFlagLabelDraft(e.target.value)}
+          />
+          <button
+            className="ned-img-bubble-btn"
+            title="套用標記設定"
+            onClick={() => {
+              void (async () => {
+                const node = editor.state.doc.nodeAt(selectedMarker.pos);
+                if (node?.type.name !== 'progressMarker') {
+                  getToast().error('找不到這個標記，請重新選取。');
+                  return;
+                }
+                editor.view.dispatch(
+                  editor.state.tr.setNodeMarkup(selectedMarker.pos, undefined, {
+                    grantsFlags: parseFlagsAttr(markerDraft.grantsFlags),
+                    label: markerDraft.label.trim(),
+                  })
+                );
+                // 標籤沒寫進註冊表時 saveFlagLabel 自己已經報過錯，
+                // 這裡就不要再蓋一個「已套用」上去
+                if (!(await saveFlagLabel())) return;
+                getToast().success(
+                  selectedFlagName
+                    ? `已套用標記：${selectedFlagName}`
+                    : '已套用標記設定'
+                );
+              })();
+            }}
+          >
+            套用
+          </button>
+          <button
+            className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+            title="刪除標記"
+            onClick={() => {
+              void (async () => {
+                const node = editor.state.doc.nodeAt(selectedMarker.pos);
+                if (node?.type.name !== 'progressMarker') {
+                  setSelectedMarker(null);
+                  return;
+                }
+                // 標記刪掉等於這一頁不再授予該旗標，讀者端的解鎖鏈會跟著斷，
+                // 而刪除本身在正文裡沒有殘影可辨認——先問一次
+                const ok = await getDialog().confirm(
+                  selectedFlagName
+                    ? `確定刪除這個標記嗎？這一頁將不再授予旗標「${selectedFlagName}」。`
+                    : '確定刪除這個進度標記嗎？'
+                );
+                if (!ok) return;
+                editor
+                  .chain()
+                  .focus()
+                  .deleteRange({
+                    from: selectedMarker.pos,
+                    to: selectedMarker.pos + node.nodeSize,
+                  })
+                  .run();
+                setSelectedMarker(null);
+                getToast().success('已刪除標記');
+              })();
+            }}
+          >
+            刪除
+          </button>
+        </div>
+      )}
+
+      {/* Echo Spot bubble：已插入節點可重新綁曲或刪除。 */}
+      {editor && selectedEchoSpot && (
+        <div className="ned-audio-bubble ned-echo-spot-bubble">
+          <span className="ned-audio-bubble-label">
+            ♫ {selectedEchoSpot.title || selectedEchoSpot.songId}
+          </span>
+          <span className="ned-echo-spot-bubble__meta">
+            {selectedEchoSpot.storyKey
+              ? formatInterlinkKey('story', selectedEchoSpot.storyKey)
+              : selectedEchoSpot.entityKey
+                ? formatInterlinkKey('entity', selectedEchoSpot.entityKey)
+                : formatInterlinkKey(
+                    selectedEchoSpot.songType === 'story' ? 'story' : 'entity'
+                  )}
+          </span>
+          <button
+            type="button"
+            className="ned-img-bubble-btn"
+            onClick={() => setEchoSongPickerOpen(true)}
+          >
+            重新選曲
+          </button>
+          <button
+            type="button"
+            className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+            onClick={() => {
+              const node = editor.state.doc.nodeAt(selectedEchoSpot.pos);
+              if (node?.type.name === 'echoSpot') {
+                editor
+                  .chain()
+                  .focus()
+                  .deleteRange({
+                    from: selectedEchoSpot.pos,
+                    to: selectedEchoSpot.pos + node.nodeSize,
+                  })
+                  .run();
+              }
+              setSelectedEchoSpot(null);
+            }}
+          >
+            刪除
+          </button>
+        </div>
+      )}
+
+      {/* Visual Clue bubble：重選畫廊、跳到對應錨點、成對刪除。 */}
+      {editor && selectedVisualClue && (
+        <div className="ned-audio-bubble ned-echo-spot-bubble">
+          <span className="ned-audio-bubble-label">
+            ❏{' '}
+            {selectedVisualClue.edge === 'end'
+              ? '訖點'
+              : selectedVisualClue.edge === 'gate'
+                ? 'IMAGE GATE'
+                : 'GALLERY CLUE'}{' '}
+            ·{' '}
+            {selectedVisualClue.title ||
+              selectedVisualClue.targetKey ||
+              '未綁定'}
+          </span>
+          <span className="ned-echo-spot-bubble__meta">
+            {formatInterlinkKey(
+              selectedVisualClue.targetType,
+              selectedVisualClue.targetKey
+            )}
+            {selectedVisualClue.imageTitle &&
+              ` · ${selectedVisualClue.imageTitle}`}
+          </span>
+          <button
+            type="button"
+            className="ned-img-bubble-btn"
+            onClick={() => {
+              setVisualsPickerIntent(
+                selectedVisualClue.edge === 'gate'
+                  ? 'retarget-gate'
+                  : 'retarget'
+              );
+              setVisualsGalleryPickerOpen(true);
+            }}
+          >
+            {selectedVisualClue.edge === 'gate' ? '重選圖片' : '重選目標'}
+          </button>
+          {selectedVisualClue.edge !== 'gate' && (
+            <>
+              <button
+                type="button"
+                className="ned-img-bubble-btn"
+                onClick={() => {
+                  setVisualsPickerIntent('default-image');
+                  setVisualsGalleryPickerOpen(true);
+                }}
+              >
+                預設圖片
+              </button>
+              <button
+                type="button"
+                className="ned-img-bubble-btn"
+                onClick={() => {
+                  setVisualsPickerIntent('insert-gate');
+                  setVisualsGalleryPickerOpen(true);
+                }}
+              >
+                插入切圖 Gate
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="ned-img-bubble-btn"
+            onClick={jumpToVisualCluePartner}
+          >
+            對應錨點
+          </button>
+          <button
+            type="button"
+            className="ned-img-bubble-btn ned-img-bubble-btn--danger"
+            onClick={deleteVisualCluePair}
+          >
+            {selectedVisualClue.edge === 'gate' ? '刪除 Gate' : '成對刪除'}
+          </button>
+        </div>
+      )}
+
+      <EchoSongPicker
+        apiBase={apiBase}
+        open={echoSongPickerOpen}
+        onClose={() => setEchoSongPickerOpen(false)}
+        onSelect={applyEchoSongChoice}
+      />
+
+      <VisualsGalleryPicker
+        apiBase={apiBase}
+        open={visualsGalleryPickerOpen}
+        onClose={() => setVisualsGalleryPickerOpen(false)}
+        onSelect={applyVisualsGalleryChoice}
+        selectionMode={
+          visualsPickerIntent === 'insert-gallery' ||
+          visualsPickerIntent === 'retarget'
+            ? 'gallery'
+            : 'image'
+        }
+        // 預設圖片與切圖 Gate 只能在 clue 自己的畫廊裡挑圖——選完才用
+        // toast 擋下來的話，使用者已經翻遍整個清單了
+        lockedGalleryId={
+          visualsPickerIntent === 'insert-gate' ||
+          visualsPickerIntent === 'retarget-gate' ||
+          visualsPickerIntent === 'default-image'
+            ? selectedVisualClue?.galleryId || ''
+            : ''
+        }
+      />
 
       {/* 音訊選擇器 Modal */}
       {audioPickerOpen && (

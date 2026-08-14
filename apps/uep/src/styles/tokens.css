@@ -23,6 +23,12 @@
   --ink-soft: #5c5749;
   --ink-mute: #8a8474;
   --ink-title: #1f1b14;
+  /* 內文色。**在此之前這個 token 從未被定義過**，卻已經被 7 個元件
+     的 44 處引用——`var()` 解析失敗會讓整條 color 宣告失效，文字改用
+     繼承值。淺色主題下繼承來的顏色恰好接近預期，所以一直沒被發現；
+     深色主題下就變成深色字印在深色卡片上（入場儀式的身分卡描述）。
+     指向 --ink 而非寫死色值，深色主題的覆寫自動跟著生效。 */
+  --ink-body: var(--ink);
 
   /* ── Accents ── */
   --accent: var(--uep-gold);
@@ -45,10 +51,18 @@
   --storage-soft: #d5b618;
   --storage-tint: #f5f5f0;
 
-  /* ── Type ── */
+  /* ── Type ──
+     字型 stack 是逐字解析的：Georgia 沒有中文字符，所以拉丁字母吃 Georgia、
+     中文往後掉。Georgia 之後補上各平台實際裝得到的中文襯線，是因為
+     Noto Serif TC 有 2.2MB，慢速連線下要十幾秒才到——在那之前所有中文
+     都靠這條 fallback，它不是「異常時的退路」而是常態會看到的畫面。
+     不補的話會直接掉到 generic serif，Windows 上是新細明體。 */
   --font-display:
-    'Cormorant Garamond', 'Source Han Serif TC', 'Noto Serif TC', Georgia, serif;
-  --font-serif-tc: 'Noto Serif TC', 'Source Han Serif TC', Georgia, serif;
+    'Cormorant Garamond', 'Source Han Serif TC', 'Noto Serif TC', Georgia,
+    'Songti TC', 'Noto Serif CJK TC', serif;
+  --font-serif-tc:
+    'Noto Serif TC', 'Source Han Serif TC', Georgia, 'Songti TC',
+    'Noto Serif CJK TC', serif;
   --font-sans:
     'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI',
     sans-serif;
@@ -133,6 +147,9 @@ body {
   color: var(--uep-gold);
   font-weight: 600;
   letter-spacing: 0.01em;
+  /* 換行盡量落在句逗點（Ariel 2026-08-12 排版建議）。
+     Chromium 117+ 生效，其餘瀏覽器安全忽略 */
+  text-wrap: pretty;
 }
 [data-theme='dark'] .uep-voice {
   color: var(--uep-gold-soft);

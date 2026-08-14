@@ -1,18 +1,16 @@
 /**
  * 編輯器共用工具——統一 API 存取、asset 操作、dialog/toast helper
  */
+/* global RequestInit */
 
 import type { uepDialog as UepDialogType } from '../ui/UepDialog';
 import type { uepToast as UepToastType } from '../ui/UepToast';
 // Singleton fallback：island hydration 順序不保證，全域 manager 可能尚未掛載
 import { uepDialog as dialogSingleton } from '../ui/UepDialog';
 import { uepToast as toastSingleton } from '../ui/UepToast';
-
 // ── API Base ──────────────────────────────────────────────────
 
-export const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+export const API_BASE = '';
 
 // ── Dialog / Toast（跨 React island 安全取法）─────────────────
 
@@ -22,6 +20,27 @@ export function getDialog(): typeof UepDialogType {
 
 export function getToast(): typeof UepToastType {
   return (window as any).__uepToastManager ?? toastSingleton;
+}
+
+// ── Admin API 存取 ──────────────────────────────────────────
+
+/**
+ * 呼叫同源 SSR proxy 的 JSON API，認證由 proxy 從 httpOnly cookie 轉發。
+ * 網路錯誤收斂成 `{ ok: false, error }`，呼叫端不需要各自 try/catch。
+ */
+export async function apiFetch<T>(
+  url: string,
+  opts?: RequestInit
+): Promise<{ ok: boolean; data?: T; error?: string }> {
+  try {
+    const res = await fetch(url, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', ...(opts?.headers || {}) },
+    });
+    return (await res.json()) as { ok: boolean; data?: T; error?: string };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 
 // ── Asset URL 工具 ──────────────────────────────────────────
@@ -46,6 +65,53 @@ export function extractAssetKey(src: string): string | null {
   const idx = src.indexOf(marker);
   if (idx === -1) return null;
   return decodeURIComponent(src.slice(idx + marker.length));
+}
+
+// ── 存檔時的 metadata 合流 ──────────────────────────────────
+
+/**
+ * 決定 `progressPage`／`gateExempt` 存檔時要用誰的值。
+ *
+ * 這兩個欄位有兩個入口：編輯器 Inspector，以及 `/admin/settings` 進度總覽的
+ * 就地切換（metadata-only PATCH）。編輯器的 PUT 送整份 metadata，開頁當下的
+ * 快照直接送出去就會把總覽剛改的值靜默還原——使用者甚至不知道自己覆蓋了什麼。
+ *
+ * 規則：使用者在這個編輯器動過的欄位以編輯器為準（那是明確的意圖），沒動過
+ * 的一律讓伺服器贏。讀不到伺服器狀態（`latest` 為 null）時退回本地值，保持
+ * 舊行為——存檔不該因為多出來的那次查詢失敗而中斷。
+ */
+export function resolveProgressToggles(
+  latest: Record<string, unknown> | null,
+  local: { progressPage: boolean; gateExempt: boolean },
+  touched: { progressPage: boolean; gateExempt: boolean }
+): { progressPage: boolean; gateExempt: boolean } {
+  if (!latest) return { ...local };
+  return {
+    progressPage: touched.progressPage
+      ? local.progressPage
+      : latest.progressPage === true,
+    gateExempt: touched.gateExempt
+      ? local.gateExempt
+      : latest.gateExempt === true,
+  };
+}
+
+// ── 互聯 key 顯示 ──────────────────────────────────────────
+
+/**
+ * 互聯 key 的統一顯示文字：命名空間中文名 + key。
+ *
+ * Echo Spot 與 Visual Clue 引用的是同一套命名空間（entityKey／storyKey），
+ * bubble 上的字樣就該一致——各自寫死過「無 entityKey」和「插圖 xxx」，
+ * 讀者無從得知兩者其實在講同一件事。
+ */
+export function formatInterlinkKey(
+  keyType: 'entity' | 'story',
+  key?: string
+): string {
+  const trimmed = key?.trim();
+  if (!trimmed) return keyType === 'story' ? '無 storyKey' : '無 entityKey';
+  return `${keyType === 'story' ? '劇情點' : '實體'} ${trimmed}`;
 }
 
 // ── Asset CRUD ──────────────────────────────────────────────

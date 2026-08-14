@@ -21,12 +21,15 @@ export default defineConfig(async () => {
   return {
     plugins: [
       cloudflareTest({
-        wrangler: { configPath: './wrangler.toml' },
+        wrangler: { configPath: './wrangler.test.toml' },
         miniflare: {
           bindings: {
             JWT_SECRET: 'test-jwt-secret',
             ALLOWED_ORIGINS: 'http://localhost:4321',
             TEST_MIGRATIONS: JSON.stringify(migrations),
+            // T-10.5：啟用 test env 專屬路由（/api/test/reset）
+            // 所有 Worker 測試均在 test env 下執行，符合測試目的
+            ETERNITY_TEST_ENV: 'true',
           },
         },
       }),

@@ -1,0 +1,195 @@
+/* 入站儀式 — 初次進入的身分選擇（Epic 2 S5） */
+
+.uep-onboard {
+  position: fixed;
+  inset: 0;
+  z-index: 4000; /* Dialog(3000) 之上——儀式期間不允許其他互動 */
+  display: grid;
+  place-items: center;
+  /* safe-area 與 IntroOverlay 同一套：行動瀏覽器的工具列會吃掉可用高度，
+     固定 padding 會讓面板兩端被切在畫面外 */
+  padding: max(20px, env(safe-area-inset-top)) 20px
+    max(20px, env(safe-area-inset-bottom));
+}
+
+/* 儀式期間隱藏 Minimap 等浮島固定元素——
+   Minimap 的 z-index(300) 在有 transform 祖先的 stacking context 內
+   不一定能被遮罩壓過去，用 body class 直接 display:none 最徹底 */
+body.uep-onboarding-active .uep-minimap,
+body.uep-onboarding-active [data-uep-hide-on-onboard] {
+  display: none !important;
+}
+
+.uep-onboard__veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 6, 4, 0.88);
+  backdrop-filter: blur(6px);
+  animation: uep-onboard-veil 0.6s ease-out;
+}
+
+@keyframes uep-onboard-veil {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.uep-onboard__panel {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  padding: 44px 40px;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  text-align: center;
+  animation: uep-onboard-panel 0.5s ease-out 0.2s both;
+  /* 面板高過視窗時自己捲，不要溢出到畫面外。
+     父層是 position: fixed 且不捲動——沒有這段的話超出的部分完全不可及，
+     使用者往下滑只會被 iOS 判定成選字（文字反藍、頁面不動）。
+     窄視窗下兩張身分卡改單欄排列，高度加倍，必定觸發。 */
+  max-height: calc(
+    100dvh - max(40px, env(safe-area-inset-top) + env(safe-area-inset-bottom))
+  );
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@keyframes uep-onboard-panel {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-onboard__veil,
+  .uep-onboard__panel {
+    animation: none;
+  }
+}
+
+.uep-onboard__kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--uep-gold);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.uep-onboard__title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--ink-title);
+  margin: 16px 0 8px;
+}
+
+.uep-onboard__sub {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin: 0 0 28px;
+}
+
+.uep-onboard__cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 560px) {
+  .uep-onboard__cards {
+    grid-template-columns: 1fr;
+  }
+  .uep-onboard__panel {
+    padding: 32px 24px;
+  }
+}
+
+.uep-onboard__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 26px 20px;
+  background: var(--bg-soft);
+  border: 1px solid var(--hairline-strong);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    border-color 0.2s,
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+.uep-onboard__card:hover,
+.uep-onboard__card:focus-visible {
+  border-color: var(--uep-gold);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+  outline: none;
+}
+
+.uep-onboard__card-glyph {
+  font-size: 26px;
+  color: var(--uep-gold);
+}
+
+/* 兩張卡的標記同色。觀測者的標記原本預設是 --ink-mute、hover 才轉金，
+   於是兩張並排時看起來像「一個可選、一個未啟用」——但這是兩條對等的
+   路。觀測者的份量由底下那行金棕色的「包含大量劇透」承擔就夠了。 */
+
+.uep-onboard__card-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink-title);
+}
+
+.uep-onboard__card-desc {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-body);
+}
+
+.uep-onboard__card-note {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.uep-onboard__card--observer .uep-onboard__card-note {
+  color: #b8874a;
+}
+
+/* 已註冊者的登入捷徑（S7 驗收 #1）：卡片下方的低調文字連結 */
+.uep-onboard__login {
+  margin-top: 22px;
+  text-align: center;
+}
+
+.uep-onboard__login-link {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-mute);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--hairline-strong);
+  padding-bottom: 2px;
+  transition: color 0.18s var(--ease);
+}
+
+.uep-onboard__login-link:hover {
+  color: var(--uep-gold);
+  border-bottom-color: var(--uep-gold);
+}

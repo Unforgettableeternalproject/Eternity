@@ -8,6 +8,25 @@ export interface Env {
   API_TOKEN?: string;
   JWT_SECRET?: string;
   BOOTSTRAP_TOKEN?: string;
+  /** visitor-counter Worker base URL，供 /api/widget/discord-stats 拿文件站訪客數 */
+  VISITOR_API_URL?: string;
+  /** visitor-counter Worker service binding，避免 Worker-to-Worker fetch workers.dev 失敗 */
+  VISITOR_COUNTER?: Fetcher;
+  /**
+   * Test env 旗標（wrangler.toml [env.test.vars] 設定為 "true"）。
+   * prod worker 永遠不含此 var，用於啟用 /api/test/reset 等測試專屬端點。
+   */
+  ETERNITY_TEST_ENV?: string;
+  /**
+   * 本機開發旗標——只由 `wrangler dev --var ETERNITY_DEV:true`（見 package.json
+   * 的 dev script）注入，wrangler.toml 的頂層與 [env.test] 都不得設定。
+   *
+   * ⚠️ 認證的無 secret fallback 一律以「有沒有這個旗標」為準，不可改回以
+   * `ETERNITY_TEST_ENV` 判斷：正式 worker 同樣沒有 test 旗標，那樣寫等於
+   * 「正式環境缺 JWT_SECRET 就退回原始碼裡的公開字串」，安全邊界是 fail-open。
+   * 白名單放行、其餘 fail closed，才不會讓部署疏漏變成靜默的認證繞過。
+   */
+  ETERNITY_DEV?: string;
 }
 
 // ===== 內容區塊系統 =====
@@ -160,11 +179,53 @@ export interface ApiResponse<T = unknown> {
   ok: boolean;
   data?: T;
   error?: string;
+  /**
+   * 附帶的非資料欄位（目前只有進度同步用）。
+   * 放在 `data` 之外，尚未更新的客戶端照舊只讀 `data`、完全不受影響。
+   */
+  meta?: ProgressMeta;
+  /** key 撞名被擋（409）時的指路資訊（S10-1） */
+  conflict?: KeyConflictInfo;
+}
+
+/**
+ * 存檔被 key 唯一性把關擋下時的附帶資訊。
+ *
+ * `error` 已經是給人看的完整句子；這裡的結構化欄位供編輯器把游標帶到
+ * 出問題的欄位、或提供「開啟衝突頁」的連結。
+ */
+export interface KeyConflictInfo {
+  /** 出問題的欄位名（entityKey / storyKey） */
+  field: string;
+  /** 撞名的 key 值 */
+  key: string;
+  conflictingPageId: string;
+  conflictingPageTitle: string;
+}
+
+/** GET/PUT /api/uep/progress 的附帶欄位 */
+export interface ProgressMeta {
+  /**
+   * 伺服器發放的進度版本號（單調遞增）。
+   * 客戶端 PUT 時以 `X-Progress-Rev` 帶回做 compare-and-swap。
+   */
+  rev: number;
+  /**
+   * DB `observer_ever` 欄位的當前值——**canonical 事實**。
+   *
+   * 必須隨 GET 一起回傳：admin 清空 progress 時 blob 變 NULL 但
+   * `observer_ever` 保留，若客戶端只看 blob 就會把印記歸零，
+   * 使 `pristineOnly`（純潔者限定）內容對印記者誤判為可見而外洩劇透。
+   */
+  observerEver: boolean;
 }
 
 // ===== 認證 =====
 
 export type AdminRole = 'super_admin' | 'editor' | 'viewer';
+
+/** 讀者角色 — UEP 探索者帳號（Epic 2 S5），與 admin 角色互斥 */
+export type ReaderRole = 'reader';
 
 export interface AdminUserRow {
   id: number;
@@ -179,11 +240,58 @@ export interface AdminUserRow {
 
 export interface JwtPayload {
   sub: string;
-  role: AdminRole;
+  /**
+   * admin 角色或 'reader'（讀者帳號）。
+   * ⚠️ admin 保護路由（requireJwt）必須拒絕 'reader'——
+   * 兩種 token 共用 JWT_SECRET，僅靠 role 區分權限邊界。
+   */
+  role: AdminRole | ReaderRole;
   display_name: string;
   iat: number;
   exp: number;
   jti: string;
+}
+
+// ===== UEP 讀者帳號（Epic 2 S5） =====
+
+export interface UepUserRow {
+  id: number;
+  username: string;
+  password_hash: string;
+  email: string | null;
+  alias: string;
+  observer_ever: number;
+  progress: string | null;
+  /**
+   * admin 最後一次改寫 progress 的時刻（ISO）。
+   * 讀者端 PUT 的樂觀鎖依據——更早的快照一律拒收，避免使用者還開著的
+   * 分頁把寫入前的鏡像 debounce 回寫、悄悄復原 admin 的操作。
+   * NULL = 從未被 admin 動過。
+   *
+   * ⚠️ 欄位名是初版命名的遺留：它涵蓋 admin 的**所有** progress 寫入
+   * （清除、存入新內容、連帶重寫 blob 的 observerEver toggle），
+   * 不限於「重置」。
+   */
+  progress_reset_at: string | null;
+  /**
+   * 伺服器發放的進度版本號，每次寫入（讀者或 admin）+1。
+   * 讀者端 PUT 以 compare-and-swap 比對，不符即 409。見 migration 0021。
+   */
+  progress_rev: number;
+  is_active: number;
+  admin_note: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UepRegisterRequest {
+  username: string;
+  password: string;
+  /** 可選郵件信箱 */
+  email?: string;
+  /** 註冊 UI roll 出的代稱；未傳則由伺服器 roll。必須是詞庫合法組合 */
+  alias?: string;
 }
 
 export interface LoginRequest {

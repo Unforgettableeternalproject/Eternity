@@ -1,0 +1,460 @@
+/**
+ * UEP 讀者帳號 — 客戶端 session 管理（Epic 2 S5）
+ *
+ * 跨 island 共享模式沿用 progressStore：module singleton +
+ * `window.__uepReaderAuth` bridge + `uep:auth-change` CustomEvent。
+ *
+ * token 存 localStorage（讀者帳號只保護閱讀進度，敏感度低；
+ * admin 仍走 httpOnly cookie + SSR proxy，兩套完全分離）。
+ *
+ * 登入/註冊成功後自動把 progressStore 的 adapter 切成 ServerAdapter
+ * （伺服器優先合併——遠端有資料則覆蓋本地；遠端為空**只有在全新帳號**
+ * 時才上傳本地，見 `RemoteLoadResult`）。
+ */
+
+import { LocalStorageAdapter, normalizeState } from '../progress/adapters';
+import { getProgressManager } from '../progress/progressStore';
+import { ServerAdapter } from '../progress/serverAdapter';
+import type { ProgressState } from '../progress/types';
+import { getApiBase, isTestMode } from '../lib/apiBase';
+
+/** 未登入訪客的統一稱呼（與 Worker uep-alias.ts 對齊） */
+export const GUEST_ALIAS = '初入世界的朋友';
+
+/** 觀測者印記持有者的顯示前綴（與 Worker uep-alias.ts 對齊） */
+export const WITNESSED_PREFIX = '已見證的';
+
+/**
+ * localStorage key（含 schema 版本）。
+ *
+ * Test Mode 下加 `:test` 後綴做環境隔離——正式環境的讀者 token 因兩
+ * worker 共用 JWT_SECRET 會被 test worker 接受，若跨環境殘留會讓
+ * ServerAdapter 把另一環境的進度上傳進當前環境的帳號。
+ * mode 切換必伴隨 reload，module 載入時計算一次即可。
+ */
+export const READER_SESSION_KEY = isTestMode()
+  ? 'uep.reader.session.v1:test'
+  : 'uep.reader.session.v1';
+
+/**
+ * 訪客足跡快照的 localStorage key（2026-08-12 訪客獨立實體）。
+ *
+ * 訪客與帳號是兩個身分：**以既有帳號登入**時先把訪客的本地進度存進
+ * 這把 key，登出時原樣還原——帳號進度以帳號為主、不繼承訪客；
+ * **註冊新帳號**則相反：訪客進度被新帳號繼承（setAdapter 的 absent
+ * 分支上傳），快照清除，之後登出以全新訪客看待。
+ *
+ * 環境隔離比照 session key。
+ */
+export const GUEST_SNAPSHOT_KEY = isTestMode()
+  ? 'uep.reader.guest-progress.v1:test'
+  : 'uep.reader.guest-progress.v1';
+
+/** auth 狀態變更事件名稱 */
+export const AUTH_CHANGE_EVENT = 'uep:auth-change';
+
+const API_BASE = getApiBase();
+
+export interface ReaderSession {
+  token: string;
+  username: string;
+  alias: string;
+  observerEver: boolean;
+}
+
+export interface AuthResult {
+  ok: boolean;
+  error?: string;
+}
+
+type Listener = (session: ReaderSession | null) => void;
+
+declare global {
+  interface Window {
+    __uepReaderAuth?: typeof uepReaderAuth;
+  }
+}
+
+/* ── module-level 狀態 ── */
+let session: ReaderSession | null = loadSessionSync();
+let serverAdapter: ServerAdapter | null = null;
+const listeners: Listener[] = [];
+
+function loadSessionSync(): ReaderSession | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(READER_SESSION_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw) as Partial<ReaderSession>;
+    if (
+      typeof obj.token !== 'string' ||
+      typeof obj.username !== 'string' ||
+      typeof obj.alias !== 'string'
+    )
+      return null;
+    return {
+      token: obj.token,
+      username: obj.username,
+      alias: obj.alias,
+      observerEver: obj.observerEver === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistSession(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    if (session) {
+      window.localStorage.setItem(READER_SESSION_KEY, JSON.stringify(session));
+    } else {
+      window.localStorage.removeItem(READER_SESSION_KEY);
+    }
+  } catch {
+    // localStorage 不可用時靜默——auth 只影響同步，不阻斷閱讀
+  }
+}
+
+/** 登入前把訪客的本地進度存成快照（整份 JSON，失敗靜默——不阻斷登入） */
+function saveGuestSnapshot(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(
+      GUEST_SNAPSHOT_KEY,
+      JSON.stringify(getProgressManager().getState())
+    );
+  } catch {
+    // 寫不進去就當沒有快照，登出時退回歸零（原行為）
+  }
+}
+
+/** 取出並**消費**訪客快照（讀完即刪；毀損或缺失回 null） */
+function takeGuestSnapshot(): ProgressState | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(GUEST_SNAPSHOT_KEY);
+    window.localStorage.removeItem(GUEST_SNAPSHOT_KEY);
+    if (!raw) return null;
+    return normalizeState(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/** 清除訪客快照（註冊時：訪客身分已被新帳號繼承，不留還原點） */
+function clearGuestSnapshot(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.removeItem(GUEST_SNAPSHOT_KEY);
+  } catch {
+    // 靜默
+  }
+}
+
+function notify(): void {
+  listeners.forEach((fn) => fn(session));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<ReaderSession | null>(AUTH_CHANGE_EVENT, {
+        detail: session,
+      })
+    );
+  }
+}
+
+/** 建立 ServerAdapter 並切換 progressStore 的儲存層 */
+async function attachServerAdapter(): Promise<void> {
+  // 同 logout：舊 adapter 的殘留進度要在換掉它之前送完
+  await serverAdapter?.destroy();
+  serverAdapter = new ServerAdapter({
+    apiBase: API_BASE,
+    getToken: () => session?.token ?? null,
+    onAuthExpired: () => {
+      // token 過期：清 session、退回本地儲存（鏡像是新的，無縫）
+      void uepReaderAuth.logout(true);
+    },
+    onProgressConflict: () => {
+      /* PUT 撞版本（409）：伺服器上的進度在我們讀取之後被改寫過。
+         交給 hydrateConflict() 分辨兩種來歷並收斂（2026-08-12 取代
+         「一律 hydrateAuthoritative 覆蓋」——那會讓輸掉 CAS 的裝置被
+         另一台裝置的較少進度整包蓋掉，且把跨裝置同步誤報成管理者）：
+         - 遠端空 ＝ admin 重置 → 伺服器為準歸零、不推回
+         - 遠端非空 ＝ 並行寫入 → 全量聯集合併後重新上傳，不掉進度
+
+         toast 等收斂結果出來才發：來歷不同措辭不同，讀不到伺服器
+         （unavailable）則什麼都沒發生，不該打擾。 */
+      /* hydrate 完再 refresh：progress 的 observerEver 已由 meta 校正成
+         伺服器值，但顯示用的「已見證的」前綴讀的是 session。admin 若
+         **清除**了印記，session 仍是舊的 true，得靠 /auth/me 下修。
+         （反向的「印記剛落下」由下方 progress 訂閱即時升級，不需等這裡。） */
+      void getProgressManager()
+        .hydrateConflict()
+        .then((outcome) => {
+          if (outcome === 'unavailable') return;
+          void uepReaderAuth.refresh();
+          window.__uepToastManager?.info(
+            outcome === 'reset'
+              ? '閱讀進度已由管理者更新。'
+              : '已合併另一個裝置的閱讀進度。'
+          );
+        });
+    },
+    onRevMissing: () => {
+      /* 想上傳但手上沒有伺服器版本號（初次 GET 失敗過）。ServerAdapter
+         已經放棄這次上傳——沒有 rev 只能走時間戳弱鎖，那條路擋不住
+         admin 的寫入。這裡補一次權威 hydrate 取回 rev 並以伺服器為準
+         收斂，之後的 mutation 就能正常做 CAS。
+
+         刻意不 toast：對使用者而言什麼都沒發生（本地鏡像一路是新的），
+         這只是背景的同步重試，不是「管理者改了你的進度」。
+         hydrate 若也失敗，rev 維持 null，下一次 mutation 會再觸發一次。 */
+      void getProgressManager().hydrateAuthoritative();
+    },
+  });
+  await getProgressManager().setAdapter(serverAdapter);
+}
+
+/** 呼叫 auth API 的共用包裝 */
+async function postJson<T>(
+  path: string,
+  body: unknown
+): Promise<{ status: number; ok: boolean; data?: T; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const json = (await res.json()) as {
+      ok: boolean;
+      data?: T;
+      error?: string;
+    };
+    return {
+      status: res.status,
+      ok: json.ok,
+      data: json.data,
+      error: json.error,
+    };
+  } catch {
+    return { status: 0, ok: false, error: '無法連線至記錄服務' };
+  }
+}
+
+interface AuthResponseData {
+  token: string;
+  username: string;
+  alias: string;
+  observerEver: boolean;
+}
+
+function applyAuthData(data: AuthResponseData): void {
+  session = {
+    token: data.token,
+    username: data.username,
+    alias: data.alias,
+    observerEver: data.observerEver,
+  };
+  persistSession();
+  notify();
+}
+
+/* ── 公開 API ── */
+export const uepReaderAuth = {
+  /** 目前 session（null = 訪客） */
+  getSession(): ReaderSession | null {
+    return session;
+  },
+
+  /** 是否已登入 */
+  isLoggedIn(): boolean {
+    return session !== null;
+  },
+
+  /**
+   * 顯示用代稱：訪客 → 「初入世界的朋友」；
+   * 有觀測者印記的註冊者 → 「已見證的」+ 代稱。
+   */
+  displayAlias(): string {
+    if (!session) return GUEST_ALIAS;
+    return session.observerEver
+      ? `${WITNESSED_PREFIX}${session.alias}`
+      : session.alias;
+  },
+
+  /** 隨機 roll 一個代稱（註冊 UI 的重 roll 按鈕） */
+  async rollAlias(): Promise<string | null> {
+    try {
+      const res = await fetch(`${API_BASE}/api/uep/alias/roll`);
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: { alias: string };
+      };
+      return json.ok && json.data ? json.data.alias : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /** 註冊；成功後自動登入並切換 ServerAdapter */
+  async register(input: {
+    username: string;
+    password: string;
+    email?: string;
+    alias?: string;
+  }): Promise<AuthResult> {
+    const res = await postJson<AuthResponseData>(
+      '/api/uep/auth/register',
+      input
+    );
+    if (!res.ok || !res.data) {
+      return { ok: false, error: res.error || '註冊失敗' };
+    }
+    /* 訪客進度由新帳號繼承（setAdapter 的 absent 分支上傳），身分被
+       消費掉——不留還原點，之後登出以全新訪客看待 */
+    clearGuestSnapshot();
+    applyAuthData(res.data);
+    await attachServerAdapter();
+    return { ok: true };
+  },
+
+  /** 登入；成功後切換 ServerAdapter（伺服器優先合併） */
+  async login(username: string, password: string): Promise<AuthResult> {
+    const res = await postJson<AuthResponseData>('/api/uep/auth/login', {
+      username,
+      password,
+    });
+    if (!res.ok || !res.data) {
+      return { ok: false, error: res.error || '登入失敗' };
+    }
+    /* 既有帳號：進度以帳號為主、不繼承訪客——先把訪客足跡存成快照，
+       登出時原樣還原（此刻 session 必為 null，state 就是訪客的） */
+    saveGuestSnapshot();
+    applyAuthData(res.data);
+    await attachServerAdapter();
+    return { ok: true };
+  },
+
+  /**
+   * 登出：清 session、進度退回 LocalStorageAdapter 並**清空本機進度**。
+   *
+   * 本機進度為何要清：ServerAdapter 一路
+   * write-through 本地鏡像，登出後那份鏡像仍完整保有上一位登入者的
+   * flags／完成頁／便條／閱讀時數。共用瀏覽器的下一位訪客會直接繼承
+   * 別人的閱讀足跡——這是隱私缺口，優先於「同一人登出再登入很無縫」。
+   *
+   * ⚠️ **四個步驟的順序不可對調**，每一步都在擋一個具體事故：
+   * 1. `destroy()` 先跑——它會 flush 殘留進度，此時 token 仍有效，
+   *    這些資料屬於原帳號，本來就該上傳。**必須 await**：flush 走 promise
+   *    鏈，不等的話 PUT 醒來時第 2 步已經把 session 清掉，`getToken()` 回
+   *    null，殘留進度會被當成「已登出」丟棄。
+   * 2. 清 session。**必須在 reset 之前**：`flush()` 靠 `getToken()` 回 null
+   *    才放棄上傳，順序反過來會把重置後的空進度 PUT 上去，
+   *    **直接清空伺服器上的帳號進度**。
+   * 3. 換 LocalStorageAdapter，且 `hydrate: false`——下一步就要清掉帳號
+   *    足跡，讀回舊帳號鏡像只是白做工兼畫面閃爍。
+   *    （這步同時遞增 adapter 世代，讓仍在飛的舊 hydrate 結果作廢。）
+   * 4. 清掉帳號足跡，此時 persist 走的已是本地 adapter，安全。有訪客
+   *    快照（登入前存的）就整份還原——訪客與帳號是兩個身分，登出回到
+   *    登入前的訪客；沒有快照（註冊繼承、或登入前本來就乾淨）則
+   *    `reset({ keepObserverEver: false })` 歸零。**帳號的印記不可留在
+   *    裝置上**——快照裡的印記是訪客自己的、先於登入存在，不在此限；
+   *    reset 分支則必須清，詳見 `progressStore.reset()` 的註解。
+   *
+   * @param expired token 過期觸發時為 true（UI 可顯示不同訊息）
+   */
+  async logout(expired = false): Promise<void> {
+    const flushed = await serverAdapter?.destroy();
+    serverAdapter = null;
+    session = null;
+    persistSession();
+    const progress = getProgressManager();
+    await progress.setAdapter(new LocalStorageAdapter(), { hydrate: false });
+    const guestSnapshot = takeGuestSnapshot();
+    if (guestSnapshot) {
+      progress.restoreSnapshot(guestSnapshot);
+    } else {
+      progress.reset({ keepObserverEver: false });
+    }
+    notify();
+    if (typeof window !== 'undefined') {
+      if (expired) {
+        window.__uepToastManager?.info('記錄憑證已過期，請重新登入。');
+      }
+      /* 第 1 步的 flush 連試三次都沒送出去。第 4 步的 reset 已經把本地鏡像
+         清掉（隱私），這份進度不會再有任何補送機會——靜默吞掉的話，使用者
+         下次登入只會發現最後幾分鐘的閱讀莫名消失。 */
+      if (flushed === false) {
+        window.__uepToastManager?.warning(
+          '最後一段閱讀進度沒能同步到伺服器，下次登入可能會少一小段。'
+        );
+      }
+    }
+  },
+
+  /**
+   * 以既有 token 重新驗證並更新使用者資訊（頁面載入時呼叫）。
+   * token 失效時自動登出。
+   */
+  async refresh(): Promise<void> {
+    if (!session) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/uep/auth/me`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      });
+      if (res.status === 401) {
+        await this.logout(true);
+        return;
+      }
+      if (!res.ok) return; // 暫時性錯誤：維持現狀
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: { username: string; alias: string; observerEver: boolean };
+      };
+      if (json.ok && json.data) {
+        session = { ...session, ...json.data };
+        persistSession();
+        notify();
+      }
+    } catch {
+      // 離線：維持現狀
+    }
+  },
+
+  /** 訂閱 auth 狀態變更，回傳取消訂閱函式 */
+  subscribe(listener: Listener): () => void {
+    listeners.push(listener);
+    return () => {
+      const i = listeners.indexOf(listener);
+      if (i > -1) listeners.splice(i, 1);
+    };
+  },
+};
+
+/* ── window bridge（跨 React island 單例保證） ── */
+if (typeof window !== 'undefined' && !window.__uepReaderAuth) {
+  window.__uepReaderAuth = uepReaderAuth;
+  // 已有 session：頁面載入即接上 ServerAdapter + 背景驗證 token
+  if (session) {
+    void attachServerAdapter().then(() => uepReaderAuth.refresh());
+  }
+  // 印記即時同步：觀測者印記的事實來源在 progress store（切視角當下寫入），
+  // session 只是快照——這裡訂閱 store，印記一落下就同步進 session 並通知消費端，
+  // 「已見證的」前綴與識別證印記列不用等 refresh/重載。
+  getProgressManager().subscribe((state) => {
+    if (session && state.observerEver && !session.observerEver) {
+      session = { ...session, observerEver: true };
+      persistSession();
+      notify();
+    }
+  });
+}
+
+/** 取得全域單例（優先 window bridge，SSR fallback 為 module 實例） */
+export function getReaderAuth(): typeof uepReaderAuth {
+  if (typeof window !== 'undefined' && window.__uepReaderAuth) {
+    return window.__uepReaderAuth;
+  }
+  return uepReaderAuth;
+}

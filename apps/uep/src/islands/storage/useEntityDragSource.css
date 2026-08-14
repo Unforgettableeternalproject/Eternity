@@ -1,0 +1,139 @@
+/**
+ * entity → 便條島 拖曳視覺（S10-1 T-H2）
+ *
+ * 整層 pointer-events: none —— elementFromPoint 必須看穿它才判得到
+ * 底下的便條島（同 dragToPin 對拖曳中卡片的要求）。
+ *
+ * 調色自帶一份而非沿用 `--st-*`：那組變數定義在 `.uep-stoland` 上，
+ * ghost portal 到 body 後不在它的子樹裡，繼承不到。值取自便條紙本身
+ * （拖出來就是要變成一張便條），深色模式跟著島的暗紙一起壓暗。
+ */
+
+.uep-entity-drag {
+  --edg-slip: #fff1ba;
+  --edg-ink: #3a2f08;
+  --edg-line: 180 60 40;
+
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  pointer-events: none;
+}
+
+[data-theme='dark'] .uep-entity-drag {
+  --edg-slip: #4d4524;
+  --edg-ink: #e8dcae;
+  --edg-line: 255 155 122;
+}
+
+/* 拖曳來源內的圖片停用瀏覽器原生拖曳。
+   `<img>` 預設 `draggable=true`，按住一移動瀏覽器就接管成原生 DnD 並中斷
+   pointer 事件序列——結果是「卡片上有圖的那半拖不動，只有下方文字能拖」
+   （艾斯維爾 07/27 驗收回報）。Firefox 不認 `-webkit-user-drag`，所以
+   JSX 那邊另外補 `draggable={false}`，兩層一起才涵蓋所有瀏覽器。 */
+[data-entity-key] img,
+[data-uep-entity-active] img {
+  -webkit-user-drag: none;
+}
+
+/* 拖曳進行中全站停用文字選取（見 DRAG_BODY_CLASS 註解）——拖過一段文字
+   會把它整段反白，看起來像誤觸。正式環境的內容保護本來就會擋，但那是可被
+   關閉的獨立功能，拖曳手感不該依賴它。 */
+body.uep-entity-dragging {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 輸入元素還回選取權：拖曳期間便條島的 textarea 可能正開著編輯，
+   一併鎖住會讓使用者連游標都放不進去 */
+body.uep-entity-dragging input,
+body.uep-entity-dragging textarea,
+body.uep-entity-dragging [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.uep-entity-drag__link {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.uep-entity-drag__line {
+  stroke: rgb(var(--edg-line) / 0.55);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  transition: stroke 0.15s;
+}
+
+.uep-entity-drag__line.is-over {
+  stroke: rgb(var(--edg-line) / 0.95);
+  stroke-dasharray: none;
+  stroke-width: 2;
+}
+
+.uep-entity-drag__origin {
+  fill: rgb(var(--edg-line) / 0.75);
+}
+
+/* 跟著指標走的定位層（inline transform 只寫平移，見元件註解） */
+.uep-entity-drag__ghost-anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.uep-entity-drag__ghost {
+  /* 名牌以指標為中心——掛在右下角時使用者要瞄的落點與看到的牌面差了
+     一整個牌寬，判斷「有沒有進島」很不直覺 */
+  transform: translate(-50%, -50%);
+  max-width: 220px;
+  padding: 5px 10px;
+  background: var(--edg-slip);
+  border: 1px solid rgb(var(--edg-line) / 0.5);
+  border-radius: 2px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.22);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--edg-ink);
+  /* CJK 長名不留白斷行（S9 便條同款處理） */
+  overflow-wrap: anywhere;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.uep-entity-drag__ghost.is-over {
+  border-color: rgb(var(--edg-line) / 1);
+  box-shadow: 0 0 0 2px rgb(var(--edg-line) / 0.28);
+}
+
+/* ── 退場（在島外放開 / 拖曳被取消）──
+   沒落地時憑空消失會讓人不確定剛才那一下有沒有被吃掉。名牌就地縮一圈
+   淡掉、連線一起淡出，交代「這一拖沒有結果」。
+   ⚠️ 移除時機由 JS 計時器決定（GHOST_LEAVE_MS），不靠 transitionend——
+   reduced-motion 下 transition 為 0，事件不一定發得出來。 */
+.uep-entity-drag__ghost.is-leaving {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.88);
+  transition:
+    opacity 0.18s ease-out,
+    transform 0.18s ease-out;
+}
+
+.uep-entity-drag__link.is-leaving {
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-entity-drag__line,
+  .uep-entity-drag__ghost,
+  .uep-entity-drag__link.is-leaving,
+  .uep-entity-drag__ghost.is-leaving {
+    transition: none;
+  }
+}

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+/* global AbortController */
 import React, {
   useCallback,
   useEffect,
@@ -6,13 +7,25 @@ import React, {
   useRef,
   useState,
 } from 'react';
+
 import { ZONES } from '../../data/zones';
-import { ReaderShell } from '../zone/ReaderShell';
-import UepDialogue from '../ui/UepDialogue';
-import renderHtmlWithUep from '../ui/renderHtmlWithUep';
-import ZoneAtmosphere from '../ui/ZoneAtmosphere';
-import VisualsPhantom from './VisualsPhantom';
-import type { PhantomVariant } from './VisualsPhantom';
+import {
+  canMirrorGallery,
+  completeUnlockRitual,
+  getIslandRuntime,
+  pushPhantomGallery,
+  shouldMountIsland,
+  triggerStoryRelated,
+  useDesktopIslandViewport,
+  useEntityDragSource,
+  useUnlockEligibility,
+} from '../../islands';
+import { getApiBase } from '../../lib/apiBase';
+import { canonicalizePagePath } from '../../lib/pagePath';
+import { useProgress, buildProgressTreeAdapter } from '../../progress';
+import { resolveGalleryImages } from '../../visuals';
+import type { ResolvedGalleryImage } from '../../visuals';
+import type { ImageItem, VisualsData } from '../editor/VisualsEditorBody';
 import type {
   HomepageBlock,
   ZoneHeaderData,
@@ -20,15 +33,27 @@ import type {
   CrossRoad,
 } from '../editor/homepage/types';
 import { fromContentBlock } from '../editor/homepage/types';
-import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
-import type { ImageItem, VisualsData } from '../editor/VisualsEditorBody';
-import SpriteViewer from './SpriteViewer';
+import UepDialogue from '../ui/UepDialogue';
+import ZoneAtmosphere from '../ui/ZoneAtmosphere';
+import renderHtmlWithUep from '../ui/renderHtmlWithUep';
+import { ReaderShell } from '../zone/ReaderShell';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
-import { useScrollMemory } from '../zone/useScrollMemory';
-import { useZoneBootReady } from '../zone/useZoneBootReady';
+import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import VisualsPhantomCard from './VisualsPhantomCard';
+import { shouldRevealPhantomCard } from './phantomCardRoll';
+import type { GroupSlot } from './phantomCardRoll';
+import { isHidden, isLocked } from '../zone/contentVisibility';
+import { useScrollMemory } from '../zone/useScrollMemory';
+import ZoneBootArt from '../zone/ZoneBootArt';
+import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
-import { isHidden, isLocked, getSpoilerLevel } from '../zone/contentVisibility';
+import { activateEntityKey } from '../../embed';
+
+import SpriteViewer from './SpriteViewer';
+import VisualsPhantom, { resolvePhantomVariant } from './VisualsPhantom';
+import { isGalleryUnlockedInZone } from './visualsVisibility';
+
 import './VisualsReader.css';
 
 // ──────────────────────────────────────────────────────────────
@@ -72,9 +97,7 @@ interface Page {
 // ──────────────────────────────────────────────────────────────
 // 常數
 // ──────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 const VISUALS_ZONE = ZONES.find((z) => z.id === 'visuals')!;
 const ACCENT = '#5E548E';
@@ -162,6 +185,31 @@ function findNodeById(tree: PageTreeNode[], id: string): PageTreeNode | null {
   return null;
 }
 
+/**
+ * 把 subcat 底下的 gallery 依 `metadata.group` 分桶。
+ *
+ * 抽成檔案層級函式是為了讓元件頂層也算得到「這個 subcat 有幾個分組」——
+ * S9-B 的解鎖儀式只在**兩個以上分組**的區塊觸發，而那個判定要在 effect 裡
+ * 用，不能只活在 renderSubcat 的區域變數裡。
+ */
+function buildGalleryGroups(subcatNode: PageTreeNode): {
+  galleries: PageTreeNode[];
+  groupMap: Map<string, PageTreeNode[]>;
+  groupList: string[];
+} {
+  const galleries = (subcatNode.children || [])
+    .filter((c) => c.pageType === 'gallery' && !isHidden(c))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const groupMap = new Map<string, PageTreeNode[]>();
+  for (const g of galleries) {
+    const group = (g.metadata?.group as string) || '全部';
+    if (!groupMap.has(group)) groupMap.set(group, []);
+    groupMap.get(group)!.push(g);
+  }
+  return { galleries, groupMap, groupList: [...groupMap.keys()] };
+}
+
 function findParentDivision(
   tree: PageTreeNode[],
   nodeId: string
@@ -210,20 +258,25 @@ function findFirstThumb(node: PageTreeNode): string | null {
   return null;
 }
 
-function spoilerFilter(level: number): string {
-  if (level === 1) return 'blur(8px)';
-  if (level === 2)
-    return 'blur(14px) grayscale(1) contrast(0.3) brightness(0.5)';
-  if (level === 3) return 'blur(24px) saturate(0) brightness(0.12)';
-  return 'none';
+// ── 三態解鎖（S8 下半場 V-B.19；求值搬入 visuals/ 模組與浮島共用）──
+
+/** 圖片 + 已求值的顯示狀態（renderer 與 lightbox 共用單位） */
+type GalleryImageView = ResolvedGalleryImage<ImageItem>;
+
+/** A 鎖定佔位格——不載入實際圖片（劇透保護），格子存在讓總張數可見 */
+function LockedImageCell({ label }: { label?: string }) {
+  return (
+    <div className="visuals-img-locked-cell" aria-label="尚未解鎖的圖片">
+      <span className="visuals-img-locked-icon">⛉</span>
+      <span className="visuals-img-locked-text">{label || 'LOCKED'}</span>
+    </div>
+  );
 }
 
 // ──────────────────────────────────────────────────────────────
 // Visuals Monologue Player — 獨白播放器（獨立元件，不依賴 AudioProvider）
 // ──────────────────────────────────────────────────────────────
-const VMONO_API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const VMONO_API_BASE = getApiBase();
 
 function VisualsMonoPlayer({
   audioKey,
@@ -275,7 +328,6 @@ function VisualsMonoPlayer({
       a.pause();
       a.src = '';
     };
-    // eslint-disable-next-line
   }, [audioUrl]);
 
   const updateProgress = useCallback(() => {
@@ -410,6 +462,7 @@ function VisualsReaderInner() {
   const [activeGalleryId, setActiveGalleryId] = useState<string | null>(null);
   const [activeGroupIdx, setActiveGroupIdx] = useState(0);
   const [galleryPage, setGalleryPage] = useState<Page | null>(null);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
   const [divisionPage, setDivisionPage] = useState<Page | null>(null);
   const [subcatPage, setSubcatPage] = useState<Page | null>(null);
 
@@ -417,6 +470,75 @@ function VisualsReaderInner() {
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [treeError, setTreeError] = useState<string | null>(null);
+
+  // 進度 + tree-aware gating 求值器（S8 下半場 V-A.14：Visuals 接入
+  // 進度系統，一開始就走 effectiveGate——progressPage 鏈 + 父容器繼承）
+  const progress = useProgress();
+  // resize／裝置旋轉即時重渲染——映照按鈕守門同 IslandHost（S8 手動
+  // 驗收 #9 追加修復：shouldMountIsland 內部的桌面寬度判定只在渲染
+  // 當下同步讀值，viewport 變化不會自己觸發重渲染）
+  const desktopViewport = useDesktopIslandViewport();
+  const progressTree = useMemo(() => buildProgressTreeAdapter(tree), [tree]);
+
+  // ── 解鎖儀式「不在目錄中的畫廊」（S9-B）──
+  const visualsUnlock = useUnlockEligibility('visuals');
+  /** 中獎的位置。null = 尚未中；不持久化，離開 subcat 或重整就沒了。 */
+  const [phantomSlot, setPhantomSlot] = useState<GroupSlot | null>(null);
+  /** 上一次停留的位置——用來分辨「切換標籤」與「換區塊／剛進來」 */
+  const lastGroupSlotRef = useRef<GroupSlot | null>(null);
+  /** 中獎狀態的鏡像：擲骰 effect 要讀它，但不能讓它進 deps（見下） */
+  const phantomSlotRef = useRef<GroupSlot | null>(null);
+
+  // 失去資格就把已浮現的假卡收掉（Codex 2026-07-25 review）。
+  // 假卡一旦浮現就留在網格裡，中間登出／切成觀測者／視窗縮到手機寬度都不會
+  // 讓它消失——resize 不 unmount Reader，那張過期的卡仍然直接可點。
+  useEffect(() => {
+    if (!visualsUnlock.eligible) {
+      phantomSlotRef.current = null;
+      setPhantomSlot(null);
+    }
+  }, [visualsUnlock.eligible]);
+
+  /**
+   * 位置變化時擲骰（規則見 phantomCardRoll.shouldRevealPhantomCard）。
+   *
+   * ⚠️ 換區塊的重置與擲骰**必須在同一個 effect**、且 `phantomSlot` 不可進
+   * deps：拆成兩個 effect 時，重置的 setState 會讓擲骰 effect 再跑一輪，
+   * 而那時 `lastGroupSlotRef` 已更新成新位置 → 判定成「原地沒動」而不擲。
+   * 結果是「從中過獎的區塊換到新區塊」永遠擲不到骰。
+   */
+  useEffect(() => {
+    const prev = lastGroupSlotRef.current;
+    const current: GroupSlot | null = activeSubcatId
+      ? { subcatId: activeSubcatId, groupIdx: activeGroupIdx }
+      : null;
+    lastGroupSlotRef.current = current;
+
+    // 中獎位置不跨區塊，也不持久化
+    const changedSubcat = prev?.subcatId !== current?.subcatId;
+    if (changedSubcat && phantomSlotRef.current !== null) {
+      phantomSlotRef.current = null;
+      setPhantomSlot(null);
+    }
+
+    if (
+      shouldRevealPhantomCard({
+        prev,
+        current,
+        eligible: visualsUnlock.eligible,
+        alreadyWon: phantomSlotRef.current !== null,
+      })
+    ) {
+      phantomSlotRef.current = current;
+      setPhantomSlot(current);
+    }
+  }, [activeSubcatId, activeGroupIdx, visualsUnlock.eligible]);
+
+  const handlePhantomCardOpen = useCallback(() => {
+    phantomSlotRef.current = null;
+    setPhantomSlot(null);
+    completeUnlockRitual('visuals');
+  }, []);
 
   // Homepage blocks
   const [homepageBlocks, setHomepageBlocks] = useState<HomepageBlock[]>([]);
@@ -426,18 +548,9 @@ function VisualsReaderInner() {
     setNavPending: setBootNavPending,
   } = useZoneBootReady();
 
-  // Spoiler
-  const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
-  const [spoilerWarning, setSpoilerWarning] = useState<{
-    id: string;
-    level: number;
-    gate: string;
-    onConfirm: () => void;
-  } | null>(null);
-
-  // Lightbox
+  // Lightbox（三態感知：A 不進 lightbox、B 放大仍遮罩）
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-  const [lightboxImages, setLightboxImages] = useState<ImageItem[]>([]);
+  const [lightboxItems, setLightboxItems] = useState<GalleryImageView[]>([]);
   const [lbZoom, setLbZoom] = useState(1);
   const [lbPan, setLbPan] = useState({ x: 0, y: 0 });
   const [lbClosing, setLbClosing] = useState(false);
@@ -459,6 +572,61 @@ function VisualsReaderInner() {
       activeSubcatId,
       activeGalleryId,
     ]);
+
+  // 畫廊卡拖進展開的便條島 → 建立一張寫著該 entity 正名的便條
+  const entityDrag = useEntityDragSource();
+
+  /*
+   * 停在某張**插圖**（鑲框室，綁 storyKey）時，讓 History 島浮出
+   * 「這個劇情點相關的段落」。
+   *
+   * ⚠️ 陳列走廊的 entityKey 這條路已經拆掉（艾斯維爾 2026-07-27）：
+   * 一個 entity 可能在 History 出現數十次，列出「所有提到他的段落」對讀者
+   * 沒有意義——能映照段落的只有劇情點。entity 的去向改成 Concepts 條目
+   * 按鈕 → Echoes／Visuals，見 interlinkTrigger。
+   */
+  useEffect(() => {
+    if (!activeGalleryId) return;
+    const node = findNodeById(tree, activeGalleryId);
+    if (!node) return;
+    const metadata = (node.metadata ?? {}) as Record<string, unknown>;
+    const storyKey =
+      typeof metadata.storyKey === 'string' ? metadata.storyKey.trim() : '';
+    if (!storyKey) return;
+
+    const controller = new AbortController();
+    void triggerStoryRelated({
+      apiBase: API_BASE,
+      sourceZone: 'visuals',
+      storyKey,
+      label: node.title,
+      signal: controller.signal,
+    });
+    return () => controller.abort();
+  }, [activeGalleryId, tree]);
+
+  /*
+   * 停在**陳列走廊的畫廊**（綁 entityKey）時，讓其他 zone 的浮島浮出這個
+   * entity 的相關內容（對應的歌、Concepts 條目）。
+   *
+   * 走 `uep:entity-activate`——與 History 文內點互動式嵌入完全同一個事件，
+   * IslandHost 的三島分派全部沿用（見 EchoesReader 同段註解）。
+   * `sourceZone: 'visuals'` 讓 Visuals 島跳過自己。
+   */
+  useEffect(() => {
+    if (!activeGalleryId) return;
+    const node = findNodeById(tree, activeGalleryId);
+    if (!node) return;
+    const metadata = (node.metadata ?? {}) as Record<string, unknown>;
+    const entityKey =
+      typeof metadata.entityKey === 'string' ? metadata.entityKey.trim() : '';
+    if (!entityKey) return;
+    activateEntityKey({
+      entityKey,
+      text: node.title,
+      sourceZone: 'visuals',
+    });
+  }, [activeGalleryId, tree]);
 
   // === Fetch tree ===
   const fetchTree = useCallback(async () => {
@@ -516,18 +684,18 @@ function VisualsReaderInner() {
         param: 'page',
         handler: (value) => {
           // 統一用 slug（不帶 area prefix），向後相容帶 prefix 的舊連結
-          const fullId = value.startsWith('visuals/')
-            ? value
-            : `visuals/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('visuals/') ? value : ['visuals', value].join('/')
+          );
           navigateToGallery(fullId, false);
         },
       },
       {
         param: 'subcat',
         handler: (value) => {
-          const fullId = value.startsWith('visuals/')
-            ? value
-            : `visuals/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('visuals/') ? value : ['visuals', value].join('/')
+          );
           const group = new URLSearchParams(window.location.search).get(
             'group'
           );
@@ -537,9 +705,9 @@ function VisualsReaderInner() {
       {
         param: 'division',
         handler: (value) => {
-          const fullId = value.startsWith('visuals/')
-            ? value
-            : `visuals/${value}`;
+          const fullId = canonicalizePagePath(
+            value.startsWith('visuals/') ? value : ['visuals', value].join('/')
+          );
           navigateToDivision(fullId, false);
         },
       },
@@ -582,17 +750,20 @@ function VisualsReaderInner() {
 
   async function navigateToDivision(divId: string, push = true) {
     saveScroll();
+    // 深連結／popstate 會傳完整路徑（visuals/profiles），統一正規化為裸分館 id，
+    // 讓 activeDivision 查找、scroll key 與 Phantom variant 都拿到一致的值
+    const defId = divId.replace(/^visuals\//, '');
     setView('division');
-    setActiveDivisionId(divId);
+    setActiveDivisionId(defId);
     setActiveSubcatId(null);
     setActiveGalleryId(null);
     setGalleryPage(null);
     setDivisionPage(null);
     setSubcatPage(null);
-    restoreScroll(`division:${divId}`);
-    if (push) pushUrl({ division: divId.replace(/^visuals\//, '') });
+    restoreScroll(`division:${defId}`);
+    if (push) pushUrl({ division: defId });
     // 載入 division 頁面內容
-    const divNode = findDivisionNode(tree, divId);
+    const divNode = findDivisionNode(tree, defId);
     if (divNode) {
       try {
         const slug = divNode.id.replace('visuals/', '');
@@ -644,57 +815,72 @@ function VisualsReaderInner() {
     setBootNavPending(false);
   }
 
+  /** gallery fetch 請求序號——快速切換時只有最新請求可落地 */
+  const galleryFetchSeq = useRef(0);
+
   async function navigateToGallery(pageId: string, push = true) {
     saveScroll();
     setView('gallery');
     setActiveGalleryId(pageId);
     setCorridorIdx(0);
+    // 先清上一頁資料——避免以新 gallery 的閘搭配舊 gallery 的內容渲染
+    setGalleryPage(null);
+    setGalleryError(null);
     const divDef = findParentDivision(tree, pageId);
     if (divDef) setActiveDivisionId(divDef.id);
     restoreScroll(`gallery:${pageId}`);
     if (push) pushUrl({ page: pageId.replace(/^visuals\//, '') });
+    // hidden 完全不對前台公開（contentVisibility 契約）：不 fetch 內容，
+    // renderGallery 依 tree node 呈「不存在」
+    const node = findNodeById(tree, pageId);
+    if (node && isHidden(node)) {
+      setBootNavPending(false);
+      return;
+    }
     // Fetch page
+    const seq = ++galleryFetchSeq.current;
     try {
       const slug = pageId.replace('visuals/', '');
       const res = await fetch(`${API_BASE}/api/content/visuals/${slug}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.ok) setGalleryPage(json.data);
+      if (seq !== galleryFetchSeq.current) return;
+      if (!res.ok) {
+        setGalleryError(`伺服器回應異常 (${res.status})`);
+        return;
       }
-    } catch {
-      /* ignore */
+      const json = await res.json();
+      if (seq !== galleryFetchSeq.current) return;
+      if (json.ok) setGalleryPage(json.data);
+      else setGalleryError('畫廊資料載入失敗');
+    } catch (err) {
+      if (seq === galleryFetchSeq.current) {
+        setGalleryError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setBootNavPending(false);
     }
   }
 
-  // === Spoiler unlock ===
-  function requestUnlock(
-    id: string,
-    level: number,
-    gate: string,
-    onConfirm: () => void
-  ) {
-    setSpoilerWarning({ id, level, gate, onConfirm });
-  }
-
-  function confirmUnlock() {
-    if (!spoilerWarning) return;
-    setUnlocked((prev) => new Set(prev).add(spoilerWarning.id));
-    spoilerWarning.onConfirm();
-    setSpoilerWarning(null);
-  }
-
-  function isUnlocked(id: string): boolean {
-    return unlocked.has(id);
-  }
-
   // === Lightbox ===
-  function openLightbox(images: ImageItem[], idx: number) {
-    setLightboxImages(images);
-    setLightboxIdx(idx);
+  /**
+   * 開啟 lightbox：A 鎖定圖不可放大（點擊直接無效），
+   * 且不進入導航序列（prev/next 不會落在鎖定圖上）。
+   */
+  function openLightbox(items: GalleryImageView[], clickedIdx: number) {
+    const target = items[clickedIdx];
+    if (!target || target.state === 'locked') return;
+    const viewable = items.filter((it) => it.state !== 'locked');
+    setLightboxItems(viewable);
+    setLightboxIdx(viewable.indexOf(target));
     setLbZoom(1);
     setLbPan({ x: 0, y: 0 });
+  }
+
+  /** 無三態情境（精靈圖 gallery）沿用原始序列 */
+  function openLightboxPlain(images: ImageItem[], idx: number) {
+    openLightbox(
+      images.map((img) => ({ img, state: 'unlocked' as const })),
+      idx
+    );
   }
 
   function closeLightbox() {
@@ -703,7 +889,7 @@ function VisualsReaderInner() {
     setLbClosing(true);
     setTimeout(() => {
       setLightboxIdx(null);
-      setLightboxImages([]);
+      setLightboxItems([]);
       setLbClosing(false);
       lbClosingRef.current = false;
     }, 250);
@@ -718,7 +904,7 @@ function VisualsReaderInner() {
         setLbZoom(1);
         setLbPan({ x: 0, y: 0 });
       }
-      if (e.key === 'ArrowRight' && lightboxIdx < lightboxImages.length - 1) {
+      if (e.key === 'ArrowRight' && lightboxIdx < lightboxItems.length - 1) {
         setLightboxIdx(lightboxIdx + 1);
         setLbZoom(1);
         setLbPan({ x: 0, y: 0 });
@@ -726,7 +912,7 @@ function VisualsReaderInner() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [lightboxIdx, lightboxImages.length]);
+  }, [lightboxIdx, lightboxItems.length]);
 
   // === 十字路口道路 SVG ===
   function renderCrossroadSvg() {
@@ -993,6 +1179,12 @@ function VisualsReaderInner() {
                           data-area={road.area}
                           onClick={() => divId && navigateToDivision(divId)}
                           onMouseEnter={() => setCrossroadHover(road.area)}
+                          /* 卡片自己也要收——外層的 onMouseLeave 只在指標
+                             離開整個十字路口時才觸發，從卡片移到中央羅盤
+                             那一帶仍在容器內，引導線會一直亮著 */
+                          onMouseLeave={() => setCrossroadHover(null)}
+                          onFocus={() => setCrossroadHover(road.area)}
+                          onBlur={() => setCrossroadHover(null)}
                         >
                           <span className="visuals-crossroad-dir">
                             {road.dir}
@@ -1042,103 +1234,14 @@ function VisualsReaderInner() {
       );
     }
 
-    // Fallback：靜態十字路口
+    // homepage 區塊載入中（資料就緒後由上方資料驅動分支接手）
     return (
       <div className="visuals-landing-page">
-        <div className="visuals-landing-kicker">Volume III · VISUALS</div>
-        <h1 className="visuals-landing-title">幻影重現室</h1>
-        <div className="visuals-landing-subtitle">
-          畫作、插圖、視覺作品。半透明的人物像在水面盪漾。
-        </div>
-
-        <div className="visuals-landing-uep">
-          {VISUALS_ZONE.uep.map((text, i) => (
-            <UepDialogue
-              key={i}
-              side="left"
-              effects={i === 0 ? ['shimmer', 'halo'] : []}
-              text={text}
-            />
-          ))}
-        </div>
-
-        <div
-          className="visuals-crossroad"
-          data-hover={crossroadHover || undefined}
-          onMouseLeave={() => setCrossroadHover(null)}
-        >
-          {renderCrossroadSvg()}
-          <div className="visuals-crossroad-center">
-            <svg width={110} height={110} viewBox="0 0 110 110">
-              <circle
-                cx={55}
-                cy={55}
-                r={48}
-                fill="none"
-                stroke={ACCENT}
-                strokeOpacity={0.3}
-                strokeWidth={1}
-              />
-              <circle
-                cx={55}
-                cy={55}
-                r={36}
-                fill="none"
-                stroke={ACCENT}
-                strokeOpacity={0.15}
-                strokeWidth={0.5}
-                strokeDasharray="3 4"
-              />
-              <line
-                x1={55}
-                y1={7}
-                x2={55}
-                y2={103}
-                stroke={ACCENT}
-                strokeOpacity={0.4}
-                strokeWidth={0.5}
-              />
-              <line
-                x1={7}
-                y1={55}
-                x2={103}
-                y2={55}
-                stroke={ACCENT}
-                strokeOpacity={0.4}
-                strokeWidth={0.5}
-              />
-              <text
-                x={55}
-                y={59}
-                textAnchor="middle"
-                fill={ACCENT}
-                fontSize={18}
-                fontFamily="var(--font-display)"
-              >
-                ✦
-              </text>
-            </svg>
-          </div>
-          {DIVISIONS.map((div, i) => {
-            const areas = ['fwd', 'lft', 'rgt', 'bck'] as const;
-            const dirs = ['前方', '左方', '右方', '後方'];
-            return (
-              <button
-                key={div.id}
-                className="visuals-crossroad-card"
-                data-area={areas[i]}
-                onClick={() => navigateToDivision(div.id)}
-                onMouseEnter={() => setCrossroadHover(areas[i])}
-              >
-                <span className="visuals-crossroad-dir">{dirs[i]}</span>
-                <span className="visuals-crossroad-name">{div.label}</span>
-                <span className="visuals-crossroad-hint">
-                  {div.intro.slice(0, 30)}...
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <ZoneStateDisplay
+          kind="loading"
+          message="正在讀取幻影重現室..."
+          large
+        />
       </div>
     );
   }
@@ -1233,7 +1336,7 @@ function VisualsReaderInner() {
             <div className="visuals-div-corridor-axis" />
             {subcats.map((sc, i) => {
               const count = countGalleries(sc);
-              const locked = isLocked(sc);
+              const locked = isLocked(sc, progress, sc.id, progressTree);
               const side = i % 2 === 0 ? 'left' : 'right';
               return (
                 <div
@@ -1270,7 +1373,7 @@ function VisualsReaderInner() {
           <div className="visuals-div-museum">
             {subcats.map((sc) => {
               const count = countGalleries(sc);
-              const locked = isLocked(sc);
+              const locked = isLocked(sc, progress, sc.id, progressTree);
               return (
                 <button
                   key={sc.id}
@@ -1304,7 +1407,7 @@ function VisualsReaderInner() {
           <div className="visuals-div-pinboard">
             {subcats.map((sc, i) => {
               const count = countGalleries(sc);
-              const locked = isLocked(sc);
+              const locked = isLocked(sc, progress, sc.id, progressTree);
               // 用 sin/cos 產生自然的隨機傾斜與偏移（同 gallery pinboard）
               const rot = Math.sin(i * 2.34 + 0.7) * 6;
               const yOff = Math.cos(i * 1.87 + 0.3) * 6;
@@ -1344,7 +1447,7 @@ function VisualsReaderInner() {
             <div className="visuals-div-gridpaper-cards">
               {subcats.map((sc) => {
                 const count = countGalleries(sc);
-                const locked = isLocked(sc);
+                const locked = isLocked(sc, progress, sc.id, progressTree);
                 return (
                   <button
                     key={sc.id}
@@ -1428,18 +1531,7 @@ function VisualsReaderInner() {
     const subcatNode = findNodeById(tree, activeSubcatId);
     if (!subcatNode) return <ZoneStateDisplay kind="loading" />;
 
-    const galleries = (subcatNode.children || [])
-      .filter((c) => c.pageType === 'gallery' && !isHidden(c))
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-
-    // Build group list
-    const groupMap = new Map<string, PageTreeNode[]>();
-    for (const g of galleries) {
-      const group = (g.metadata?.group as string) || '全部';
-      if (!groupMap.has(group)) groupMap.set(group, []);
-      groupMap.get(group)!.push(g);
-    }
-    const groupList = [...groupMap.keys()];
+    const { galleries, groupMap, groupList } = buildGalleryGroups(subcatNode);
     const safeGroupIdx = Math.min(
       activeGroupIdx,
       Math.max(0, groupList.length - 1)
@@ -1527,25 +1619,48 @@ function VisualsReaderInner() {
             {currentGalleries.length === 0 ? (
               <div className="visuals-empty">此分組尚無畫廊</div>
             ) : (
-              <div className="visuals-gallery-card-grid">
+              <div
+                className="visuals-gallery-card-grid"
+                {...entityDrag.handlers}
+              >
                 {currentGalleries.map((g) => {
                   const images = Array.isArray(g.metadata?.images)
                     ? (g.metadata.images as ImageItem[])
                     : [];
-                  const spoiler = getSpoilerLevel(g);
-                  const gate = (g.metadata?.gate as string) || '';
+
+                  // gallery 閘（tree-aware）：未過時一切不可見——
+                  // 連縮圖與張數都不外洩，整卡呈鎖定態（不變量 1）。
+                  // 推導旗標（clue 展示授旗）可解鎖，static locked 仍優先
+                  const gateLocked = !isGalleryUnlockedInZone(
+                    g,
+                    progress,
+                    progressTree
+                  );
+                  if (gateLocked) {
+                    return (
+                      <button
+                        key={g.id}
+                        className="visuals-gallery-card visuals-gallery-card--sealed"
+                        disabled
+                      >
+                        <LockedImageCell label="SEALED" />
+                        <div className="visuals-gallery-card-body">
+                          <div className="visuals-gallery-card-title">
+                            🔒 {g.title}
+                          </div>
+                          <div className="visuals-gallery-card-meta">
+                            — sealed —
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  }
+
                   const firstImg = images.length > 0 ? images[0] : null;
                   const thumbUrl = firstImg ? buildImageUrl(firstImg.file) : '';
-                  const spoilerLocked = spoiler > 0 && !isUnlocked(g.id);
 
                   const handleClick = () => {
-                    if (spoilerLocked) {
-                      requestUnlock(g.id, spoiler, gate, () => {
-                        void navigateToGallery(g.id);
-                      });
-                    } else {
-                      void navigateToGallery(g.id);
-                    }
+                    void navigateToGallery(g.id);
                   };
 
                   // 精靈圖縮圖：顯示第一個動畫的第一幀
@@ -1558,8 +1673,16 @@ function VisualsReaderInner() {
                   return (
                     <button
                       key={g.id}
-                      className={`visuals-gallery-card${spoilerLocked && spoiler >= 3 ? ' vis-spoiler-corrupt' : spoilerLocked && spoiler >= 2 ? ' vis-spoiler-silhouette' : ''}`}
+                      className="visuals-gallery-card"
                       onClick={handleClick}
+                      /*
+                       * 陳列走廊的畫廊綁 entityKey，可以被拖進便條島；
+                       * 鑲框室的插圖綁 storyKey，不在 dossier 命名空間裡，
+                       * 自然拖不動（findCanonicalEntityName 查不到）
+                       */
+                      data-entity-key={
+                        (g.metadata?.entityKey as string) ?? undefined
+                      }
                     >
                       {thumbUrl && isSpriteThumb ? (
                         (() => {
@@ -1590,9 +1713,6 @@ function VisualsReaderInner() {
                                 backgroundPosition: `${bgPosX}% ${bgPosY}%`,
                                 backgroundRepeat: 'no-repeat',
                                 imageRendering: 'pixelated',
-                                filter: spoilerLocked
-                                  ? spoilerFilter(spoiler)
-                                  : 'none',
                               }}
                             />
                           );
@@ -1602,11 +1722,9 @@ function VisualsReaderInner() {
                           className="visuals-gallery-card-thumb"
                           src={thumbUrl}
                           alt={g.title}
-                          style={{
-                            filter: spoilerLocked
-                              ? spoilerFilter(spoiler)
-                              : 'none',
-                          }}
+                          /* 原生圖片拖曳會接管 pointer 序列，讓卡片的圖片
+                             區塊拖不進便條島（只剩下方文字能拖） */
+                          draggable={false}
                         />
                       ) : (
                         <div
@@ -1624,21 +1742,20 @@ function VisualsReaderInner() {
                         </div>
                         <div className="visuals-gallery-card-meta">
                           {images.length} 張圖片
-                          {spoiler > 0 && (
-                            <span
-                              style={{
-                                color: spoiler === 3 ? 'crimson' : 'goldenrod',
-                                marginLeft: 8,
-                              }}
-                            >
-                              L{spoiler}
-                            </span>
-                          )}
                         </div>
                       </div>
                     </button>
                   );
                 })}
+
+                {/* 解鎖儀式（S9-B）：獨立渲染在網格末尾，不混進上面那個由
+                    伺服器 tree 驅動的清單——那條路徑會先過 gate 閘（鎖定
+                    即 disabled 死卡），點擊又會打真 API。 */}
+                {phantomSlot?.subcatId === activeSubcatId &&
+                  phantomSlot?.groupIdx === safeGroupIdx && (
+                    <VisualsPhantomCard onOpen={handlePhantomCardOpen} />
+                  )}
+                {entityDrag.ghost}
               </div>
             )}
 
@@ -1679,11 +1796,115 @@ function VisualsReaderInner() {
     );
   }
 
+  /**
+   * 映照（V-C）：把目前 gallery 投射到浮動幻影並展開島。
+   * 只在已解鎖 gallery 頁提供入口（sealed 分支先 return），
+   * bridge 值放 window——島收合 unmount 後展開仍續示。
+   */
+  function mirrorGalleryToIsland(images: ImageItem[]) {
+    if (!galleryPage) return;
+    const meta = galleryPage.metadata || {};
+    pushPhantomGallery({
+      id: galleryPage.id,
+      title: galleryPage.title,
+      entityKey: typeof meta.entityKey === 'string' ? meta.entityKey : null,
+      divisionId: galleryPage.id.split('/')[1] ?? null,
+      // gallery 閘快照——島依 progress 變化重驗（pristineOnly 可失效）
+      gate: meta.gate ?? null,
+      locked: meta.locked === true,
+      images,
+      source: 'mirror',
+    });
+    getIslandRuntime().open('visuals');
+  }
+
   // ─── RENDER: Gallery ───
   function renderGallery() {
+    const galleryNode = activeGalleryId
+      ? findNodeById(tree, activeGalleryId)
+      : null;
+
+    // hidden 完全不對前台公開（contentVisibility 契約）：列表已排除，
+    // 這裡擋 `?page=` deep link 直達——一律視為不存在，不洩漏內容
+    if (galleryNode && isHidden(galleryNode)) {
+      return (
+        <div className="visuals-gallery-page">
+          <ZoneStateDisplay kind="error" message="這個畫廊不存在。" large />
+          <div className="visuals-back-bar">
+            <button
+              className="visuals-back-btn"
+              onClick={() => navigateToLanding()}
+            >
+              ← 返回幻影重現室
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // 載入失敗：顯示錯誤與重試，不殘留上一頁內容
+    if (galleryError) {
+      return (
+        <div className="visuals-gallery-page">
+          <ZoneStateDisplay
+            kind="error"
+            message={galleryError}
+            onRetry={() =>
+              activeGalleryId && void navigateToGallery(activeGalleryId, false)
+            }
+            large
+          />
+        </div>
+      );
+    }
+
     if (!galleryPage) return <ZoneStateDisplay kind="loading" />;
 
     const meta = galleryPage.metadata || {};
+
+    // gallery 閘 deep-link 守門（不變量 1）：閘未過時整個 gallery 呈鎖定態
+    // ——不渲染任何圖片（含鎖定佔位）。列表入口已擋，這裡擋 URL 直達。
+    // 推導旗標（clue 展示授旗）可解鎖，static locked 仍優先
+    if (
+      galleryNode &&
+      !isGalleryUnlockedInZone(galleryNode, progress, progressTree)
+    ) {
+      return (
+        <div className="visuals-gallery-page">
+          <ZoneBreadcrumb
+            segments={[
+              { label: '幻影重現室', onClick: () => navigateToLanding() },
+              { label: galleryPage.title },
+            ]}
+            color="var(--visuals-main)"
+          />
+          <div className="visuals-gallery-sealed">
+            <span className="visuals-img-locked-icon">⛉</span>
+            <div className="visuals-gallery-sealed-title">此畫廊尚未解鎖</div>
+            <div className="visuals-gallery-sealed-hint">
+              {typeof meta.gateHint === 'string' && meta.gateHint
+                ? meta.gateHint
+                : '繼續閱讀故事以解開封印。'}
+            </div>
+          </div>
+          <div className="visuals-back-bar">
+            <button
+              className="visuals-back-btn"
+              onClick={() =>
+                activeSubcatId
+                  ? navigateToSubcat(activeSubcatId)
+                  : activeDivision
+                    ? navigateToDivision(activeDivision.id)
+                    : navigateToLanding()
+              }
+            >
+              ← 返回
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     const images: ImageItem[] = Array.isArray(meta.images)
       ? (meta.images as ImageItem[])
       : [];
@@ -1721,6 +1942,25 @@ function VisualsReaderInner() {
         <div className="visuals-gallery-header">
           <h2>{galleryPage.title}</h2>
           <div className="visuals-gallery-count">{images.length} pieces</div>
+          {/* 映照入口（V-C）：投射整個 gallery 到浮動幻影。掛載守門同
+              Echoes 加入佇列按鈕——島不可用（未解鎖/停用/觀測者）時不
+              顯示；gallery 閘已由上方 sealed 分支把關（只投已解鎖）。 */}
+          {desktopViewport &&
+            shouldMountIsland(progress, 'visuals') &&
+            canMirrorGallery({
+              divisionId: galleryPage.id.split('/')[1] ?? null,
+              layout: style,
+              imageCount: images.length,
+            }) && (
+              <button
+                type="button"
+                className="visuals-mirror-btn"
+                title="將此畫廊映照到浮動幻影"
+                onClick={() => mirrorGalleryToIsland(images)}
+              >
+                <span aria-hidden>❏</span> 映照
+              </button>
+            )}
         </div>
         <div className="visuals-gradient-divider" />
 
@@ -1750,28 +1990,31 @@ function VisualsReaderInner() {
 
   // ─── Gallery Styles ───
   function renderGalleryByStyle(style: string, images: ImageItem[]) {
+    // 精靈圖 gallery 本輪不接三態（設計文件定案）
+    if (style === 'sprite') return renderSprite(images);
+    const items = resolveGalleryImages(images, progress, galleryPage?.id);
     switch (style) {
       case 'corridor':
-        return renderCorridor(images);
+        return renderCorridor(items);
       case 'museum':
-        return renderMuseum(images);
+        return renderMuseum(items);
       case 'pinboard':
-        return renderPinboard(images);
+        return renderPinboard(items);
       case 'pixel':
-        return renderPixel(images);
-      case 'sprite':
-        return renderSprite(images);
+        return renderPixel(items);
       default:
-        return renderMuseum(images);
+        return renderMuseum(items);
     }
   }
 
-  function renderCorridor(images: ImageItem[]) {
-    const art = images[corridorIdx] || images[0];
-    if (!art) return null;
+  function renderCorridor(items: GalleryImageView[]) {
+    const item = items[corridorIdx] || items[0];
+    if (!item) return null;
     const prev = () =>
-      setCorridorIdx((corridorIdx - 1 + images.length) % images.length);
-    const next = () => setCorridorIdx((corridorIdx + 1) % images.length);
+      setCorridorIdx((corridorIdx - 1 + items.length) % items.length);
+    const next = () => setCorridorIdx((corridorIdx + 1) % items.length);
+    const locked = item.state === 'locked';
+    const partial = item.state === 'partial';
 
     return (
       <div className="visuals-gallery-corridor">
@@ -1779,15 +2022,24 @@ function VisualsReaderInner() {
           <button className="visuals-corridor-arrow" onClick={prev}>
             ‹
           </button>
-          <div
-            className="visuals-corridor-main"
-            onClick={() => openLightbox(images, corridorIdx)}
-          >
-            <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-            <div className="visuals-gallery-hover-overlay">
-              <span className="visuals-gallery-hover-icon">⤢</span>
+          {locked ? (
+            <div className="visuals-corridor-main is-locked">
+              <LockedImageCell />
             </div>
-          </div>
+          ) : (
+            <div
+              className={`visuals-corridor-main${partial ? ' visuals-img-partial' : ''}`}
+              onClick={() => openLightbox(items, corridorIdx)}
+            >
+              <img
+                src={buildImageUrl(item.img.file)}
+                alt={item.img.caption || ''}
+              />
+              <div className="visuals-gallery-hover-overlay">
+                <span className="visuals-gallery-hover-icon">⤢</span>
+              </div>
+            </div>
+          )}
           <button className="visuals-corridor-arrow" onClick={next}>
             ›
           </button>
@@ -1795,20 +2047,24 @@ function VisualsReaderInner() {
         <div className="visuals-corridor-caption">
           <div className="visuals-corridor-counter">
             {String(corridorIdx + 1).padStart(2, '0')} /{' '}
-            {String(images.length).padStart(2, '0')}
+            {String(items.length).padStart(2, '0')}
           </div>
           <div className="visuals-corridor-title">
-            {art.caption || galleryPage?.title}
+            {locked ? '？？？' : item.img.caption || galleryPage?.title}
           </div>
         </div>
         <div className="visuals-corridor-strip">
-          {images.map((img, i) => (
+          {items.map((it, i) => (
             <button
-              key={img.id}
-              className={`visuals-corridor-thumb ${i === corridorIdx ? 'is-active' : ''}`}
+              key={it.img.id}
+              className={`visuals-corridor-thumb ${i === corridorIdx ? 'is-active' : ''}${it.state === 'partial' ? ' visuals-img-partial' : ''}`}
               onClick={() => setCorridorIdx(i)}
             >
-              <img src={buildImageUrl(img.file)} alt="" />
+              {it.state === 'locked' ? (
+                <LockedImageCell label="" />
+              ) : (
+                <img src={buildImageUrl(it.img.file)} alt="" />
+              )}
             </button>
           ))}
         </div>
@@ -1816,23 +2072,36 @@ function VisualsReaderInner() {
     );
   }
 
-  function renderMuseum(images: ImageItem[]) {
+  function renderMuseum(items: GalleryImageView[]) {
     return (
       <div className="visuals-gallery-museum">
-        {images.map((art, i) => (
+        {items.map((it, i) => (
           <div
-            key={art.id}
-            className="visuals-museum-frame"
-            onClick={() => openLightbox(images, i)}
+            key={it.img.id}
+            className={`visuals-museum-frame${it.state === 'locked' ? ' is-locked' : ''}`}
+            onClick={
+              it.state === 'locked' ? undefined : () => openLightbox(items, i)
+            }
           >
-            <div className="visuals-gallery-img-container">
-              <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-              <div className="visuals-gallery-hover-overlay">
-                <span className="visuals-gallery-hover-icon">⤢</span>
+            {it.state === 'locked' ? (
+              <div className="visuals-gallery-img-container">
+                <LockedImageCell />
               </div>
-            </div>
+            ) : (
+              <div
+                className={`visuals-gallery-img-container${it.state === 'partial' ? ' visuals-img-partial' : ''}`}
+              >
+                <img
+                  src={buildImageUrl(it.img.file)}
+                  alt={it.img.caption || ''}
+                />
+                <div className="visuals-gallery-hover-overlay">
+                  <span className="visuals-gallery-hover-icon">⤢</span>
+                </div>
+              </div>
+            )}
             <div className="visuals-museum-label">
-              「{art.caption || '無題'}」
+              「{it.state === 'locked' ? '？？？' : it.img.caption || '無題'}」
             </div>
           </div>
         ))}
@@ -1840,34 +2109,49 @@ function VisualsReaderInner() {
     );
   }
 
-  function renderPinboard(images: ImageItem[]) {
+  function renderPinboard(items: GalleryImageView[]) {
     return (
       <div className="visuals-gallery-pinboard">
-        {images.map((art, i) => {
+        {items.map((it, i) => {
           // 用 sin 函式產生更自然的隨機傾斜角度（±7°）
           const rot = Math.sin(i * 2.34 + 0.7) * 7;
           // 輕微的垂直偏移讓排列更有散落感
           const yOff = Math.cos(i * 1.87 + 0.3) * 8;
           return (
             <div
-              key={art.id}
-              className="visuals-pinboard-card"
+              key={it.img.id}
+              className={`visuals-pinboard-card${it.state === 'locked' ? ' is-locked' : ''}`}
               style={
                 {
                   '--pin-rot': `${rot.toFixed(1)}deg`,
                   '--pin-y': `${yOff.toFixed(1)}px`,
                 } as React.CSSProperties
               }
-              onClick={() => openLightbox(images, i)}
+              onClick={
+                it.state === 'locked' ? undefined : () => openLightbox(items, i)
+              }
             >
               <span className="visuals-pinboard-pin" />
-              <div className="visuals-pinboard-photo">
-                <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-                <div className="visuals-gallery-hover-overlay">
-                  <span className="visuals-gallery-hover-icon">⤢</span>
-                </div>
+              <div
+                className={`visuals-pinboard-photo${it.state === 'partial' ? ' visuals-img-partial' : ''}`}
+              >
+                {it.state === 'locked' ? (
+                  <LockedImageCell />
+                ) : (
+                  <>
+                    <img
+                      src={buildImageUrl(it.img.file)}
+                      alt={it.img.caption || ''}
+                    />
+                    <div className="visuals-gallery-hover-overlay">
+                      <span className="visuals-gallery-hover-icon">⤢</span>
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="visuals-pinboard-label">{art.caption || ''}</div>
+              <div className="visuals-pinboard-label">
+                {it.state === 'locked' ? '？？？' : it.img.caption || ''}
+              </div>
             </div>
           );
         })}
@@ -1875,23 +2159,38 @@ function VisualsReaderInner() {
     );
   }
 
-  function renderPixel(images: ImageItem[]) {
+  function renderPixel(items: GalleryImageView[]) {
     return (
       <div className="visuals-gallery-pixel">
-        {images.map((art, i) => (
+        {items.map((it, i) => (
           <div
-            key={art.id}
-            className="visuals-pixel-cell"
-            onClick={() => openLightbox(images, i)}
+            key={it.img.id}
+            className={`visuals-pixel-cell${it.state === 'locked' ? ' is-locked' : ''}`}
+            onClick={
+              it.state === 'locked' ? undefined : () => openLightbox(items, i)
+            }
           >
-            <div className="visuals-gallery-img-container is-pixel">
-              <img src={buildImageUrl(art.file)} alt={art.caption || ''} />
-              <div className="visuals-gallery-hover-overlay">
-                <span className="visuals-gallery-hover-icon">⤢</span>
+            {it.state === 'locked' ? (
+              <div className="visuals-gallery-img-container is-pixel">
+                <LockedImageCell />
               </div>
-            </div>
+            ) : (
+              <div
+                className={`visuals-gallery-img-container is-pixel${it.state === 'partial' ? ' visuals-img-partial' : ''}`}
+              >
+                <img
+                  src={buildImageUrl(it.img.file)}
+                  alt={it.img.caption || ''}
+                />
+                <div className="visuals-gallery-hover-overlay">
+                  <span className="visuals-gallery-hover-icon">⤢</span>
+                </div>
+              </div>
+            )}
             <div className="visuals-pixel-label">
-              {art.caption || art.file.split('/').pop()}
+              {it.state === 'locked'
+                ? '？？？'
+                : it.img.caption || it.img.file.split('/').pop()}
             </div>
           </div>
         ))}
@@ -1902,21 +2201,27 @@ function VisualsReaderInner() {
   // ─── RENDER: Sprite ───
   function renderSprite(images: ImageItem[]) {
     const sprite = images.find((img) => img.isSpriteSheet);
-    if (!sprite) return renderMuseum(images);
+    if (!sprite)
+      return renderMuseum(
+        images.map((img) => ({ img, state: 'unlocked' as const }))
+      );
     return (
       <SpriteViewer
         sprite={sprite}
         spriteUrl={buildImageUrl(sprite.file)}
-        onOpenLightbox={() => openLightbox(images, images.indexOf(sprite))}
+        onOpenLightbox={() => openLightboxPlain(images, images.indexOf(sprite))}
       />
     );
   }
 
   // ─── RENDER: Lightbox ───
   function renderLightbox() {
-    if (lightboxIdx === null || lightboxImages.length === 0) return null;
-    const art = lightboxImages[lightboxIdx];
-    if (!art) return null;
+    if (lightboxIdx === null || lightboxItems.length === 0) return null;
+    const current = lightboxItems[lightboxIdx];
+    if (!current) return null;
+    const art = current.img;
+    // B 部分解鎖：放大仍遮罩（模糊不解除）
+    const isPartial = current.state === 'partial';
 
     const handleWheel = (e: React.WheelEvent) => {
       e.stopPropagation();
@@ -1960,7 +2265,7 @@ function VisualsReaderInner() {
             關閉 ✕
           </button>
           <img
-            className={`visuals-lightbox-img ${lbZoom > 1 ? 'is-panning' : ''}`}
+            className={`visuals-lightbox-img ${lbZoom > 1 ? 'is-panning' : ''}${isPartial ? ' is-partial' : ''}`}
             src={buildImageUrl(art.file)}
             alt={art.caption || ''}
             style={{
@@ -1971,7 +2276,14 @@ function VisualsReaderInner() {
             draggable={false}
           />
           <div className="visuals-lightbox-meta">
-            <div className="visuals-lightbox-caption">{art.caption || ''}</div>
+            <div className="visuals-lightbox-caption">
+              {art.caption || ''}
+              {isPartial && (
+                <span className="visuals-lightbox-partial-tag">
+                  · 部分解鎖：影像尚未完全顯現
+                </span>
+              )}
+            </div>
             <div className="visuals-lightbox-nav">
               <button
                 className="visuals-lightbox-btn"
@@ -1986,7 +2298,7 @@ function VisualsReaderInner() {
               </button>
               <button
                 className="visuals-lightbox-btn"
-                disabled={lightboxIdx >= lightboxImages.length - 1}
+                disabled={lightboxIdx >= lightboxItems.length - 1}
                 onClick={() => {
                   setLightboxIdx(lightboxIdx + 1);
                   setLbZoom(1);
@@ -1996,43 +2308,6 @@ function VisualsReaderInner() {
                 next →
               </button>
             </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── RENDER: Spoiler Dialog ───
-  function renderSpoilerDialog() {
-    if (!spoilerWarning) return null;
-    return (
-      <div
-        className="visuals-spoiler-dialog"
-        onClick={() => setSpoilerWarning(null)}
-      >
-        <div
-          className="visuals-spoiler-dialog-inner"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="visuals-spoiler-dialog-title">
-            ⚠ SPOILER WARNING · LEVEL {spoilerWarning.level}
-          </div>
-          <div className="visuals-spoiler-dialog-gate">
-            {spoilerWarning.gate || '此內容包含劇透，確定要繼續嗎？'}
-          </div>
-          <div className="visuals-spoiler-dialog-actions">
-            <button
-              className="visuals-spoiler-dialog-confirm"
-              onClick={confirmUnlock}
-            >
-              我已知情，繼續
-            </button>
-            <button
-              className="visuals-spoiler-dialog-cancel"
-              onClick={() => setSpoilerWarning(null)}
-            >
-              取消
-            </button>
           </div>
         </div>
       </div>
@@ -2052,17 +2327,16 @@ function VisualsReaderInner() {
         <div className="vis-boot-flash vis-boot-flash--l2" />
         <div className="vis-boot-flash vis-boot-flash--r2" />
         <div className="vis-boot-grain" />
+        <ZoneBootArt zoneId="visuals" />
       </div>
 
       <div className="visuals-main">
         <ZoneAtmosphere zone={VISUALS_ZONE} intensity="subtle" skipGlyphs />
         <div className="visuals-content" ref={scrollRef}>
           <VisualsPhantom
-            variant={
-              (view === 'landing'
-                ? 'landing'
-                : (activeDivisionId ?? 'landing')) as PhantomVariant
-            }
+            variant={resolvePhantomVariant(
+              view === 'landing' ? 'landing' : activeDivisionId
+            )}
           />
           <div
             key={`${view}-${activeDivisionId}-${activeSubcatId}-${activeGalleryId}`}
@@ -2077,7 +2351,6 @@ function VisualsReaderInner() {
       </div>
 
       {renderLightbox()}
-      {renderSpoilerDialog()}
     </ReaderShell>
   );
 }

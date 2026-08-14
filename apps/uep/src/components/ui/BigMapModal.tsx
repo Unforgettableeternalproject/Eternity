@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { ZoneData } from '../../data/zones';
 import PieMap3D from '../map/PieMap3D';
-import './BigMapModal.css';
+import bigMapCss from './BigMapModal.css?inline';
+import { useDeferredStyle } from '../../islands/useDeferredStyle';
 
 interface BigMapModalProps {
   zones: ZoneData[];
@@ -11,6 +12,15 @@ interface BigMapModalProps {
   tone?: 'dark' | 'light';
 }
 
+/** 盤面尺寸：受限於視窗兩軸，上限 520。SSR 沒有視窗時退回上限 */
+function computeMapSize(): number {
+  if (typeof window === 'undefined') return 520;
+  return Math.max(
+    260,
+    Math.min(520, window.innerWidth - 36, window.innerHeight - 170)
+  );
+}
+
 export default function BigMapModal({
   zones,
   onClose,
@@ -18,8 +28,12 @@ export default function BigMapModal({
   onCenterClick,
   tone = 'dark',
 }: BigMapModalProps) {
+  useDeferredStyle('big-map-modal', bigMapCss);
   const [hover, setHover] = useState<string | null>(null);
-  const [mapSize, setMapSize] = useState(520);
+  /* lazy initializer：第一次 render 就是正確尺寸。
+     寫死 520 再靠 effect 修正的話，手機上第一幀必定是一個溢出畫面的
+     盤面，第二幀才縮回去——那一幀使用者看得見 */
+  const [mapSize, setMapSize] = useState(computeMapSize);
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
 
@@ -39,12 +53,8 @@ export default function BigMapModal({
   }, [handleClose]);
 
   useEffect(() => {
-    function syncMapSize() {
-      const maxByWidth = window.innerWidth - 36;
-      const maxByHeight = window.innerHeight - 170;
-      setMapSize(Math.max(260, Math.min(520, maxByWidth, maxByHeight)));
-    }
-    syncMapSize();
+    /* 初始值已由 lazy initializer 給定，這裡只顧 resize 與裝置旋轉 */
+    const syncMapSize = () => setMapSize(computeMapSize());
     window.addEventListener('resize', syncMapSize);
     return () => window.removeEventListener('resize', syncMapSize);
   }, []);

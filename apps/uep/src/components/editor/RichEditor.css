@@ -1022,6 +1022,286 @@
   white-space: nowrap;
 }
 
+/* ── 進度標記（Epic 2 掃描線）──
+   編輯器內可見的虛線列；前台以零高度 div 隱形（見 HistoryReader.css）。
+   帶 data-grants-flags 者為旗標標記，以金色點綴區分。 */
+.tiptap-content .tiptap-progress-marker {
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+  margin: 14px 0;
+  padding: 3px 10px;
+  border: 1px dashed var(--line, #444);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink-mute, #888);
+  user-select: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.tiptap-content .tiptap-progress-marker::before {
+  content: '⚑ 進度標記　' attr(data-label);
+  letter-spacing: 0.05em;
+}
+.tiptap-content .tiptap-progress-marker[data-grants-flags] {
+  border-color: #d5b61866;
+}
+.tiptap-content .tiptap-progress-marker[data-grants-flags]::before {
+  content: '⚑ 旗標標記　' attr(data-label);
+  color: #d5b618;
+}
+.tiptap-content .tiptap-progress-marker[data-grants-flags]::after {
+  content: attr(data-grants-flags);
+  margin-left: auto;
+  padding-left: 12px;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+  color: #d5b618cc;
+}
+.tiptap-content .tiptap-progress-marker.ProseMirror-selectednode {
+  outline: 2px solid var(--ned-accent, #888);
+  outline-offset: 2px;
+}
+
+.tiptap-content .tiptap-echo-spot {
+  position: relative;
+  min-height: 42px;
+  margin: 16px 0;
+  border: 1px dashed #6c5b7b;
+  border-radius: 10px;
+  background: color-mix(in srgb, #6c5b7b 7%, transparent);
+  cursor: grab;
+}
+
+.tiptap-content .tiptap-echo-spot::before {
+  content: '♫ ECHO SPOT · ' attr(data-song-title);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #6c5b7b;
+}
+
+.tiptap-content .tiptap-echo-spot.ProseMirror-selectednode {
+  border-style: solid;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #6c5b7b 22%, transparent);
+}
+
+/* Visual Clue 成對錨點（S8 下半場 V-D）——幻影紫，起訖各自標示 */
+.tiptap-content .tiptap-visual-clue {
+  position: relative;
+  min-height: 30px;
+  margin: 12px 0;
+  border: 1px dashed #5e548e;
+  border-radius: 8px;
+  background: color-mix(in srgb, #5e548e 7%, transparent);
+  cursor: grab;
+}
+
+.tiptap-content .tiptap-visual-clue::before {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #5e548e;
+}
+
+.tiptap-content .tiptap-visual-clue.is-start::before {
+  content: '❏ GALLERY CLUE · ' attr(data-gallery-title) ' · '
+    attr(data-image-title);
+}
+
+.tiptap-content .tiptap-visual-clue.is-end::before {
+  content: '◇ VISUAL CLUE 訖 · ' attr(data-gallery-title);
+}
+
+.tiptap-content .tiptap-visual-clue.is-gate::before {
+  content: '▣ IMAGE GATE · ' attr(data-image-title);
+}
+
+.tiptap-content .tiptap-visual-clue.ProseMirror-selectednode {
+  border-style: solid;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #5e548e 22%, transparent);
+}
+
+.ned-echo-song-picker__image-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 12px 12px 52px;
+}
+
+.ned-echo-spot-bubble__meta {
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ned-echo-song-picker {
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+}
+
+.ned-echo-song-picker-backdrop {
+  z-index: 20000;
+}
+
+.ned-echo-song-picker__hint {
+  margin-top: 4px;
+  color: var(--ink-mute);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.ned-echo-song-picker__search {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ned-echo-song-picker__body {
+  min-height: 180px;
+  overflow-y: auto;
+  padding: 10px 16px 18px;
+}
+
+.ned-echo-song-picker__group-title {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 2px 6px;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ned-echo-song-picker__song {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.ned-echo-song-picker__song:hover {
+  border-color: var(--line-strong);
+  background: var(--bg-soft);
+}
+
+.ned-echo-song-picker__orb {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #ddd7cb;
+  color: #6d6759;
+}
+
+.ned-echo-song-picker__song-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ned-echo-song-picker__song-copy small {
+  overflow: hidden;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ned-echo-song-picker__select {
+  color: var(--ink-mute);
+  font-size: 11px;
+}
+
+.ned-picker-empty {
+  padding: 38px 16px;
+  color: var(--ink-mute);
+  text-align: center;
+}
+
+.ned-picker-empty--error,
+.ned-echoes-validation {
+  color: #b94c4c;
+}
+
+/* 進度標記 bubble 的輸入欄 */
+/* bubble 內的欄位標示：placeholder 填了值就消失，而備註欄與旗標欄相鄰，
+   沒有常駐標示會被讀成同一組東西 */
+.ned-marker-field-label {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+  letter-spacing: 0.1em;
+  color: var(--ink-mute);
+  padding-left: 4px;
+}
+
+/* bubble 標題右側的旗標名與標籤：名字用等寬字才看得出 typo，
+   標籤是給人看的短名稱所以走一般字體並降階 */
+.ned-marker-bubble-flag {
+  margin-left: 8px;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 0.82em;
+  color: var(--ned-accent, #c8a24a);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  display: inline-block;
+}
+.ned-marker-bubble-flag-label {
+  margin-left: 6px;
+  font-size: 0.75em;
+  color: var(--ink-mute);
+}
+
+.ned-marker-input {
+  width: 150px;
+  background: var(--bg-soft, #111);
+  border: 1px solid var(--line, #333);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 0.78em;
+  color: var(--ink, #ddd);
+}
+.ned-marker-input--flags {
+  width: 190px;
+  font-family: 'Cascadia Code', Consolas, monospace;
+}
+.ned-marker-input:focus {
+  outline: none;
+  border-color: var(--ned-accent, #888);
+}
+
 /* Images */
 .tiptap-content img {
   max-width: 100%;
@@ -1784,6 +2064,54 @@
   margin: 0 auto;
 }
 
+.ned-echoes-entity-section,
+.ned-spoiler-revisions {
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-soft) 72%, transparent);
+}
+
+.ned-spoiler-revisions__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ned-spoiler-revisions__header p {
+  max-width: 620px;
+  margin: 4px 0 0;
+  color: var(--ink-mute);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.ned-spoiler-revision {
+  margin-top: 9px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.ned-spoiler-revision.is-disabled {
+  opacity: 0.62;
+}
+
+.ned-spoiler-revision__title {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ned-echoes-validation {
+  margin: 8px 0 16px;
+  font-size: 11px;
+}
+
 .ned-field-label {
   display: block;
   font-family: var(--font-mono);
@@ -1797,11 +2125,36 @@
 
 .ned-echoes-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(250px, 0.8fr) minmax(360px, 1.2fr);
   gap: 20px;
   margin-top: 4px;
 }
 
+@media (max-width: 900px) {
+  .ned-echoes-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ned-echoes-settings,
+.ned-spoiler-condition-panel {
+  min-width: 0;
+}
+
+.ned-spoiler-condition-empty {
+  min-height: 132px;
+  margin-top: 4px;
+  padding: 18px;
+  border: 1px dashed var(--hairline-strong);
+  background: var(--bg-soft);
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.7;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
 .ned-spoiler-buttons {
   display: flex;
   gap: 6px;
@@ -1826,6 +2179,49 @@
   display: block;
   font-size: 9px;
   opacity: 0.7;
+}
+
+.ned-spoiler-btn-gate {
+  display: block;
+  margin-top: 4px;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.ned-spoiler-btn.has-gate {
+  box-shadow: inset 0 -2px 0 currentColor;
+}
+
+.ned-spoiler-inline-gate {
+  min-height: 132px;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-soft);
+}
+
+.ned-spoiler-inline-gate__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+  color: var(--ink-title);
+  font-size: 11px;
+}
+
+.ned-spoiler-inline-gate__heading span,
+.ned-spoiler-story-note {
+  color: var(--ink-mute);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.ned-spoiler-story-note {
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px dashed var(--hairline-strong);
+  background: var(--bg-soft);
 }
 
 .ned-audio-zone {
@@ -2708,6 +3104,415 @@
 .ced-input-sm {
   font-size: 12px;
 }
+/* entityKey 輸入欄（S7-B）：等寬字型 + 錯誤警告 */
+.ced-entity-key-input {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.ced-entity-key-input--error {
+  border-color: #b3413e;
+}
+.ced-entity-key-input--error:focus {
+  border-color: #b3413e;
+}
+.ced-entity-key-error {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #b3413e;
+  margin: -4px 0 8px 90px;
+  letter-spacing: 0.03em;
+}
+
+/* ── Revision 時間線 modal（S7-B） ─────────────────────────────── */
+.ced-rev-open-btn {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  padding: 6px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: border-color 0.15s;
+}
+.ced-rev-open-btn:hover {
+  border-color: var(--ced-accent, var(--ink-sub));
+}
+.ced-rev-modal {
+  max-width: 860px;
+  height: 82vh;
+}
+.ced-rev-header-entry {
+  font-size: 12px;
+  color: var(--ink-sub);
+  margin-left: 10px;
+}
+.ced-rev-header-stack {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  margin-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.ced-rev-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.ced-rev-list {
+  width: 230px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--hairline);
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ced-rev-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.ced-rev-item:hover {
+  border-color: var(--ced-accent, var(--ink-sub));
+}
+.ced-rev-item.active {
+  border-color: var(--ced-accent, var(--ink-sub));
+  background: color-mix(in srgb, var(--ced-accent, #888) 8%, transparent);
+}
+.ced-rev-item-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-body);
+  word-break: break-all;
+}
+.ced-rev-item-note {
+  font-size: 10px;
+  color: var(--ink-mute);
+}
+.ced-rev-item-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: none;
+  gap: 2px;
+}
+.ced-rev-item:hover .ced-rev-item-actions,
+.ced-rev-item.active .ced-rev-item-actions {
+  display: flex;
+}
+.ced-rev-move-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink-mute);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.ced-rev-move-btn:hover:not(:disabled) {
+  color: var(--ink-body);
+}
+.ced-rev-move-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.ced-rev-del-btn:hover {
+  color: #b3413e;
+}
+.ced-rev-add-btn {
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px dashed var(--hairline);
+}
+.ced-rev-detail {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+.ced-rev-section-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 14px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+/* Entity 浮動資訊 chip（S7 驗收 #8）：游標落在 uepEntity 標記時浮出 */
+.ned-entity-chip {
+  position: fixed;
+  transform: translateY(calc(-100% - 8px));
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 320px;
+  padding: 4px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ned-entity-chip-kind {
+  color: var(--ned-accent);
+  flex-shrink: 0;
+}
+.ned-entity-chip-ref {
+  color: var(--ink-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ned-entity-chip-btn {
+  all: unset;
+  cursor: pointer;
+  padding: 0 3px;
+  color: var(--ink-mute);
+  flex-shrink: 0;
+  line-height: 1;
+}
+.ned-entity-chip-btn:hover {
+  color: var(--ned-accent);
+}
+.ned-entity-chip-btn--del:hover {
+  color: #c0504d;
+}
+
+/* Patch 標題列：右側掛「複製上一版」按鈕（S7 驗收 #6） */
+.ced-rev-patch-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ced-rev-patch-title .ced-add-btn {
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+.ced-rev-gate {
+  margin-bottom: 8px;
+}
+.ced-rev-base-info {
+  font-size: 12px;
+  color: var(--ink-sub);
+  line-height: 1.8;
+}
+.ced-rev-base-info p {
+  margin: 0 0 10px;
+}
+.ced-rev-hint {
+  font-size: 11px;
+  color: var(--ink-mute);
+  line-height: 1.7;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--ink-mute) 4%, transparent);
+  margin-bottom: 8px;
+}
+
+/* ── PatchEditor（S7-B） ───────────────────────────────────────── */
+.ced-patch-field {
+  border: 1px solid var(--hairline);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.ced-patch-field-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.ced-patch-field-path {
+  font-size: 12px;
+  color: var(--ink-body);
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+.ced-patch-field-raw {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  font-weight: 400;
+  margin-left: 8px;
+}
+.ced-patch-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.ced-patch-add-select {
+  font-size: 11px;
+  max-width: 260px;
+}
+.ced-patch-remove-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.ced-patch-remove-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 6px;
+  border: 1px solid var(--hairline);
+  color: var(--ink-sub);
+  text-decoration: line-through;
+}
+.ced-patch-remove-chip button {
+  background: transparent;
+  border: none;
+  color: var(--ink-mute);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+}
+.ced-patch-remove-chip button:hover {
+  color: #b3413e;
+}
+.ced-patch-remove-input {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.ced-patch-json-input {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  min-height: 72px;
+  width: 100%;
+}
+.ced-patch-json-input--error {
+  border-color: #b3413e;
+}
+
+/* ── RevisionSimulator（S7-B） ─────────────────────────────────── */
+.ced-rev-footer {
+  border-top: 1px solid var(--hairline);
+  padding: 8px 16px;
+  flex-shrink: 0;
+}
+.ced-rev-sim-toggle {
+  background: transparent;
+  border: none;
+  color: var(--ink-sub);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  padding: 0;
+}
+.ced-rev-sim-toggle:hover,
+.ced-rev-sim-toggle.active {
+  color: var(--ced-accent, var(--ink-body));
+}
+.ced-rev-sim {
+  flex-shrink: 0;
+  max-height: 42vh;
+  overflow-y: auto;
+  border-top: 1px solid var(--hairline);
+  padding: 10px 16px 14px;
+  background: color-mix(in srgb, var(--ink-mute) 3%, transparent);
+}
+.ced-rev-sim-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.ced-rev-sim-flag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.ced-rev-sim-flag:hover {
+  border-color: var(--ced-accent, var(--ink-sub));
+}
+.ced-rev-sim-flag.active {
+  border-color: var(--ced-accent, var(--ink-sub));
+  color: var(--ink-body);
+  background: color-mix(in srgb, var(--ced-accent, #888) 10%, transparent);
+}
+.ced-rev-sim-empty {
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.ced-rev-sim-status {
+  font-size: 12px;
+  color: var(--ink-sub);
+  margin-bottom: 6px;
+}
+.ced-rev-sim-unlocked {
+  color: #3d8a5f;
+  font-weight: 600;
+}
+.ced-rev-sim-locked {
+  color: #b3413e;
+  font-weight: 600;
+}
+.ced-rev-sim-results {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.ced-rev-sim-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.ced-rev-sim-pass {
+  color: #3d8a5f;
+}
+.ced-rev-sim-fail {
+  color: var(--ink-mute);
+}
+.ced-rev-sim-note {
+  font-size: 10px;
+  color: var(--ink-mute);
+}
+.ced-rev-sim-warn {
+  font-size: 10px;
+  color: #b3413e;
+  border: 1px solid #b3413e;
+  padding: 1px 5px;
+}
+.ced-rev-sim-json {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--ink-sub);
+  border: 1px solid var(--hairline);
+  padding: 10px;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
 .ced-textarea {
   flex: 1;
   padding: 8px 10px;
@@ -2985,6 +3790,96 @@
   color: var(--ink-mute);
   font-family: var(--font-mono);
   font-size: 12px;
+}
+
+/* ── Diff 值欄位與詞條表格 ─────────────────────────────────── */
+
+/* 欄位標籤管理列 */
+.ced-diff-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.ced-diff-col-chip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 6px;
+  border: 1px solid var(--hairline);
+  background: var(--bg-card);
+}
+.ced-diff-col-chip .ced-input {
+  flex: 0 1 120px;
+  min-width: 60px;
+  padding: 3px 4px;
+  border: none;
+  background: transparent;
+  font-family: var(--font-mono);
+}
+
+/* 詞條表格：詞條欄 + N 個值欄 + 操作欄 */
+.ced-diff-table {
+  border: 1px solid var(--hairline);
+  overflow-x: auto;
+}
+.ced-diff-trow {
+  display: grid;
+  grid-template-columns:
+    minmax(90px, 1fr)
+    repeat(var(--ced-diff-cols, 2), minmax(110px, 1.4fr))
+    auto;
+  gap: 1px;
+  align-items: center;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--hairline);
+}
+.ced-diff-trow:last-child {
+  border-bottom: none;
+}
+.ced-diff-trow .ced-input {
+  border: none;
+  padding: 5px 7px;
+}
+.ced-diff-trow.active .ced-input {
+  background: color-mix(in srgb, var(--ced-accent, #888) 8%, var(--bg-card));
+}
+
+/* 表頭：不是 input，用純文字對齊各欄 */
+.ced-diff-thead {
+  background: var(--bg-panel, var(--bg-card));
+  border-bottom: 1px solid var(--hairline);
+}
+.ced-diff-thead > span {
+  padding: 5px 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.08em;
+  background: var(--bg-card);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ced-diff-trow-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  background: var(--bg-card);
+}
+.ced-diff-trow-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 11px;
+  color: var(--ink-mute);
+  transition: color 0.15s;
+}
+.ced-diff-trow-btn:hover {
+  color: var(--ced-accent, var(--ink-body));
 }
 
 /* 頭像欄位 */
@@ -3551,4 +4446,408 @@
   font-size: 13px;
   color: inherit;
   max-width: 300px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   GateConditionEditor (ned-gate-*) — 進度條件（Epic 2 內容閘門）
+   ═══════════════════════════════════════════════════════════════════ */
+.ned-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ned-gate-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ned-gate-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--bg-panel, transparent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+.ned-gate-flag-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ned-gate-flag-remove {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-mute);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.ned-gate-flag-remove:hover {
+  color: var(--ned-accent);
+}
+.ned-gate-add-page {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px dashed var(--hairline);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.1s,
+    color 0.1s;
+}
+.ned-gate-add-page:hover {
+  border-color: var(--ned-accent);
+  color: var(--ink-title);
+}
+.ned-gate-picker {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+}
+.ned-gate-picker-empty {
+  padding: 12px;
+  font-size: 11px;
+  color: var(--ink-mute);
+  text-align: center;
+}
+.ned-gate-page-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ned-gate-page-item:hover {
+  background: var(--hairline);
+  color: var(--ink-title);
+}
+.ned-gate-page-type {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ned-accent);
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+  width: 12px;
+}
+.ned-gate-custom {
+  display: flex;
+  gap: 4px;
+}
+.ned-gate-custom .ned-field {
+  flex: 1;
+  min-width: 0;
+}
+.ned-gate-custom-add {
+  flex-shrink: 0;
+  width: 28px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: transparent;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ned-gate-custom-add:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ── FlagPicker — 自訂旗標選擇器（授予端與需求端共用） ── */
+
+.ned-flagpicker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ned-flagpicker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ned-flagpicker-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+/* 面板疊在下方而非推開內容——bubble menu 的高度變動會讓標記跳位 */
+.ned-flagpicker-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  margin-top: 3px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--bg-card, var(--bg-soft));
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+}
+/* 捲動上限掛在清單而不是整個面板：底下的「直接使用」「新建並填標籤」
+   與新建表單是操作按鈕，被捲出視野等於整條路徑消失（面板本身沒有捲軸
+   提示，看起來就只是被切掉） */
+.ned-flagpicker-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.ned-flagpicker-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ned-flagpicker-item:hover {
+  background: var(--hairline);
+}
+.ned-flagpicker-item-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-title);
+  overflow-wrap: anywhere;
+}
+.ned-flagpicker-item-label {
+  font-size: 10px;
+  color: var(--ink-mute);
+}
+.ned-flagpicker-empty {
+  padding: 10px 12px;
+  font-size: 11px;
+  color: var(--ink-mute);
+  text-align: center;
+}
+.ned-flagpicker-new,
+.ned-flagpicker-use {
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-top: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.ned-flagpicker-new:hover,
+.ned-flagpicker-use:hover {
+  background: var(--hairline);
+}
+.ned-flagpicker-use {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ned-flagpicker-use-note {
+  font-size: 9px;
+  color: var(--ink-mute);
+  white-space: nowrap;
+}
+.ned-flagpicker-create {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border-top: 1px solid var(--hairline);
+}
+.ned-flagpicker-create .ned-field {
+  width: 100%;
+  box-sizing: border-box;
+}
+.ned-flagpicker-create-actions {
+  display: flex;
+  gap: 6px;
+}
+.ned-flagpicker-confirm,
+.ned-flagpicker-cancel {
+  padding: 4px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+.ned-flagpicker-confirm:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.ned-flagpicker-cancel {
+  color: var(--ink-mute);
+}
+.ned-flagpicker-error {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #c0392b;
+}
+
+/* marker bubble 內的 picker：bubble 是 position:fixed 貼在畫面底部的橫向
+   flex，面板往下展開會直接掉到視窗外，所以改往上開；寬度沿用原本那個
+   旗標輸入框的 190px，輸入框也套 bubble 的深色欄位樣式 */
+.ned-marker-bubble .ned-flagpicker {
+  width: 190px;
+  flex-shrink: 0;
+}
+.ned-marker-bubble .ned-flagpicker-panel {
+  top: auto;
+  bottom: 100%;
+  margin: 0 0 3px;
+}
+.ned-marker-bubble .ned-flagpicker .ned-field {
+  margin-top: 0;
+  padding: 4px 8px;
+  font-size: 0.78em;
+  background: var(--bg-soft, #111);
+  border: 1px solid var(--line, #333);
+  border-radius: 5px;
+  color: var(--ink, #ddd);
+}
+.ned-marker-bubble .ned-flagpicker-input {
+  font-family: 'Cascadia Code', Consolas, monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UepEmbedMarks — entity/cue 嵌入標記（僅編輯器內可見的視覺提示；
+   前台在 S4 dispatcher 接線前不套任何樣式 = 普通文字）
+   ═══════════════════════════════════════════════════════════════════ */
+.tiptap-content span[data-uep-entity] {
+  border-bottom: 1px dashed var(--ned-accent);
+  background: color-mix(in srgb, var(--ned-accent) 8%, transparent);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.tiptap-content span[data-uep-cue] {
+  border-bottom: 1px dotted var(--ink-soft);
+  background: color-mix(in srgb, var(--ink-soft) 8%, transparent);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* 嵌入面板的當前引用（唯讀） */
+.tb-embed-current {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--bg-panel, transparent);
+}
+.tb-embed-current-label {
+  flex-shrink: 0;
+  color: var(--ink-mute);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.tb-embed-current-ref {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 嵌入面板的 Reference Picker 展開鈕 */
+.tb-embed-browse {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  border: 1px dashed var(--hairline);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.1s,
+    color 0.1s;
+}
+.tb-embed-browse:hover {
+  border-color: var(--ned-accent);
+  color: var(--ink-title);
+}
+
+/* entity 自動偵測 suggestion（S7-D-3） */
+.tiptap-content .ned-entity-suggest {
+  border-bottom: 1.5px dashed var(--ned-accent);
+  background: color-mix(in srgb, var(--ned-accent) 12%, transparent);
+  border-radius: 2px;
+}
+.ned-entity-suggest-chip {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--bg-panel, rgba(0, 0, 0, 0.04));
+  color: var(--ink-mute);
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: nowrap;
+  user-select: none;
+  vertical-align: baseline;
+}
+
+/* 條目級 Reference Picker（S7-D-1：entity-index 條目清單） */
+.tb-entity-picker .tb-link-input {
+  margin-bottom: 6px;
+}
+.tb-entity-picker-cat {
+  padding: 5px 8px 2px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-mute);
+  border-bottom: 1px solid var(--hairline);
+}
+.tb-entity-picker-key {
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  color: var(--ink-mute);
+}
+
+/* 進度條件的範圍提示 */
+.ned-gate-scope-hint {
+  padding: 4px 6px;
+  border-left: 2px solid var(--hairline);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--ink-mute);
+}
+
+/* 誤設提醒：比 scope-hint 顯眼，但仍不擋存檔——它是提醒不是驗證 */
+.ned-gate-warn {
+  padding: 5px 7px;
+  border-left: 2px solid #c08a3e;
+  background: rgb(192 138 62 / 8%);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--ink);
 }

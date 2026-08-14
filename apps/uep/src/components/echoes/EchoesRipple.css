@@ -207,9 +207,220 @@
   border-color: rgba(var(--er-r), var(--er-g), var(--er-b), 0.35);
 }
 
+/* ══════════════════════════════════════════════════════════════
+   迷失的回聲（S9-B 解鎖儀式）
+
+   刻意獨立於 .echoes-ripple 之外：特效層是 pointer-events:none +
+   aria-hidden 的純裝飾，而這顆球是真的要被點的。
+
+   金色（--uep-gold，全站主題色）：初版走灰調表達「不屬於任何 cluster」，
+   但灰在一池藍紅綠紫裡讀起來只是「比較暗的球」，兩輪調亮都沒解決
+   （艾斯維爾 2026-07-26）。四個 cluster 色沒有暖黃，主題金既不撞色，
+   又天然帶「這顆有來歷」的份量——不合群的說法從彩度改成色相。
+   ══════════════════════════════════════════════════════════════ */
+.echoes-lost-layer {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  /* 層本身不吃事件，只有球吃——否則整片會擋住底下的文字與按鈕 */
+  pointer-events: none;
+  z-index: 2;
+}
+
+.er-lost-orb {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+  animation:
+    er-lost-in 1.6s ease-out both,
+    er-lost-drift 11s ease-in-out 1.6s infinite;
+}
+
+.er-lost-orb__core,
+.er-lost-orb__halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: block;
+}
+
+.er-lost-orb__core {
+  /* 07/25 一驗：原本太淡到不會被注意到。整體提亮、加一圈實邊，
+     並靠 er-lost-attention 的間歇脈衝把視線拉過來——它是可互動物件，
+     不是背景裝飾，跟一般球用同一種存在感就等於藏起來。 */
+  background: radial-gradient(
+    circle at 38% 32%,
+    rgba(252, 238, 168, 0.95),
+    rgba(213, 182, 24, 0.58) 55%,
+    rgba(158, 130, 12, 0.16) 100%
+  );
+  border: 1px solid rgba(240, 214, 104, 0.6);
+  box-shadow:
+    0 0 26px rgba(213, 182, 24, 0.5),
+    0 0 60px rgba(213, 182, 24, 0.24),
+    inset 0 0 12px rgba(255, 248, 206, 0.34);
+  animation:
+    er-core-pulse 4.5s ease-in-out infinite,
+    er-lost-attention 3.2s ease-in-out infinite;
+}
+
+.er-lost-orb__halo {
+  border: 1px solid rgba(226, 198, 88, 0.66);
+  box-shadow: 0 0 18px rgba(213, 182, 24, 0.32);
+  animation: er-lost-halo 3.6s ease-in-out infinite;
+}
+
+/* 間歇性的「這裡有東西」——比恆亮更容易在餘光中被抓到 */
+@keyframes er-lost-attention {
+  0%,
+  70%,
+  100% {
+    filter: brightness(1);
+  }
+  85% {
+    filter: brightness(1.45);
+  }
+}
+
+.er-lost-orb:hover .er-lost-orb__core {
+  background: radial-gradient(
+    circle at 38% 32%,
+    rgba(255, 250, 214, 1),
+    rgba(232, 202, 52, 0.76) 55%,
+    rgba(180, 150, 20, 0.24) 100%
+  );
+  box-shadow:
+    0 0 40px rgba(230, 200, 60, 0.62),
+    0 0 84px rgba(213, 182, 24, 0.34),
+    inset 0 0 14px rgba(255, 250, 224, 0.5);
+}
+
+.er-lost-orb:focus-visible {
+  outline: 2px solid var(--uep-gold);
+  outline-offset: 6px;
+}
+
+/* 浮現：比一般球慢，像是慢慢從別處飄進來的 */
+@keyframes er-lost-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* 常駐期間的緩慢漂移——靜止不動會像 UI 元件，飄著才像回聲 */
+@keyframes er-lost-drift {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translate(0, 0);
+  }
+  33% {
+    transform: translate(-50%, -50%) translate(10px, -14px);
+  }
+  66% {
+    transform: translate(-50%, -50%) translate(-8px, 8px);
+  }
+}
+
+@keyframes er-lost-halo {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.12;
+  }
+}
+
+/* 捕捉：吸進去 → 亮起 → 收束 */
+.er-lost-orb.is-catching {
+  animation: er-lost-catch 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  cursor: default;
+}
+.er-lost-orb.is-catching .er-lost-orb__core {
+  background: radial-gradient(
+    circle at 40% 35%,
+    rgba(255, 246, 194, 0.95),
+    rgba(220, 190, 40, 0.46) 60%,
+    transparent 100%
+  );
+  box-shadow: 0 0 46px rgba(226, 196, 56, 0.55);
+}
+
+@keyframes er-lost-catch {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  35% {
+    transform: translate(-50%, -50%) scale(1.35);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.05);
+    opacity: 0;
+  }
+}
+
+/* 深色模式：底色暗，金要往亮處推一階才浮得出來（同 07/25 的灰球結論） */
+[data-theme='dark'] .er-lost-orb__core {
+  background: radial-gradient(
+    circle at 38% 32%,
+    rgba(255, 249, 206, 0.98),
+    rgba(232, 202, 56, 0.66) 55%,
+    rgba(186, 156, 22, 0.18) 100%
+  );
+  border-color: rgba(252, 232, 140, 0.7);
+  box-shadow:
+    0 0 30px rgba(232, 202, 56, 0.55),
+    0 0 72px rgba(213, 182, 24, 0.3),
+    inset 0 0 14px rgba(255, 252, 226, 0.45);
+}
+
+[data-theme='dark'] .er-lost-orb__halo {
+  border-color: rgba(246, 222, 120, 0.72);
+  box-shadow: 0 0 22px rgba(226, 196, 56, 0.36);
+}
+
+[data-theme='dark'] .er-lost-orb:hover .er-lost-orb__core {
+  background: radial-gradient(
+    circle at 38% 32%,
+    #fffdf0,
+    rgba(244, 220, 96, 0.82) 55%,
+    rgba(202, 172, 30, 0.26) 100%
+  );
+  box-shadow:
+    0 0 46px rgba(244, 216, 88, 0.72),
+    0 0 96px rgba(226, 196, 56, 0.4),
+    inset 0 0 16px rgba(255, 253, 236, 0.6);
+}
+
 /* ── 減少動態偏好 ── */
 @media (prefers-reduced-motion: reduce) {
   .echoes-ripple {
     display: none;
+  }
+  /* 灰球是解鎖途徑，不能跟著整層隱藏——只把動態拿掉，留一顆靜態可點的球。
+     （關掉動畫偏好的使用者本來就看不到 .echoes-ripple 的球群，所以這顆
+     灰球在他們眼裡不會是「灰的那顆」，title/aria-label 是唯一線索。） */
+  .er-lost-orb,
+  .er-lost-orb__core,
+  .er-lost-orb__halo {
+    animation: none;
+  }
+  .er-lost-orb.is-catching {
+    animation: none;
+    opacity: 0;
   }
 }

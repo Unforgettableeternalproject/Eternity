@@ -21,7 +21,7 @@
 
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(100vh - var(--test-banner-h, 0px));
   background: var(--qe-paper);
   color: var(--qe-ink);
   font-family: var(--qe-font);

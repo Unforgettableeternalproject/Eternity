@@ -1,0 +1,531 @@
+/* 身分證吊掛面板 — 登入後的固定識別證（Epic 2 S5，翻面展開版） */
+
+/* 錨定在 TopBar 下緣，看起來像掛在橫杆上。
+   本體 portal 到 body（見 IdentCard.tsx 的 useTopBarBottom），所以是
+   fixed + 量出來的 --ident-anchor-top，而不是 TopBar 的 absolute 子元素。
+   量不到時退回 72px：那是 TopBar 的一般高度，只在沒有頂欄的頁面才會用到。 */
+.uep-ident {
+  --tear-y: 0px; /* 撕下拖曳的當前拉伸距離（由 JS 更新） */
+  --tear-progress: 0; /* 拉伸進度 0~1（由 JS 更新，驅動吊繩顏色漸變） */
+  /* 展開後的證卡寬度。背面永遠用這個寬度佈局（見 .uep-ident__face--back），
+     所以量測不受「現在是吊牌還是證卡」影響 */
+  --ident-w: 248px;
+  /* 展開高度：由 IdentCard.tsx 量背面內容後寫入。這裡只是 SSR 與
+     量測落地前的過渡值 */
+  --ident-open-h: 326px;
+  position: fixed;
+  top: var(--ident-anchor-top, 72px);
+  right: 36px; /* 對齊 TopBar 的水平 padding */
+  /* 收合的吊牌是背景配件，落在浮島層帶（2000–2999）之下——一張沒展開的
+     吊牌沒有理由蓋住讀者正在用的浮島。展開與撕下拖曳時才抬升（見下）。 */
+  z-index: 1900;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* 吊繩與翻面容器都以中心軸對齊 */
+  pointer-events: none; /* 只有 flip 主體可互動 */
+  /* 整張證卡都不可選取：它是一個可拖曳的物件而不是一段文字，
+     手指按住要拉的時候跳出選取反白或 iOS 的長按選單都會打斷手勢。
+     原本只在拖曳中才關，但反白往往就發生在手勢開始的那一下。 */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  animation: uep-ident-drop 0.7s cubic-bezier(0.34, 1.4, 0.64, 1);
+  transform-origin: top center;
+}
+
+/* 展開的證卡與撕下手勢是前景互動，抬到浮島（2000–2999）與便條（3000）
+   之上：指著識別證的教學聚光燈（3200）會先請卡片翻開再挖洞，洞裡不能是
+   浮島。仍低於教學層與所有 modal（≥9990）。 */
+.uep-ident.is-open,
+.uep-ident.is-dragging {
+  z-index: 3100;
+}
+
+/* 區域入場動畫期間讓位（zoneEntryLock 掛的 body class）——入場動畫層
+   （350–600）刻意低於浮島帶，蓋不住任何浮動 UI，靠的是大家各自退場。
+   淡出即可，不用 display:none：識別證位置固定，硬切再硬回會很跳。 */
+body.uep-zone-entry-active .uep-ident {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.22s ease,
+    visibility 0s linear 0.22s;
+}
+
+@keyframes uep-ident-drop {
+  0% {
+    transform: translateY(-24px);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(3px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident {
+    animation: none;
+  }
+}
+
+/* Welcome 儀式進行中：識別證完全不可見。
+   遮罩底下 drop 照跑（0.7s，儀式 2.2s 內早就結束），只是看不到；
+   儀式結束後由 IdentCard 在播 arrival 的同一刻移除本 class。
+
+   刻意用 visibility 而不是 animation: none——後者在 class 移除時
+   會讓 animation 屬性從 none 切回 uep-ident-drop，觸發整段 drop
+   重播（同下方第 49 行的坑）。visibility 不碰動畫時間軸。 */
+.uep-ident.is-welcome-pending {
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* 「掛上」加強動畫——剛從 /login 完成 auth 回來時播一次：
+   吊繩從 0 高度生長出來，識別證從上方降落 + 微幅擺盪定位。
+
+   注意：不要在此加 .uep-ident { animation: none } 來停用 root 的 drop。
+   Welcome 儀式已經蓋住 drop 的 0.7s（drop 早跑完了），但如果 arriving
+   期間把 animation 屬性從 uep-ident-drop 覆寫成 none，等 is-arriving
+   class 被移除時 animation 屬性回切成 uep-ident-drop 會觸發 CSS
+   重新播放整個 drop，使用者會看到「識別證動畫又跑一次」。 */
+
+.uep-ident.is-arriving .uep-ident__cord {
+  animation: uep-ident-cord-grow 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+.uep-ident.is-arriving .uep-ident__flip {
+  animation: uep-ident-arrive 0.9s cubic-bezier(0.34, 1.4, 0.64, 1) 0.42s both;
+  transform-origin: top center;
+}
+
+@keyframes uep-ident-cord-grow {
+  0% {
+    height: 0;
+    opacity: 0.2;
+  }
+  100% {
+    height: calc(22px + var(--tear-y));
+    opacity: 0.55;
+  }
+}
+
+@keyframes uep-ident-arrive {
+  0% {
+    transform: translateY(-80px) rotate(-12deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  55% {
+    transform: translateY(8px) rotate(4deg);
+  }
+  75% {
+    transform: translateY(-3px) rotate(-1.5deg);
+  }
+  90% {
+    transform: translateY(1px) rotate(0.5deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident.is-arriving .uep-ident__cord,
+  .uep-ident.is-arriving .uep-ident__flip {
+    animation: none;
+  }
+}
+
+/* 額外保險：若 root drop 動畫在 arrive 進場前還沒跑完（例如頁面
+   極慢載入），本規則讓 root 進入 forwards 終態、不再干擾 arrive；
+   對已跑完 drop 的路徑則為 no-op（動畫終態本就是 translateY(0)） */
+.uep-ident.is-arriving {
+  animation-fill-mode: forwards;
+}
+
+/* 吊繩：從 TopBar 下緣垂下；撕下拖曳時被拉長（--tear-y 由 JS 控制）
+   非拖曳狀態下有 transition，讓「掛回去」時有回彈感 */
+.uep-ident__cord {
+  width: 1px;
+  height: calc(22px + var(--tear-y));
+  /* 撕下時吊繩顏色從金色連續 lerp 到警戒紅——由 --tear-progress 驅動 */
+  background: color-mix(
+    in srgb,
+    var(--uep-gold),
+    #c53c3c calc(var(--tear-progress, 0) * 100%)
+  );
+  opacity: 0.55;
+  transition: height 0.42s cubic-bezier(0.34, 1.5, 0.64, 1);
+}
+
+.uep-ident.is-dragging .uep-ident__cord {
+  transition: none; /* 拖曳中即時跟隨手指，不加緩動 */
+}
+
+/* 接近撕下閾值：加強 opacity + glow 提示鬆手即撕下
+   顏色由 --tear-progress 連續驅動（見 .uep-ident__cord），這裡只補強亮度感 */
+.uep-ident.is-near-tear .uep-ident__cord {
+  opacity: 0.95;
+  box-shadow: 0 0 5px rgba(197, 60, 60, 0.65);
+}
+
+/* 撕開瞬間：cord 消失、flip 順勢墜落淡出 */
+.uep-ident.is-torn .uep-ident__cord {
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+.uep-ident.is-torn .uep-ident__flip {
+  animation: uep-ident-fall 0.55s cubic-bezier(0.55, 0, 0.85, 0.35) forwards;
+  pointer-events: none;
+}
+
+@keyframes uep-ident-fall {
+  0% {
+    transform: translateY(0) rotate(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(140px) rotate(-8deg);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident__cord,
+  .uep-ident.is-torn .uep-ident__flip {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── 翻面容器：吊牌與證卡是同一張卡的正反面 ── */
+.uep-ident__flip {
+  /* 未展開時是吊牌尺寸；展開時放大成證卡尺寸。透視深度給翻面立體感 */
+  pointer-events: auto;
+  perspective: 900px;
+  width: 44px;
+  height: 68px;
+  margin-top: 0; /* 直接連著吊繩，不留空隙 */
+  transition:
+    width 0.55s cubic-bezier(0.34, 1.2, 0.64, 1),
+    height 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+/* 展開高度由 IdentCard.tsx 量背面內容後寫入 `--ident-open-h`。
+   背面是 `position: absolute; inset: 0`，容器不會被內容撐開——高度給死的話，
+   多出來的內容會被 `overflow: hidden` 切掉，首當其衝的是底部那行撕下提示
+   （使用者看不到唯一的登出說明）。
+
+   一開始是用「列數 × 列高」推算的，但那治不了本：手機寬度下長代稱會折成
+   兩行，內容高度與列數無關（2026-08-05 手機驗收）。 */
+.uep-ident.is-open .uep-ident__flip {
+  width: var(--ident-w);
+  height: var(--ident-open-h);
+}
+
+/* preserve-3d：正反面共享同一空間，翻轉時各自朝對應方向。
+   S6-3：宿主從 <button> 改為 div[role=button]（內含齒輪 button 與
+   ViewSwitch，button 巢狀 button 是無效 HTML）——不再需要 all: unset
+   重置原生按鈕樣式，鍵盤焦點外框於下方手動補齊 */
+.uep-ident__flip-inner {
+  cursor: pointer;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateY(0deg);
+  transition: transform 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
+  /* 讓 flip 動畫從頂部（吊繩接點）為軸心 */
+  transform-origin: 50% 12px;
+}
+
+.uep-ident__flip-inner:focus-visible {
+  outline: 2px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+.uep-ident.is-open .uep-ident__flip-inner {
+  transform: rotateY(180deg);
+}
+
+/* 拖曳中：避免文字選取干擾拉扯，並改變 cursor */
+.uep-ident.is-dragging .uep-ident__flip-inner {
+  cursor: grabbing;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident__flip,
+  .uep-ident__flip-inner {
+    transition: none;
+  }
+}
+
+/* ── 正/反面共用基底 ── */
+.uep-ident__face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  box-sizing: border-box;
+}
+
+/* 正面：吊牌 */
+.uep-ident__face--front {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 8px 11px;
+  border-top-color: var(--uep-gold);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.uep-ident__flip-inner:hover .uep-ident__face--front {
+  border-color: var(--uep-gold);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.uep-ident__tab-glyph {
+  font-size: 13px;
+  color: var(--uep-gold);
+  line-height: 1;
+}
+
+.uep-ident__tab-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--ink-mute);
+  letter-spacing: 0.24em;
+  writing-mode: vertical-rl;
+  /* 直排文字空間不足時會折成第二欄，「識別證」三個字被拆成兩行
+     （Ariel 08/12 手機截圖）——吊牌上的標籤永遠單行 */
+  white-space: nowrap;
+}
+
+/* 背面：完整證卡（rotateY 180 讓正向可讀，backface-visibility 由父層處理） */
+/* 背面固定用展開寬度佈局，不隨容器縮成吊牌的 44px。
+   卡片收起時它朝向背面（backface-visibility: hidden）本來就看不見，
+   而這讓「內容需要多高」隨時都量得準——否則得等展開的 0.55s transition
+   跑完才能量，量完再改高度會看到二次跳動。 */
+.uep-ident__face--back {
+  transform: rotateY(180deg);
+  right: auto;
+  width: var(--ident-w);
+  padding: 22px 20px 18px;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.4);
+  /* 內容按鈕 hover 時不希望翻回，用預設 cursor 覆蓋按鈕 cursor */
+  cursor: default;
+  text-align: left;
+  overflow: hidden;
+}
+
+/* 內容層（量高度的對象）。
+   flow-root 是必要的：沒有它，第一個子元素的 margin-top 會穿透到這一層
+   外面，量到的高度就會少一截——視覺位置不變，但卡片會矮一點點。 */
+.uep-ident__back-inner {
+  display: flow-root;
+}
+
+/* 證卡打孔（掛孔裝飾） */
+.uep-ident__punch {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bg);
+  border: 1px solid var(--hairline-strong);
+}
+
+/* 右上角設定按鈕（未來偏好設定入口） */
+.uep-ident__gear {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--ink-mute);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.2s,
+    border-color 0.2s,
+    background 0.2s;
+}
+
+.uep-ident__gear:hover,
+.uep-ident__gear:focus-visible {
+  color: var(--uep-gold);
+  border-color: var(--hairline-strong);
+  background: var(--bg-soft);
+  outline: none;
+}
+
+.uep-ident__kicker {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: var(--uep-gold);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-top: 8px;
+}
+
+.uep-ident__alias {
+  font-family: var(--font-serif-tc);
+  font-size: 19px;
+  color: var(--ink-title);
+  text-align: center;
+  margin-top: 10px;
+}
+
+.uep-ident__username {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.08em;
+  text-align: center;
+  margin-top: 3px;
+}
+
+.uep-ident__sep {
+  height: 1px;
+  background: var(--hairline);
+  margin: 10px 0;
+}
+
+.uep-ident__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.uep-ident__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.uep-ident__row-label {
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.uep-ident__row-value {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-body);
+  letter-spacing: 0.04em;
+}
+
+.uep-ident__row--mark .uep-ident__row-value {
+  color: var(--uep-gold);
+}
+
+.uep-ident__view-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  /* ViewSwitch 是互動元素——加大點擊區並確保 cursor 對 */
+  cursor: default;
+}
+
+/* 撕下登出的提示：手勢互動沒有可見入口，證卡底部明說一次 */
+.uep-ident__tear-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 12px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--hairline);
+  color: var(--ink-mute);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+
+/* 手機版登出按鈕：取代撕下手勢提示（手勢與下拉重整衝突）。
+   位置與 tear-hint 相同，沿用同一條分隔線與間距；但它是可按的實體
+   按鈕，字要看得清楚，且要有足夠的觸控面積。 */
+.uep-ident__logout {
+  display: block;
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 10px 8px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 2px;
+  background: var(--bg-soft);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  /* iOS 點擊時的預設灰色高光會蓋掉卡片質感 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.uep-ident__logout:active {
+  background: color-mix(in srgb, var(--uep-gold) 12%, var(--bg-soft));
+  border-color: var(--uep-gold);
+}
+
+.uep-ident__tear-hint-glyph {
+  color: var(--uep-gold);
+  font-size: 10px;
+  line-height: 1;
+  animation: uep-ident-hint-nudge 2.6s ease-in-out infinite;
+}
+
+@keyframes uep-ident-hint-nudge {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  85% {
+    transform: translateY(2px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-ident__tear-hint-glyph {
+    animation: none;
+  }
+}
+
+/* 手機：貼齊 TopBar 手機版 padding、證卡縮窄 */
+@media (max-width: 760px) {
+  .uep-ident {
+    right: 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  .uep-ident {
+    --ident-w: 228px;
+  }
+}

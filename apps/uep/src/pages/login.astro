@@ -1,0 +1,25 @@
+---
+/**
+ * 讀者登入 / 註冊頁 — Epic 2 S5
+ *
+ * 全屏儀式感頁面，不掛 TopBar（DesignLayout 本身無 TopBar，直接用即可）。
+ * 承接原 RecordPanel 內的登入/註冊 flow；完成後導回 ?return= 指定的來源頁。
+ *
+ * SSR 側取 return 參數傳入 island，實際驗證/註冊全走 client → Worker。
+ *
+ * ⚠️ 必須 prerender = false：專案 astro config 是 hybrid 模式，預設所有
+ * 頁面都是 build-time prerender，那樣 `Astro.url.searchParams.get('return')`
+ * 只會在 build 時執行一次，永遠讀不到實際請求的 query。使用者無論從
+ * 哪裡點記錄按鈕過來，登入完成後都會被導回 fallback '/'（首頁）。
+ */
+export const prerender = false;
+
+import DesignLayout from '../layouts/DesignLayout.astro';
+import ReaderLoginPage from '../components/auth/ReaderLoginPage';
+
+const rawReturn = Astro.url.searchParams.get('return') || '/';
+---
+
+<DesignLayout title="記錄 · U.E.P Imaginary Space">
+  <ReaderLoginPage client:load returnUrl={rawReturn} />
+</DesignLayout>

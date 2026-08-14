@@ -1,0 +1,459 @@
+import {
+  backfillHistoryInterlinkIndex,
+  ensureInterlinkKeys,
+  extractCandidateKeys,
+} from './interlink';
+import type { PageRow } from './types';
+import type {
+  RootCardRow,
+  RootLinkRow,
+  RootProjectRow,
+  RootSingletonRow,
+  RootUpdateRow,
+} from './root-types';
+// 葉子頁黑名單的單一來源；CLI scripts/seed-test-env.mjs 也 import 同一份。
+import pageTypeConfig from './test-seed-page-types.json';
+
+const OMITTED_PAGE_TYPES = new Set(pageTypeConfig.leafPageTypes);
+const CONTENT_SHELL_TYPES = new Set(pageTypeConfig.contentShellTypes);
+
+export interface TestSeedSnapshot {
+  version: 1;
+  generatedAt: string;
+  pages: PageRow[];
+  rootProjects: RootProjectRow[];
+  rootLinks: RootLinkRow[];
+  rootUpdates: RootUpdateRow[];
+  rootSingletons: RootSingletonRow[];
+  rootCards: RootCardRow[];
+  siteHomepage: Array<{
+    section_id: string;
+    content: string;
+    updated_at: string;
+  }>;
+  /** 舊 snapshot 沒有這個欄位，所以是 optional——缺席時等同空陣列 */
+  flags?: FlagSeedRow[];
+}
+
+/** `uep_flags` 的可攜欄位。時間戳不帶，由 test 端重新產生。 */
+export interface FlagSeedRow {
+  name: string;
+  label: string | null;
+  description: string | null;
+  category: string | null;
+}
+
+export interface TestResetResult {
+  tables: string[];
+  totalRows: number;
+  clearedAt: string;
+  seeded: {
+    pages: number;
+    rootProjects: number;
+    rootLinks: number;
+    rootUpdates: number;
+    rootSingletons: number;
+    rootCards: number;
+    siteHomepage: number;
+    flags: number;
+    /** 依 seed 內容重建的 History 錨點數（S10-1 衍生表） */
+    interlinkAnchors: number;
+    /** 依 seed 內容重建的 key 殼列數（entity 與 story 合計） */
+    interlinkKeys: number;
+  };
+  resetUserProgress: number;
+}
+
+function selectSeedPages(rows: PageRow[]): PageRow[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const selectedIds = new Set(
+    rows
+      .filter(
+        (row) =>
+          !OMITTED_PAGE_TYPES.has(row.page_type) || row.id === 'history/index'
+      )
+      .map((row) => row.id)
+  );
+
+  for (const selectedId of [...selectedIds]) {
+    let parentId = byId.get(selectedId)?.parent_id;
+    while (parentId) {
+      const parent = byId.get(parentId);
+      if (!parent) {
+        throw new Error(`${selectedId} 的父節點 ${parentId} 不存在`);
+      }
+      selectedIds.add(parentId);
+      parentId = parent.parent_id;
+    }
+  }
+
+  return rows
+    .filter((row) => selectedIds.has(row.id))
+    .map((row) => {
+      const isRequiredLeafAncestor =
+        OMITTED_PAGE_TYPES.has(row.page_type) && row.id !== 'history/index';
+      return CONTENT_SHELL_TYPES.has(`${row.area}:${row.page_type}`) ||
+        isRequiredLeafAncestor
+        ? { ...row, content: '[]' }
+        : row;
+    })
+    .sort(
+      (a, b) =>
+        a.depth - b.depth ||
+        a.sort_order - b.sort_order ||
+        a.id.localeCompare(b.id)
+    );
+}
+
+export async function buildTestSeedSnapshot(
+  db: D1Database
+): Promise<TestSeedSnapshot> {
+  const [
+    pages,
+    projects,
+    links,
+    updates,
+    singletons,
+    cards,
+    siteHomepage,
+    flags,
+  ] = await Promise.all([
+    db.prepare('SELECT * FROM pages WHERE deleted_at IS NULL').all<PageRow>(),
+    db
+      .prepare('SELECT * FROM root_projects WHERE deleted_at IS NULL')
+      .all<RootProjectRow>(),
+    db
+      .prepare('SELECT * FROM root_links WHERE deleted_at IS NULL')
+      .all<RootLinkRow>(),
+    db
+      .prepare('SELECT * FROM root_updates WHERE deleted_at IS NULL')
+      .all<RootUpdateRow>(),
+    db.prepare('SELECT * FROM root_singletons').all<RootSingletonRow>(),
+    db.prepare('SELECT * FROM root_cards').all<RootCardRow>(),
+    db
+      .prepare('SELECT section_id, content, updated_at FROM site_homepage')
+      .all<{ section_id: string; content: string; updated_at: string }>(),
+    /* 墓碑不帶：test 是重建出來的乾淨環境，沒有「這裡曾經有個旗標被刪」
+         這件事要傳達，帶過去只會讓 test 端的 PK 被墓碑佔著 */
+    db
+      .prepare(
+        'SELECT name, label, description, category FROM uep_flags WHERE deleted_at IS NULL'
+      )
+      .all<FlagSeedRow>(),
+  ]);
+
+  return {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    pages: selectSeedPages(pages.results || []),
+    rootProjects: projects.results || [],
+    rootLinks: links.results || [],
+    rootUpdates: updates.results || [],
+    rootSingletons: singletons.results || [],
+    rootCards: cards.results || [],
+    siteHomepage: siteHomepage.results || [],
+    flags: flags.results || [],
+  };
+}
+
+export function isTestSeedSnapshot(value: unknown): value is TestSeedSnapshot {
+  if (!value || typeof value !== 'object') return false;
+  const snapshot = value as Partial<TestSeedSnapshot>;
+  return (
+    snapshot.version === 1 &&
+    Array.isArray(snapshot.pages) &&
+    Array.isArray(snapshot.rootProjects) &&
+    Array.isArray(snapshot.rootLinks) &&
+    Array.isArray(snapshot.rootUpdates) &&
+    Array.isArray(snapshot.rootSingletons) &&
+    Array.isArray(snapshot.rootCards) &&
+    (snapshot.siteHomepage === undefined ||
+      Array.isArray(snapshot.siteHomepage)) &&
+    (snapshot.flags === undefined || Array.isArray(snapshot.flags))
+  );
+}
+
+/**
+ * reset 會清空的業務表。
+ *
+ * ⚠️ 新增從 `pages` 衍生的資料表時**必須**列進來。`history_interlink_index`
+ * 與 `interlink_keys` 是衍生表：reset 直接重建 pages，衍生表若沒
+ * 一起清，重置後會留下已不存在頁面的錨點；更糟的是 seed 常用同一組
+ * page id，舊錨點會被重新 join 出來，看起來像「這篇文章提過某個 key」，
+ * 而實際內容裡根本沒有。
+ *
+ * `uep_flags` 曾經刻意不列入：它不是從 pages 衍生而是管理者輸入的註冊表，
+ * 當時 seed 不複製旗標註冊，清掉會讓 test 的所有旗標變成「未註冊」，而
+ * seed 種回來的頁面內容裡仍帶著那些旗標，之後編輯任何一頁都會被存檔時的
+ * 未註冊檢查 409 擋住。現在 snapshot 帶了 `flags`、CLI 的 seed 也會從正式
+ * 環境複製一份，那個前提消失，所以它跟著一起清、一起種——否則 test 的
+ * 旗標表只會單向累積，reset 之後仍留著前一輪實驗的旗標。
+ */
+const BUSINESS_TABLES = [
+  'pages',
+  'root_projects',
+  'root_links',
+  'root_updates',
+  'root_singletons',
+  'root_cards',
+  'site_homepage',
+  'deleted_assets',
+  'root_deleted_assets',
+  'history_interlink_index',
+  'interlink_keys',
+  'uep_flags',
+] as const;
+
+export async function resetAndSeedTestData(
+  db: D1Database,
+  snapshot: TestSeedSnapshot
+): Promise<TestResetResult> {
+  const counts = await Promise.all(
+    BUSINESS_TABLES.map((table) =>
+      db
+        .prepare(`SELECT COUNT(*) as cnt FROM ${table}`)
+        .first<{ cnt: number }>()
+    )
+  );
+  const totalRows = counts.reduce((sum, row) => sum + (row?.cnt ?? 0), 0);
+  const statements: D1PreparedStatement[] = BUSINESS_TABLES.map((table) =>
+    db.prepare(`DELETE FROM ${table}`)
+  );
+  /* 進度歸零必須同時遞增 progress_rev 並蓋 progress_reset_at——
+     否則 reset 前已開啟的分頁仍持有相同 rev，debounce PUT 會通過 CAS
+     把舊 progress（連同便條）原封寫回，reset 形同沒發生。
+     WHERE 額外涵蓋「只有便條」的帳號：便條表整批清空，凡有便條的
+     使用者 canonical 狀態都變了，rev 不動的話舊快照一樣復活便條。 */
+  statements.push(
+    db.prepare(
+      `UPDATE uep_users
+       SET progress = NULL, observer_ever = 0,
+           progress_rev = progress_rev + 1,
+           progress_reset_at = datetime('now'),
+           updated_at = datetime('now')
+       WHERE progress IS NOT NULL OR observer_ever != 0
+          OR id IN (SELECT DISTINCT user_id FROM uep_user_notes)`
+    )
+  );
+  /* uep_user_notes 是使用者擁有的資料（progress blob 拆出的便條，S11 C 段），
+     不是 pages 衍生物——比照上面 uep_users.progress 的模式走獨立陳述式，
+     **不要**加進 BUSINESS_TABLES（那份清單管的是「從 pages 衍生、seed 會
+     種回來」的表，混進使用者資料會讓註解與用途自相矛盾）。 */
+  statements.push(db.prepare('DELETE FROM uep_user_notes'));
+
+  for (const row of snapshot.pages) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO pages
+           (id, area, title, slug, sort_order, content, source_file,
+            base_content_hash, status, metadata, parent_id, depth, page_type,
+            created_at, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          row.id,
+          row.area,
+          row.title,
+          row.slug,
+          row.sort_order,
+          row.content,
+          row.source_file,
+          row.base_content_hash,
+          row.status,
+          row.metadata,
+          row.parent_id,
+          row.depth,
+          row.page_type,
+          row.created_at,
+          row.updated_at,
+          null
+        )
+    );
+  }
+
+  for (const row of snapshot.rootProjects) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO root_projects
+           (id, title_zh, title_en, desc_zh, desc_en, content_zh, content_en,
+            tags, featured, sort_order, status, image, link_demo, link_github,
+            link_website, start_date, end_date, created_at, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          row.id,
+          row.title_zh,
+          row.title_en,
+          row.desc_zh,
+          row.desc_en,
+          row.content_zh,
+          row.content_en,
+          row.tags,
+          row.featured,
+          row.sort_order,
+          row.status,
+          row.image,
+          row.link_demo,
+          row.link_github,
+          row.link_website,
+          row.start_date,
+          row.end_date,
+          row.created_at,
+          row.updated_at,
+          null
+        )
+    );
+  }
+
+  for (const row of snapshot.rootLinks) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO root_links
+           (id, title_zh, title_en, desc_zh, desc_en, url, category, status,
+            icon, featured, sort_order, created_at, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          row.id,
+          row.title_zh,
+          row.title_en,
+          row.desc_zh,
+          row.desc_en,
+          row.url,
+          row.category,
+          row.status,
+          row.icon,
+          row.featured,
+          row.sort_order,
+          row.created_at,
+          row.updated_at,
+          null
+        )
+    );
+  }
+
+  for (const row of snapshot.rootUpdates) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO root_updates
+           (id, title_zh, title_en, desc_zh, desc_en, content_zh, content_en,
+            date, category, featured, created_at, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          row.id,
+          row.title_zh,
+          row.title_en,
+          row.desc_zh,
+          row.desc_en,
+          row.content_zh,
+          row.content_en,
+          row.date,
+          row.category,
+          row.featured,
+          row.created_at,
+          row.updated_at,
+          null
+        )
+    );
+  }
+
+  for (const row of snapshot.rootSingletons) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO root_singletons (section_id, content, updated_at)
+           VALUES (?, ?, ?)`
+        )
+        .bind(row.section_id, row.content, row.updated_at)
+    );
+  }
+
+  for (const row of snapshot.rootCards) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO root_cards (section_id, content, updated_at)
+           VALUES (?, ?, ?)`
+        )
+        .bind(row.section_id, row.content, row.updated_at)
+    );
+  }
+
+  for (const row of snapshot.siteHomepage ?? []) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO site_homepage (section_id, content, updated_at)
+           VALUES (?, ?, ?)`
+        )
+        .bind(row.section_id, row.content, row.updated_at)
+    );
+  }
+
+  for (const row of snapshot.flags ?? []) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO uep_flags (name, label, description, category)
+           VALUES (?, ?, ?, ?)`
+        )
+        .bind(row.name, row.label, row.description, row.category)
+    );
+  }
+
+  const results = await db.batch(statements);
+  const resetUserProgress = results[BUSINESS_TABLES.length]?.meta.changes ?? 0;
+
+  // 衍生資料在 pages 落地後重建——清空 + 重建才是完整的重置。
+  // 種下什麼就重建什麼：seed 的 History 骨架若含互聯標記就會有錨點，
+  // 沒有就是空表，兩種情形都與 pages 現況一致。
+  const candidates = snapshot.pages.flatMap((row) =>
+    extractCandidateKeys(row.area, {
+      metadata: parseMetadata(row.metadata),
+    })
+  );
+  await ensureInterlinkKeys(db, candidates);
+  // 回報的是實際建出的殼列數——同一個 key 值可能同時以 entity 與 story
+  // 兩種身分出現（分屬不同列），所以用 keyType + keyValue 一起去重
+  const interlinkKeys = new Set(
+    candidates.map((c) => JSON.stringify([c.keyType, c.keyValue]))
+  );
+  const interlink = await backfillHistoryInterlinkIndex(db);
+
+  return {
+    tables: [...BUSINESS_TABLES],
+    totalRows,
+    clearedAt: new Date().toISOString(),
+    seeded: {
+      pages: snapshot.pages.length,
+      rootProjects: snapshot.rootProjects.length,
+      rootLinks: snapshot.rootLinks.length,
+      rootUpdates: snapshot.rootUpdates.length,
+      rootSingletons: snapshot.rootSingletons.length,
+      rootCards: snapshot.rootCards.length,
+      siteHomepage: snapshot.siteHomepage?.length ?? 0,
+      flags: snapshot.flags?.length ?? 0,
+      interlinkAnchors: interlink.anchors,
+      interlinkKeys: interlinkKeys.size,
+    },
+    resetUserProgress,
+  };
+}
+
+/** metadata 欄位是自由 JSON 字串；壞資料視為無 metadata（容錯優先） */
+function parseMetadata(raw: string | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object'
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}

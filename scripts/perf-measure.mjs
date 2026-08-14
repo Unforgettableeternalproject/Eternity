@@ -1,0 +1,352 @@
+#!/usr/bin/env node
+/**
+ * 前端效能量測 — 可重複、可比較的基準線
+ *
+ * ## 為什麼不直接看 PageSpeed 分數
+ *
+ * PageSpeed 每次跑會打到不同的 Cloudflare 邊緣節點，冷啟動與熱路徑的
+ * TTFB 差了一個數量級（實測 2268ms vs 150ms）。同一份設定連續兩次量到的
+ * FCP 是 8.4s 與 14.3s——**六秒的噪音**，遠大於任何單項優化的效果。
+ * 拿那個數字當驗收標準，等於在擲骰子。
+ *
+ * 這支腳本固定節流參數、同一台機器連跑多次取**中位數**，用來回答
+ * 「這次改動有沒有效」，而不是「我們拿幾分」。分數留給 PageSpeed。
+ *
+ * ## 用法
+ *
+ *   node scripts/perf-measure.mjs                        # 預設 staging 首頁 / mobile
+ *   node scripts/perf-measure.mjs --profile=desktop
+ *   node scripts/perf-measure.mjs --url=https://... --runs=5
+ *   node scripts/perf-measure.mjs --json                 # 輸出 JSON 供前後對照
+ *   node scripts/perf-measure.mjs --waterfall            # 列出 FCP 之前的完整請求瀑布
+ *
+ * ## 節流參數
+ *
+ * 對齊 Lighthouse 的 slow 4G：1.6Mbps 下載 / 750Kbps 上傳 / 150ms RTT，
+ * CPU 4x 降速。桌面用 10Mbps / 40ms / 不降速。
+ * ⚠️ 數值只在**同一組參數之間**可比較，不要拿來對照 PageSpeed 的絕對值。
+ *
+ * ## 已知限制
+ *
+ * - 量的是**初次載入**（每次開新 context），不反映回訪的快取效益。
+ *
+ * ## ⚠️ 不要用 Resource Timing 量跨網域資源的體積
+ *
+ * 跨網域資源沒有 `Timing-Allow-Origin` 時 `encodedBodySize` 恆為 0。
+ * 這支腳本一開始就是這樣量的，於是 Google Fonts 全部顯示成「0 個 / 0 KB」，
+ * 被讀成「headless 不抓 CJK 分片」，進而推翻了「效能根因是中文字型」這個
+ * 一開始就正確的判斷。實際上 headless 抓得很勤：**36 個分片、2245KB，
+ * 佔首頁總下載量的 96%**。
+ *
+ * 現在改從 CDP `response` 事件讀 `content-length` header，跨網域一樣看得到。
+ * 代價是伺服器用 chunked encoding 時沒有這個 header（Cloudflare 對自家的
+ * JS/CSS 就是如此），所以同站資源的體積仍沿用 Resource Timing。
+ * 兩種來源各補對方的盲區，缺一不可。
+ */
+
+/* 從 @playwright/test 取用，不另裝 playwright——專案已有前者（e2e 用），
+   多裝一個獨立的 playwright 只會讓兩份瀏覽器版本有機會漂移 */
+import { chromium } from '@playwright/test';
+
+const PROFILES = {
+  mobile: {
+    label: '行動裝置（slow 4G + CPU 4x）',
+    viewport: { width: 390, height: 844 },
+    network: {
+      offline: false,
+      downloadThroughput: (1.6 * 1024 * 1024) / 8,
+      uploadThroughput: (750 * 1024) / 8,
+      latency: 150,
+    },
+    cpuThrottling: 4,
+  },
+  desktop: {
+    label: '桌面（10Mbps + 無 CPU 降速）',
+    viewport: { width: 1350, height: 940 },
+    network: {
+      offline: false,
+      downloadThroughput: (10 * 1024 * 1024) / 8,
+      uploadThroughput: (10 * 1024 * 1024) / 8,
+      latency: 40,
+    },
+    cpuThrottling: 1,
+  },
+};
+
+const DEFAULT_URL = 'https://staging.eternity-uep.pages.dev/';
+const DEFAULT_RUNS = 3;
+
+function parseArgs(argv) {
+  const args = {
+    url: DEFAULT_URL,
+    runs: DEFAULT_RUNS,
+    profile: 'mobile',
+    json: false,
+    waterfall: false,
+  };
+  for (const raw of argv.slice(2)) {
+    if (raw === '--json') {
+      args.json = true;
+      continue;
+    }
+    if (raw === '--waterfall') {
+      args.waterfall = true;
+      continue;
+    }
+    const match = /^--([^=]+)=(.*)$/.exec(raw);
+    if (!match) continue;
+    const [, key, value] = match;
+    if (key === 'url') args.url = value;
+    else if (key === 'runs') args.runs = Math.max(1, Number(value) || 1);
+    else if (key === 'profile') args.profile = value;
+  }
+  return args;
+}
+
+/** 中位數——平均值會被單次冷啟動整個帶偏，這裡要的是典型值 */
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+    : sorted[mid];
+}
+
+/**
+ * 單次量測。每次都開新的 context——共用 context 會讓第二次之後吃到
+ * HTTP 快取與已建立的連線，量到的是「回訪」而不是「初次載入」。
+ */
+async function measureOnce(browser, url, profile) {
+  const context = await browser.newContext({ viewport: profile.viewport });
+  const page = await context.newPage();
+  const cdp = await context.newCDPSession(page);
+
+  await cdp.send('Network.enable');
+  await cdp.send('Network.emulateNetworkConditions', profile.network);
+  await cdp.send('Emulation.setCPUThrottlingRate', {
+    rate: profile.cpuThrottling,
+  });
+
+  /* LCP 只能靠 PerformanceObserver 取得，而且必須在文件開始載入前就註冊，
+     否則早期的 entry 收不到。addInitScript 會在每個 document 建立時執行。 */
+  await page.addInitScript(() => {
+    window.__perf = { lcp: null, lcpUrl: null };
+    try {
+      new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const last = entries[entries.length - 1];
+        if (!last) return;
+        window.__perf.lcp = last.startTime;
+        window.__perf.lcpUrl = last.url || null;
+      }).observe({ type: 'largest-contentful-paint', buffered: true });
+    } catch {
+      /* 不支援就留 null，其餘指標照常 */
+    }
+  });
+
+  /* 跨網域體積只有這條路看得到——見檔頭警告 */
+  const wire = [];
+  page.on('response', (res) => {
+    const len = Number(res.headers()['content-length'] || 0);
+    wire.push({ url: res.url(), bytes: len });
+  });
+
+  await page.goto(url, { waitUntil: 'load', timeout: 120_000 });
+  /* LCP 會隨著後續繪製往後更新，載入完成後再等一段讓它收斂 */
+  await page.waitForTimeout(2500);
+
+  const metrics = await page.evaluate(() => {
+    const nav = performance.getEntriesByType('navigation')[0];
+    const paints = performance.getEntriesByType('paint');
+    const fcp = paints.find((p) => p.name === 'first-contentful-paint');
+    const resources = performance.getEntriesByType('resource');
+    const sum = (list) =>
+      list.reduce((acc, r) => acc + (r.encodedBodySize || 0), 0);
+    const byExt = (...exts) =>
+      resources.filter((r) => {
+        const path = r.name.split('?')[0];
+        return exts.some((ext) => path.endsWith(ext));
+      });
+
+    const fonts = byExt('.woff2', '.woff', '.ttf');
+    const images = byExt('.webp', '.png', '.jpg', '.jpeg', '.svg');
+
+    return {
+      ttfb: nav ? nav.responseStart : null,
+      fcp: fcp ? fcp.startTime : null,
+      lcp: window.__perf?.lcp ?? null,
+      lcpUrl: window.__perf?.lcpUrl ?? null,
+      domContentLoaded: nav ? nav.domContentLoadedEventEnd : null,
+      load: nav ? nav.loadEventEnd : null,
+      htmlKB: nav ? nav.encodedBodySize / 1024 : null,
+      requests: resources.length,
+      /* Load 遠晚於 DOMContentLoaded 時，差距是誰造成的。
+         只留最晚結束的幾筆——排查時要的是「誰拖到最後」。 */
+      slowest: resources
+        .map((r) => ({
+          name: r.name.split('?')[0].slice(-52),
+          start: Math.round(r.startTime),
+          end: Math.round(r.responseEnd),
+          type: r.initiatorType,
+        }))
+        .sort((a, b) => b.end - a.end)
+        .slice(0, 8),
+      /* 首次繪製之前發生的所有請求，依開始時間排序。
+         FCP 遲遲不來時要看的是「這段時間在等誰」，總量與最慢幾筆都答不了
+         這個問題——阻斷繪製的往往是一支不大但排在關鍵路徑上的資源。
+         多留 300ms 尾巴，讓剛好跨過 FCP 的那筆也看得到。 */
+      timeline: resources
+        .filter((r) => r.startTime < (fcp ? fcp.startTime + 300 : 3000))
+        .map((r) => ({
+          name: r.name.split('?')[0].slice(-46),
+          start: Math.round(r.startTime),
+          end: Math.round(r.responseEnd),
+          kb: Math.round((r.encodedBodySize || 0) / 1024),
+          type: r.initiatorType,
+          blocking: r.renderBlockingStatus || '',
+        }))
+        .sort((a, b) => a.start - b.start),
+      jsKB: sum(byExt('.js')) / 1024,
+      jsCount: byExt('.js').length,
+      cssKB: sum(byExt('.css')) / 1024,
+      cssCount: byExt('.css').length,
+      fontKB: sum(fonts) / 1024,
+      fontCount: fonts.length,
+      imgKB: sum(images) / 1024,
+      imgCount: images.length,
+    };
+  });
+
+  await context.close();
+
+  const fontWire = wire.filter((w) => w.url.includes('fonts.gstatic.com'));
+  return {
+    ...metrics,
+    fontCount: fontWire.length,
+    fontKB: fontWire.reduce((a, w) => a + w.bytes, 0) / 1024,
+    wireKB: wire.reduce((a, w) => a + w.bytes, 0) / 1024,
+  };
+}
+
+async function main() {
+  const args = parseArgs(process.argv);
+  const profile = PROFILES[args.profile];
+  if (!profile) {
+    console.error(
+      `未知的 profile：${args.profile}（可用：${Object.keys(PROFILES).join(' / ')}）`
+    );
+    process.exit(1);
+  }
+
+  if (!args.json) {
+    console.log(`\n量測目標：${args.url}`);
+    console.log(`節流設定：${profile.label}`);
+    console.log(`執行次數：${args.runs}（取中位數）\n`);
+  }
+
+  const browser = await chromium.launch();
+  const runs = [];
+  try {
+    for (let i = 0; i < args.runs; i += 1) {
+      const result = await measureOnce(browser, args.url, profile);
+      runs.push(result);
+      if (!args.json) {
+        console.log(
+          `  第 ${i + 1} 次  TTFB ${Math.round(result.ttfb)}ms · ` +
+            `FCP ${Math.round(result.fcp ?? 0)}ms · ` +
+            `LCP ${Math.round(result.lcp ?? 0)}ms`
+        );
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+
+  const pick = (key) =>
+    median(runs.map((r) => r[key]).filter((v) => typeof v === 'number'));
+
+  const summary = {
+    url: args.url,
+    profile: args.profile,
+    runs: args.runs,
+    ttfb: pick('ttfb'),
+    fcp: pick('fcp'),
+    lcp: pick('lcp'),
+    lcpUrl: runs[runs.length - 1]?.lcpUrl ?? null,
+    domContentLoaded: pick('domContentLoaded'),
+    load: pick('load'),
+    htmlKB: pick('htmlKB'),
+    requests: pick('requests'),
+    jsKB: pick('jsKB'),
+    jsCount: pick('jsCount'),
+    cssKB: pick('cssKB'),
+    cssCount: pick('cssCount'),
+    fontKB: pick('fontKB'),
+    fontCount: pick('fontCount'),
+    imgKB: pick('imgKB'),
+    imgCount: pick('imgCount'),
+    wireKB: pick('wireKB'),
+  };
+
+  if (args.json) {
+    console.log(JSON.stringify(summary, null, 2));
+    return;
+  }
+
+  const kb = (n) => `${Math.round(n)} KB`;
+  const res = (count, size) =>
+    size > 0 ? `${count} 個 · ${kb(size)}` : `${count} 個 · 大小不可見`;
+
+  console.log('\n──────── 中位數 ────────');
+  console.log(`  TTFB              ${summary.ttfb} ms`);
+  console.log(`  FCP               ${summary.fcp} ms`);
+  console.log(`  LCP               ${summary.lcp} ms`);
+  console.log(`  DOMContentLoaded  ${summary.domContentLoaded} ms`);
+  console.log(`  Load              ${summary.load} ms`);
+  console.log('  ── 資源 ──');
+  console.log(`  請求數            ${summary.requests}`);
+  console.log(`  HTML              ${kb(summary.htmlKB)}`);
+  console.log(`  JS                ${res(summary.jsCount, summary.jsKB)}`);
+  console.log(`  CSS               ${res(summary.cssCount, summary.cssKB)}`);
+  console.log(`  字型              ${res(summary.fontCount, summary.fontKB)}`);
+  console.log(`  圖片              ${res(summary.imgCount, summary.imgKB)}`);
+  console.log(
+    `  ── 實際傳輸總量    ${kb(summary.wireKB)}（含跨網域，取自 content-length）`
+  );
+  if (summary.wireKB > 0) {
+    const share = Math.round((summary.fontKB / summary.wireKB) * 100);
+    console.log(`     其中字型佔 ${share}%`);
+  }
+  if (summary.lcpUrl) console.log(`  LCP 元素：${summary.lcpUrl}`);
+
+  if (args.waterfall) {
+    const run = runs[runs.length - 1];
+    console.log(`\n  ── FCP(${Math.round(run.fcp ?? 0)}ms) 之前的請求 ──`);
+    for (const r of run.timeline ?? []) {
+      const size = r.kb > 0 ? `${String(r.kb).padStart(4)}KB` : '   ── ';
+      const flag = r.blocking === 'blocking' ? ' ⛔阻斷' : '';
+      console.log(
+        `  ${String(r.start).padStart(5)}→${String(r.end).padStart(5)}ms  ` +
+          `${size}  ${r.type.padEnd(6)} ${r.name}${flag}`
+      );
+    }
+  }
+
+  /* Load 明顯晚於 DOMContentLoaded 就把尾巴攤出來——差距通常是某個
+     延遲發出或長時間掛著的請求，光看總量看不出來 */
+  const lastRun = runs[runs.length - 1];
+  if (lastRun && summary.load - summary.domContentLoaded > 1000) {
+    console.log(
+      `\n  ※ Load 比 DOMContentLoaded 晚 ${Math.round(summary.load - summary.domContentLoaded)}ms，最晚結束的請求：`
+    );
+    for (const r of lastRun.slowest ?? []) {
+      console.log(`     ${String(r.end).padStart(6)}ms  ${r.type}  ${r.name}`);
+    }
+  }
+  console.log('');
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

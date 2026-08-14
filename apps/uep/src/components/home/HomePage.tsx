@@ -1,9 +1,10 @@
 import React, {
+  Suspense,
+  lazy,
   useState,
   useCallback,
   useRef,
   useEffect,
-  useLayoutEffect,
 } from 'react';
 
 import {
@@ -15,23 +16,34 @@ import { ZONE_NARRATIVES, JOURNEY_TRANSITION } from '../../data/journey';
 import { ZONES, VERSES, zoneTextColor } from '../../data/zones';
 import type { ZoneData } from '../../data/zones';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
+import { useBrowserLayoutEffect } from '../../utils/useBrowserLayoutEffect';
 import { useIsMobile } from '../../utils/useIsMobile';
 import PieMap3D from '../map/PieMap3D';
-import BigMapModal from '../ui/BigMapModal';
 import IntroOverlay from '../ui/IntroOverlay';
 import Minimap from '../ui/Minimap';
 import PortalTransition from '../ui/PortalTransition';
 import TopBar from '../ui/TopBar';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
+import { acquireZoneEntryLock } from '../zone/zoneEntryLock';
 
 import JourneyNav from './JourneyNav';
 import JourneyScene from './JourneyScene';
-import './HomePage.css';
+import LobbyUep, { shouldShowLobbyArt } from './LobbyUep';
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+/**
+ * 大地圖彈窗走 lazy——它本來就是條件渲染（showMap），使用者不點就
+ * 永遠不會出現，沒有理由讓它佔首屏 bundle。
+ *
+ * ⚠️ 同一區的 PieMap3D **不能**比照辦理：scroll gate 會讀 Atlas 的
+ * offsetTop／offsetHeight 判斷區塊邊界，地圖延後載入會讓 Atlas 高度在
+ * 載入前後改變，整組 gate 跟著錯位。
+ */
+const BigMapModal = lazy(() => import('../ui/BigMapModal'));
+import './HomePage.css';
+import { getApiBase } from '../../lib/apiBase';
+
+const API_BASE = getApiBase();
 const ZONE_VEIL_DURATION_MS = 1800;
 const ZONE_VEIL_ALIGN_DELAY_MS = 100;
 const DESKTOP_DOWN_GATE_MIN = 0.66;
@@ -44,6 +56,58 @@ const MOBILE_UP_GATE_MIN = -0.08;
 const MOBILE_UP_GATE_MAX = 0.42;
 /** wheel delta 累積到此值時觸發全黑 → 播放動畫 */
 const FADE_THRESHOLD = 600;
+/**
+ * 手機淡出走完多少比例才允許轉場。
+ *
+ * 桌面靠 wheel delta 累積表達「我真的要離開這一區」；手機沒有 wheel，
+ * 原本是一進 gate band 就轉場——使用者的閱讀線還在螢幕中央、當前區塊
+ * 底部的文字根本還沒讀到，就已經被帶走了。
+ *
+ * 改成 band 的前段是淡出區、走到尾段才轉場：淡出既是緩衝也是預告，
+ * 而且因為進度是捲動位置的純函數，往回滑會自己退回去。
+ * 不設 1.0 是留一點餘裕——最後幾 px 要求精準命中只會讓人覺得卡住。
+ */
+export const MOBILE_FADE_TRIGGER_PROGRESS = 0.92;
+/**
+ * 淡出的跑道長度，以**捲動容器高**為單位（不是 window.innerHeight——
+ * 兩者差一個 topbar，實測 789 vs 844）。
+ *
+ * 終點取視窗底緣：下一區塊的頂緣還在畫面外時遮罩就已經全黑。
+ * 更早的版本讓終點落在「已露出 15%」，實測仍看得到邊界——遮罩淡入本身
+ * 有時間差，等到「快全黑」時接縫早就進畫面了。
+ */
+const MOBILE_FADE_RUNWAY = 0.55;
+/** 短於這個比例就沒有真正的跑道可用，改走區塊自身的比例 */
+const MOBILE_FADE_MIN_RUNWAY = 0.15;
+/** 沒有跑道時，淡出在區塊高度的這個位置結束 */
+const MOBILE_FADE_SHORT_END_RATIO = 0.55;
+
+/**
+ * 手機往回捲的淡出區間：**當前**區塊頂緣的位置。
+ *
+ * 兩個方向的幾何不對稱：往下時下一區塊還在畫面外，天然就有跑道可以
+ * 「在接縫進畫面之前就全黑」；往上時手指一動，上一區塊的底部**立刻**
+ * 開始露出，沒有任何跑道。
+ *
+ * ⚠️ **起點不能取負值**（一度改成 -0.30vh，錯的）。負起點代表頂緣與視窗
+ * 頂切齊時進度就已經接近 1——而那正是每個區塊的靜止位置。後果有兩個：
+ * 停在區塊頂端時畫面是半黑的；更糟的是進度超過觸發門檻，**往上捲到區塊
+ * 頂端的那一刻就被直接丟進上一個區塊**。
+ *
+ * 所以起點固定在 0，整段淡出只能發生在「接縫正在露出」的區間裡。
+ * 終點壓到 0.10vh 讓它盡快全黑——往上註定會看到一點接縫，只能讓那一段
+ * 短一些。真正讓這段變得不明顯的是手機的 proximity snap（見
+ * JourneyScene.css）：靜止位置就是區塊頂端，使用者不會停在半途。
+ */
+const MOBILE_UP_FADE_START_VH = 0;
+const MOBILE_UP_FADE_END_VH = 0.1;
+
+/**
+ * 桌面往回捲的硬門檻（當前區塊頂緣下沉多少就轉場）。
+ * 桌面的漸變由 wheel handler 累積，scroll handler 只是保底，所以維持
+ * 原本的單一門檻——**不要**改用手機那組區間常數，那是兩套不同的機制。
+ */
+const DESKTOP_UP_SCROLL_THRESHOLD_VH = 0.16;
 const ATLAS_SCENE_INDEX = -3;
 
 /** 大廳動畫 — 墜落速度線 */
@@ -110,9 +174,6 @@ const LOBBY_MOTES: { top: string; left: string; delay: number }[] = [
 
 type LobbyPhase = 'idle' | 'waiting' | 'playing' | 'done';
 
-const useBrowserLayoutEffect =
-  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
-
 function isWithinViewportBand(
   value: number,
   vh: number,
@@ -120,6 +181,73 @@ function isWithinViewportBand(
   maxRatio: number
 ) {
   return value >= vh * minRatio && value <= vh * maxRatio;
+}
+
+/**
+ * 手機切區塊的淡出進度：目標區塊頂緣穿越 gate band 的比例（0 → 1）。
+ *
+ * 純粹是捲動位置的函數——沒有累積量、沒有方向鎖，所以手指往回滑
+ * 進度就自己退回去，不必像桌面那套 wheel fade 一樣維護 direction／
+ * target ref。慣性滑動一口氣衝過整個 band 時進度直接到 1，
+ * 該轉場就轉場，不會卡住。
+ */
+export function mobileFadeProgress(
+  topPx: number,
+  viewportPx: number,
+  sectionHeightPx: number
+): number {
+  const { start, end } = mobileFadeBand(viewportPx, sectionHeightPx);
+  if (topPx >= start) return 0;
+  if (topPx <= end) return 1;
+  return (start - topPx) / (start - end);
+}
+
+/**
+ * 依「目前這個區塊有多高」算出淡出區間。
+ *
+ * 固定的 vh 比例行不通——實測手機各段高度差了兩倍以上（導覽 0.86、
+ * Atlas 1.00、Verse 1.10、zone 區塊 2.11，皆以捲動容器高為單位）。
+ * 用同一組常數的話，比視窗矮的那幾段**靜止時就已經在區間終點之後**，
+ * 進度恆為 1，第一次捲動就直接轉場——導覽往下沒有淡出就是這麼來的。
+ *
+ * 兩種情形：
+ *
+ * - **區塊比視窗高**（zone 區塊）：接縫進畫面前有跑道，終點就取視窗底緣，
+ *   起點往回推 `MOBILE_FADE_RUNWAY` 個視窗高，但不超過靜止位置
+ *   （超過的話一停下來就已經在淡出）。
+ * - **區塊不比視窗高**（導覽、Atlas）：接縫在靜止時就露著，沒有跑道可用。
+ *   退而求其次，用區塊自身的高度切一段出來，至少有漸變而不是瞬間。
+ */
+function mobileFadeBand(
+  viewportPx: number,
+  sectionHeightPx: number
+): { start: number; end: number } {
+  const rest = sectionHeightPx > 0 ? sectionHeightPx : viewportPx;
+  if (rest > viewportPx * (1 + MOBILE_FADE_MIN_RUNWAY)) {
+    return {
+      start: Math.min(rest, viewportPx * (1 + MOBILE_FADE_RUNWAY)),
+      end: viewportPx,
+    };
+  }
+  return { start: rest, end: rest * MOBILE_FADE_SHORT_END_RATIO };
+}
+
+/**
+ * 手機往回捲的淡出進度：**當前**區塊頂緣下沉的比例（0 → 1）。
+ *
+ * 與往下那支互為鏡像，只是量的對象不同——往下看的是還沒到的下一區塊
+ * 頂緣（由下往上逼近），往上看的是腳下這一區塊的頂緣（往下沉，沉多少
+ * 就露出多少上一區塊）。
+ *
+ * 同樣是捲動位置的純函數：手指改變方向進度就自己退回去。
+ * 頂緣還在視窗頂之上（負值）代表使用者仍在區塊內往上讀，尚未觸及邊界。
+ */
+export function mobileUpFadeProgress(currentTopPx: number, vh: number): number {
+  const start = MOBILE_UP_FADE_START_VH * vh;
+  const end = MOBILE_UP_FADE_END_VH * vh;
+  if (currentTopPx <= start) return 0;
+  if (currentTopPx >= end) return 1;
+  return (currentTopPx - start) / (end - start);
 }
 
 function isSettledAtElement(
@@ -199,9 +327,9 @@ export default function HomePage({
   const [intro, setIntro] = useState<ZoneData | null>(null);
   const [portal, setPortal] = useState<ZoneData | null>(null);
   const [showMap, setShowMap] = useState(false);
-  // TODO: 恢復 session 檢查時需復原 ready state
-  // const [ready, setReady] = useState(false);
   const [lobbyPhase, setLobbyPhase] = useState<LobbyPhase>('idle');
+  /** 這次入場動畫要不要讓 U.E.P 一起進來（第一次必定，之後機率制） */
+  const [lobbyArt, setLobbyArt] = useState(false);
   const [veilZone, setVeilZone] = useState<ZoneData | null>(null);
   const [sectionVeil, setSectionVeil] = useState<{
     id: 'plain' | 'threshold' | 'verse';
@@ -240,15 +368,26 @@ export default function HomePage({
   useEffect(() => {
     setIsDark(document.documentElement.dataset.theme === 'dark');
 
-    // TODO: 測試結束後恢復 session 檢查（取消下方註解）
-    // let seen = false;
-    // try { seen = sessionStorage.getItem('uep-lobby-seen') === '1'; } catch {}
-    // if (seen) {
-    //   const t = setTimeout(() => setReady(true), 80);
-    //   return () => clearTimeout(t);
-    // }
+    // 剛從 /login 完成 auth 回來：WelcomeCeremony 已作為特別入場儀式播出，
+    // 主頁的 4.2s 大廳動畫該跳過——避免 Welcome 淡出後還看到頁面在跑動畫。
+    // 由 DesignLayout inline script 種下 class（html 與 body 各種一份，早於此
+    // effect 執行）；GlobalWelcomeHost 播完儀式才移除
+    const welcomePending =
+      document.documentElement.classList.contains('uep-welcome-pending') ||
+      document.body.classList.contains('uep-welcome-pending');
+    if (welcomePending) {
+      // 移除 head 注入的防閃遮罩（本次流程不會播 lobby，遮罩留著會擋畫面）
+      document.getElementById('lobby-block-style')?.remove();
+      return;
+    }
 
-    // ── 啟用大廳動畫（直接播放，4.2s 足夠讓資源載完） ──
+    // ── 啟用大廳動畫 ──
+    // 刻意每次進站都播（不做 session 「看過就跳過」判定）：4.2s 是入場儀式的
+    // 一部分，也剛好讓資源載完。唯一的例外是上方 welcomePending 那條。
+    //
+    // U.E.P 的機率判定只在真的要播大廳時做——它會寫下「見過」標記，
+    // 在跳過大廳的路徑上判定等於白白燒掉那次保證出現的機會。
+    setLobbyArt(shouldShowLobbyArt());
     setLobbyPhase('playing');
   }, []);
 
@@ -256,6 +395,14 @@ export default function HomePage({
     if (lobbyPhase !== 'playing') return;
     // 等 React 已掛上 lobby overlay 後，再移除 head 注入的防閃遮罩。
     document.getElementById('lobby-block-style')?.remove();
+  }, [lobbyPhase]);
+
+  // lobby 動畫期間隱藏浮動 UI（S7-C 驗收回饋）：lobby-overlay 的
+  // z-index（400）低於浮島層帶（2000+），與 IntroOverlay/PortalTransition
+  // 同樣走 zoneEntryLock（body class），動畫播畢釋放。
+  useEffect(() => {
+    if (lobbyPhase !== 'playing') return;
+    return acquireZoneEntryLock();
   }, [lobbyPhase]);
 
   // 測量 TopBar 高度，設定 --topbar-h 供 section 高度計算
@@ -338,26 +485,13 @@ export default function HomePage({
   const handleLobbyAnimEnd = useCallback((e: React.AnimationEvent) => {
     if (e.animationName !== 'lobby-shell') return;
     setLobbyPhase('done');
-    try {
-      sessionStorage.setItem('uep-lobby-seen', '1');
-    } catch {
-      /* ignore */
-    }
   }, []);
 
   // 安全閥：lobby 動畫 6 秒後強制結束（防止 CSS animationName 比對失敗導致白屏）
   useEffect(() => {
     if (lobbyPhase !== 'playing') return;
     const timer = setTimeout(() => {
-      setLobbyPhase((prev) => {
-        if (prev !== 'playing') return prev;
-        try {
-          sessionStorage.setItem('uep-lobby-seen', '1');
-        } catch {
-          /* ignore */
-        }
-        return 'done';
-      });
+      setLobbyPhase((prev) => (prev === 'playing' ? 'done' : prev));
     }, 6000);
     return () => clearTimeout(timer);
   }, [lobbyPhase]);
@@ -681,6 +815,11 @@ export default function HomePage({
       const scrollTop = container.scrollTop;
       const direction = scrollTop >= lastScrollTopRef.current ? 'down' : 'up';
       lastScrollTopRef.current = scrollTop;
+      /* 手機淡出只由 down 分支推進，往上滑不會再經過它——沒有這道歸零，
+         使用者在淡出中途改變主意往回滑，畫面就永遠停在半黑 */
+      if (isMobile && direction === 'up') {
+        fadeOverlayRef.current?.style.setProperty('--fade-progress', '0');
+      }
       const scenes = container.querySelectorAll<HTMLElement>('[data-zone-id]');
       const trans = container.querySelector<HTMLElement>('#journey-start');
       const atlas = container.querySelector<HTMLElement>('#atlas');
@@ -734,53 +873,100 @@ export default function HomePage({
         }
 
         if (isMobile) {
+          /* 目標區塊頂緣穿越 band 的過程就是淡出過程，走到尾段才轉場。
+             進度寫進與桌面 wheel fade 同一個 overlay 變數，所以
+             startZoneTransition 裡那句「手機預暗化設成 1」變成無縫銜接，
+             不再是啪一下全黑。
+             回傳「該不該轉場」，順帶把進度落地——三條路徑共用。 */
+          const advanceFade = (
+            targetTop: number,
+            sectionHeight: number
+          ): 'transition' | 'overshoot' | 'none' => {
+            /* 量的是捲動容器而不是 window.innerHeight——兩者差一個
+               topbar（實測 789 vs 844），用錯的話所有區間都會偏一截 */
+            const progress = mobileFadeProgress(
+              targetTop,
+              container.clientHeight,
+              sectionHeight
+            );
+            fadeOverlayRef.current?.style.setProperty(
+              '--fade-progress',
+              progress.toFixed(3)
+            );
+            /* 已經捲過整個觸發窗口：慣性滑動一幀可以跨掉 0.45vh，
+               窗口被整個跳過。此時補放轉場只會在使用者早就看到下一區
+               之後才蓋幕，比不做更突兀——改為靜默同步狀態，
+               與桌面的 overshoot 處理同一個語意。
+               沒有這條的話 previousSceneRef 永遠停在前一區，
+               之後每個 gate 都對不上，整頁退化成普通長頁捲動。 */
+            if (targetTop < MOBILE_DOWN_GATE_MIN * vh) return 'overshoot';
+            return progress >= MOBILE_FADE_TRIGGER_PROGRESS
+              ? 'transition'
+              : 'none';
+          };
+
+          /** overshoot 的收尾：狀態跟上，不播動畫 */
+          const syncOvershoot = (index: number) => {
+            previousSceneRef.current = index;
+            setActiveScene(index);
+            fadeOverlayRef.current?.style.setProperty('--fade-progress', '0');
+          };
+
           if (current === -1) {
             const firstScene = scenes[0];
-            if (
-              firstScene &&
-              isWithinViewportBand(
+            if (firstScene) {
+              const thresholdEl =
+                container.querySelector<HTMLElement>('#journey-start');
+              const verdict = advanceFade(
                 firstScene.offsetTop - scrollTop,
-                vh,
-                MOBILE_DOWN_GATE_MIN,
-                MOBILE_DOWN_GATE_MAX
-              )
-            ) {
-              startZoneTransition(0, mergedZonesRef.current[0], 'down');
-              return;
+                thresholdEl?.offsetHeight ?? 0
+              );
+              if (verdict === 'transition') {
+                startZoneTransition(0, mergedZonesRef.current[0], 'down');
+                return;
+              }
+              if (verdict === 'overshoot') {
+                syncOvershoot(0);
+                return;
+              }
             }
           } else if (current >= 0 && current < ZONES.length - 1) {
             const nextIndex = current + 1;
             const nextScene = scenes[nextIndex];
-            if (
-              nextScene &&
-              isWithinViewportBand(
+            if (nextScene) {
+              const verdict = advanceFade(
                 nextScene.offsetTop - scrollTop,
-                vh,
-                MOBILE_DOWN_GATE_MIN,
-                MOBILE_DOWN_GATE_MAX
-              )
-            ) {
-              startZoneTransition(
-                nextIndex,
-                mergedZonesRef.current[nextIndex],
-                'down'
+                scenes[current]?.offsetHeight ?? 0
               );
-              return;
+              if (verdict === 'transition') {
+                startZoneTransition(
+                  nextIndex,
+                  mergedZonesRef.current[nextIndex],
+                  'down'
+                );
+                return;
+              }
+              if (verdict === 'overshoot') {
+                syncOvershoot(nextIndex);
+                return;
+              }
             }
           } else if (current === ZONES.length - 1) {
             const verseEl =
               container.querySelector<HTMLElement>('#verse-section');
-            if (
-              verseEl &&
-              isWithinViewportBand(
+            if (verseEl) {
+              const verdict = advanceFade(
                 verseEl.offsetTop - scrollTop,
-                vh,
-                MOBILE_DOWN_GATE_MIN,
-                MOBILE_DOWN_GATE_MAX
-              )
-            ) {
-              startSectionTransition(verseEl, 5, 'plain', 'down');
-              return;
+                scenes[current]?.offsetHeight ?? 0
+              );
+              if (verdict === 'transition') {
+                startSectionTransition(verseEl, 5, 'plain', 'down');
+                return;
+              }
+              if (verdict === 'overshoot') {
+                syncOvershoot(5);
+                return;
+              }
             }
           }
         }
@@ -878,6 +1064,43 @@ export default function HomePage({
 
       const current = previousSceneRef.current;
 
+      /* 往回捲的淡出——與往下那支 advanceFade 對稱。
+         沒有這段的話往上是硬門檻（頂緣下沉超過 0.16vh 就直接轉場），
+         使用者看到的是「啪一下」，而往下是漸暗，同一個手勢兩種質感。
+
+         只有手機需要：桌面的往上轉場由 wheel fade 累積，這裡的 scroll
+         handler 對桌面只是保底。 */
+      const advanceUpFade = (
+        currentTop: number
+      ): 'transition' | 'overshoot' | 'none' => {
+        if (!isMobile) {
+          /* 桌面維持原本的硬門檻語意——它的漸變在 wheel handler 裡 */
+          return currentTop > vh * DESKTOP_UP_SCROLL_THRESHOLD_VH
+            ? 'transition'
+            : 'none';
+        }
+        const progress = mobileUpFadeProgress(
+          currentTop,
+          container.clientHeight
+        );
+        fadeOverlayRef.current?.style.setProperty(
+          '--fade-progress',
+          progress.toFixed(3)
+        );
+        /* 慣性一幀可以跨掉整個 band。此時上一區塊早就露出大半，
+           補放轉場只會在使用者已經看到之後才蓋幕，比不做更突兀——
+           與往下的 overshoot 同一個語意：靜默同步狀態即可。 */
+        if (currentTop > vh * MOBILE_UP_GATE_MAX) return 'overshoot';
+        return progress >= MOBILE_FADE_TRIGGER_PROGRESS ? 'transition' : 'none';
+      };
+
+      /** overshoot 的收尾：狀態跟上，不播動畫 */
+      const syncUpOvershoot = (index: number) => {
+        previousSceneRef.current = index;
+        setActiveScene(index);
+        fadeOverlayRef.current?.style.setProperty('--fade-progress', '0');
+      };
+
       // 位置矯正：previousSceneRef 卡在 Storage(4) 但實際已滑到 Verse 附近
       if (current === ZONES.length - 1) {
         const verseEl = container.querySelector<HTMLElement>('#verse-section');
@@ -894,8 +1117,35 @@ export default function HomePage({
       // Verse → Storage
       if (current === 5) {
         const verseEl = container.querySelector<HTMLElement>('#verse-section');
-        if (verseEl && verseEl.offsetTop - scrollTop > vh * 0.16) {
-          const verseTop = verseEl.offsetTop - scrollTop;
+        const verseTopRaw = verseEl ? verseEl.offsetTop - scrollTop : 0;
+
+        /* 手機的淡出區間從 0 起算，所以進場條件必須放寬到「頂緣一開始
+           下沉」——照桌面那樣等到 > 0.16vh 才進來，那時進度算出來已經是 1，
+           漸變等於沒有。 */
+        if (
+          verseEl &&
+          verseTopRaw >
+            vh *
+              (isMobile
+                ? MOBILE_UP_FADE_START_VH
+                : DESKTOP_UP_SCROLL_THRESHOLD_VH)
+        ) {
+          const verseTop = verseTopRaw;
+
+          if (isMobile) {
+            /* verseTop 就是「當前區塊頂緣」——current === 5 代表人在 Verse。
+               改走漸進淡出後不再需要「來不及就直接全黑」那種補救，
+               進度本來就是位置的函數，跟得上任何速度。
+               還沒走到觸發點時直接 return：不能落到下面那句無條件的
+               `previousSceneRef = 4`，否則狀態會在轉場前就先跳走。 */
+            const verdict = advanceUpFade(verseTop);
+            if (verdict === 'transition') {
+              startZoneTransition(4, mergedZonesRef.current[4], 'up');
+            } else if (verdict === 'overshoot') {
+              syncUpOvershoot(4);
+            }
+            return;
+          }
 
           // 輔助：從 Verse 深處快速滾回時 fade 來不及累積，
           // 先強制全黑再播轉場，避免 boot overlay 閃現。
@@ -906,47 +1156,21 @@ export default function HomePage({
             }
           };
 
-          if (isMobile) {
-            if (
-              isWithinViewportBand(
-                verseTop,
-                vh,
-                MOBILE_UP_GATE_MIN,
-                MOBILE_UP_GATE_MAX
-              )
-            ) {
-              ensureFade();
-              startZoneTransition(4, mergedZonesRef.current[4], 'up');
-              return;
-            }
-            // mobile 越過 gate band 的保底
-            if (verseTop > vh * MOBILE_UP_GATE_MAX && verseTop <= vh * 0.82) {
-              ensureFade();
-              startZoneTransition(4, mergedZonesRef.current[4], 'up');
-              return;
-            }
+          // 桌面快速回拉可能直接跨過 up gate，補一層保底觸發。
+          if (verseTop <= vh * DESKTOP_UP_GATE_MAX && verseTop >= -vh * 0.12) {
+            ensureFade();
+            startZoneTransition(4, mergedZonesRef.current[4], 'up');
+            return;
           }
 
-          if (!isMobile) {
-            // 桌面快速回拉可能直接跨過 up gate，補一層保底觸發。
-            if (
-              verseTop <= vh * DESKTOP_UP_GATE_MAX &&
-              verseTop >= -vh * 0.12
-            ) {
-              ensureFade();
-              startZoneTransition(4, mergedZonesRef.current[4], 'up');
-              return;
-            }
+          if (verseTop > vh * DESKTOP_UP_GATE_MAX && verseTop <= vh * 0.82) {
+            ensureFade();
+            startZoneTransition(4, mergedZonesRef.current[4], 'up');
+            return;
+          }
 
-            if (verseTop > vh * DESKTOP_UP_GATE_MAX && verseTop <= vh * 0.82) {
-              ensureFade();
-              startZoneTransition(4, mergedZonesRef.current[4], 'up');
-              return;
-            }
-
-            if (verseTop > vh * 0.82) {
-              previousSceneRef.current = 4;
-            }
+          if (verseTop > vh * 0.82) {
+            previousSceneRef.current = 4;
           }
 
           // 只要已判定離開 Verse，就同步到 Storage 狀態，避免下一次下滑仍卡在 scene=5。
@@ -958,25 +1182,35 @@ export default function HomePage({
 
       if (current >= 1) {
         const currentScene = scenes[current];
-        if (currentScene && currentScene.offsetTop - scrollTop > vh * 0.16) {
-          // mobile / 桌面都觸發轉場，鎖住容器以攔截中鍵自動滾動等快速捲動
+        if (currentScene) {
           const targetIndex = current - 1;
-          startZoneTransition(
-            targetIndex,
-            mergedZonesRef.current[targetIndex],
-            'up'
-          );
+          const verdict = advanceUpFade(currentScene.offsetTop - scrollTop);
+          if (verdict === 'transition') {
+            // mobile / 桌面都觸發轉場，鎖住容器以攔截中鍵自動滾動等快速捲動
+            startZoneTransition(
+              targetIndex,
+              mergedZonesRef.current[targetIndex],
+              'up'
+            );
+          } else if (verdict === 'overshoot') {
+            syncUpOvershoot(targetIndex);
+          }
         }
         return;
       }
 
       if (current === 0) {
         const currentScene = scenes[0];
-        if (currentScene && currentScene.offsetTop - scrollTop > vh * 0.16) {
-          const thresholdEl =
-            container.querySelector<HTMLElement>('#journey-start');
-          if (thresholdEl) {
-            startSectionTransition(thresholdEl, -1, 'plain', 'up');
+        if (currentScene) {
+          const verdict = advanceUpFade(currentScene.offsetTop - scrollTop);
+          if (verdict === 'transition') {
+            const thresholdEl =
+              container.querySelector<HTMLElement>('#journey-start');
+            if (thresholdEl) {
+              startSectionTransition(thresholdEl, -1, 'plain', 'up');
+            }
+          } else if (verdict === 'overshoot') {
+            syncUpOvershoot(-1);
           }
         }
         return;
@@ -1661,6 +1895,8 @@ export default function HomePage({
                 }
               />
             ))}
+            {/* Phase 1~2 — U.E.P 跟著速度線的方向抵達，落在 Hero 立繪的位置上 */}
+            {lobbyArt && <LobbyUep isDark={isDark} />}
           </>
         </div>
       )}
@@ -1678,6 +1914,27 @@ export default function HomePage({
         activeIndex={activeScene}
         onNavigate={handleJourneyNav}
       />
+
+      {/* 手機專用「回到導覽」：右側導航欄在 760px 以下隱藏，於是往下逛完
+          五個 zone 之後沒有任何回入口的捷徑，只能一路往上捲——而往上捲會
+          逐一觸發每個 zone 的 up gate 與轉場。
+          走的是與導航欄入口鈕同一條 handleJourneyNav(-1)，因此那套
+          threshold 轉場動畫（ring/line/label）原封不動沿用。
+          只在已經進入 zone 區塊之後出現：Hero／Atlas／入口本身不需要。 */}
+      {isMobile && activeScene >= 0 && (
+        <button
+          type="button"
+          className="journey-back-fab"
+          onClick={() => handleJourneyNav(-1)}
+          aria-label="回到導覽入口"
+          title="回到導覽入口"
+        >
+          <span className="journey-back-fab__glyph" aria-hidden="true">
+            ◇
+          </span>
+          <span className="journey-back-fab__label">導覽</span>
+        </button>
+      )}
 
       <div
         ref={scrollContainerRef}
@@ -2461,15 +2718,19 @@ export default function HomePage({
 
       {/* modals */}
       {showMap && (
-        <BigMapModal
-          zones={mergedZones}
-          tone="dark"
-          onClose={() => setShowMap(false)}
-          onPick={(z) => {
-            setShowMap(false);
-            setIntro(z);
-          }}
-        />
+        /* lazy 元件必須有 Suspense 邊界；chunk 只有 1.3KB，
+           載入期間不需要任何佔位視覺 */
+        <Suspense fallback={null}>
+          <BigMapModal
+            zones={mergedZones}
+            tone="dark"
+            onClose={() => setShowMap(false)}
+            onPick={(z) => {
+              setShowMap(false);
+              setIntro(z);
+            }}
+          />
+        </Suspense>
       )}
 
       <IntroOverlay

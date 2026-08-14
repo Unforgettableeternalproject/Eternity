@@ -1157,6 +1157,8 @@ async function uploadRootAsset(
     'audio/ogg',
     'audio/wav',
     'audio/webm',
+    'video/mp4',
+    'video/webm',
     'application/pdf',
   ]);
 

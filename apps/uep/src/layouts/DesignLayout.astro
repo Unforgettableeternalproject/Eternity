@@ -1,6 +1,11 @@
 ---
 import UepToastContainer from '../components/ui/UepToast';
 import UepDialogContainer from '../components/ui/UepDialog';
+import GlobalWelcomeHost from '../components/ui/GlobalWelcomeHost';
+import TestModeBanner from '../components/ui/TestModeBanner';
+import UepFlagsHost from '../progress/UepFlagsHost';
+import UepDevTools from '../devtools/UepDevTools';
+import { ScanlineHudPortal } from '../devtools/ScanlineHud';
 
 interface Props {
   title: string;
@@ -85,18 +90,39 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       )
     }
 
-    <!-- Fonts：非阻塞載入，避免 render-blocking 300ms 延遲 -->
+    <!-- Fonts：非阻塞載入，避免 render-blocking 延遲
+
+         Noto Serif TC 走自架子集化（T-B3，2026-08-06）。Google Fonts 版
+         兩個字重共 36 個分片 2245KB、佔行動版首頁總傳輸量 96%，是 PageSpeed
+         FCP/LCP/SI 的唯一真兇。自架版分三層（core／content／lazy），
+         首頁只下載 core 分片（兩字重合計約 570KB），內頁用字進了內頁才抓，
+         罕字有懶載分片保底。產出與重跑方式見 scripts/build-font-subsets.mjs。
+
+         ⚠️ Noto Serif TC 的 400 與 600 兩個字重都要留著。
+         砍掉 600 缺字重時瀏覽器會合成偽粗體——機械式加粗比真正的 600
+         更笨重，滿頁看起來「處處都在強調」（2026-08-06 實測後撤回）。
+
+         ⚠️ `font-display` 維持 `swap`，不要改 `optional`（2026-08-06 實測後撤回，
+         位元組一個都沒省，代價是首次造訪整站看不到 Noto Serif TC）。
+
+         ⚠️ **不要為字型 CSS 加 `rel="preload"`**（2026-08-06 實測後撤回）。
+         preload 會把它提到 High 優先權，在慢速連線上跟真正阻斷繪製的
+         樣式表搶同一條管線。media="print" 的 Lowest 優先權不會晚發
+         （preload scanner 階段就發現），只是不再插隊。
+
+         拉丁字型（Cormorant Garamond／Inter／JetBrains Mono）維持 Google Fonts
+         ——體積小（latin 子集各約 15-30KB），不值得自架。 -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- 先 preload 字體 CSS，讓瀏覽器提早發現 -->
-    <link
-      rel="preload"
-      as="style"
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
-    />
     <!-- 以 print media 非同步載入，onload 切換為 all 完成套用 -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+    <link
+      href="/fonts/noto-serif-tc/fonts.css"
       rel="stylesheet"
       media="print"
       onload="this.media='all'"
@@ -104,9 +130,10 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <!-- 停用 JavaScript 時的退路 -->
     <noscript>
       <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+TC:wght@400;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
+      <link href="/fonts/noto-serif-tc/fonts.css" rel="stylesheet" />
     </noscript>
 
     <!-- 閒置感知系統 -->
@@ -115,10 +142,20 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       initIdleAwareness();
     </script>
 
-    <!-- 內容保護（反白/複製/右鍵攔截，admin 頁面自動跳過） -->
+    <!-- 站台行為設定（/admin/settings 站台分頁的四項參數）＋內容保護 -->
     <script>
+      import { initUepSettings } from '../lib/uepSettings';
       import { initContentProtection } from '../scripts/content-protection';
+      // 有 sessionStorage 快取時同步就緒；首訪第一頁 fetch 未回前，
+      // 消費點（含下面的內容保護）退回程式碼常數
+      void initUepSettings();
       initContentProtection();
+    </script>
+
+    <!-- 訪客追蹤：文件站分站計數，透過 visitor-counter Worker 記錄 site=uep -->
+    <script>
+      import { scheduleUepVisitorTrack } from '../scripts/visitor-track';
+      scheduleUepVisitorTrack();
     </script>
 
     <!-- Theme init (no flash) + lobby block -->
@@ -126,23 +163,101 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       (function () {
         var t = localStorage.getItem('uep-theme') || 'light';
         document.documentElement.setAttribute('data-theme', t);
-        if (document.documentElement.hasAttribute('data-lobby')) {
+        /* 剛從 /login 完成 auth 回來：WelcomeCeremony 全屏遮罩自己就是唯一畫面，
+           跳過 lobbyBlock 避免雙層遮罩造成 Welcome 淡出時空白閃現。
+           同時在 body 上加 class，讓需要 skip 入場動畫的元件（主頁 lobby 等）
+           可以檢查這個 class 決定是否播——歡迎儀式作為「特別例外」取代
+           頁面自身的長入場，避免 Welcome 淡出後還看到頁面在跑動畫 */
+        var welcomePending = false;
+        try {
+          welcomePending =
+            sessionStorage.getItem('uep.welcome.pending.v1') !== null;
+        } catch (e) {
+          /* sessionStorage 不可用時走預設分支 */
+        }
+        if (welcomePending) {
+          /* body 尚未存在（script 在 head 執行），先掛到 html 上；DOMContentLoaded
+             後再搬到 body。兩個地方都掛，元件檢查任一即可 */
+          document.documentElement.classList.add('uep-welcome-pending');
+          document.addEventListener('DOMContentLoaded', function () {
+            document.body.classList.add('uep-welcome-pending');
+          });
+        }
+        if (
+          document.documentElement.hasAttribute('data-lobby') &&
+          !welcomePending
+        ) {
           var bg = t === 'dark' ? '#14151a' : '#fafaf7';
+          /* 與 .lobby-overlay 同一層光暈（HomePage.css 的 --lobby-glow）。
+             搬過來有兩個作用：
+             1. 視覺連續——原本是「純色 → JS 到了才突然出現光暈與動畫」，
+                現在遮罩一出現就是大廳的靜態首幀，React 接手時無縫。
+             2. FCP：Lighthouse 只認文字或圖片的繪製，**純色背景不算**，
+                所以在 JS 抵達前它眼中的畫面完全是空的——行動版量到的
+                FCP 14.3s 就是這麼來的（TBT 卻是 0ms，瓶頸從來不是執行）。
+                CSS 漸層屬於 background-image，會觸發 FCP。
+             遮罩的遮蔽能力完全不變，儀式該擋的東西一樣擋著。 */
+          var glow =
+            t === 'dark' ? 'rgba(213,182,24,0.22)' : 'rgba(213,182,24,0.1)';
           var s = document.createElement('style');
           s.id = 'lobby-block-style';
+          /* 遮罩的職責只到「大廳動畫接手」為止——lobby overlay 一出現就
+             自己負責遮蔽，所以這裡不必撐滿 4.2s 的儀式全長。
+             保底存在的理由是它唯一的移除者是 HomePage 的 React effect：
+             JS 整個載入失敗的話，畫面會永遠是一片純色，沒有內容也沒有
+             任何錯誤提示。純 CSS 動畫不依賴 JS，只在異常時才會走到。
+             2.5s 遠大於正常的掛載時間；真的走到保底時使用者會先看到內容、
+             稍後才被動畫蓋上，順序略怪但遠勝於長時間白屏。 */
           s.textContent =
-            'body::before{content:"";position:fixed;inset:0;z-index:9999;background:' +
+            'body::before{content:"";position:fixed;inset:0;z-index:9999;' +
+            'background:radial-gradient(ellipse 50% 40% at 50% 50%,' +
+            glow +
+            ',transparent 70%),' +
             bg +
-            ';pointer-events:none}';
+            ';pointer-events:none;animation:uep-lobby-block-failsafe 600ms ease-out 2.5s forwards}' +
+            '@keyframes uep-lobby-block-failsafe{to{opacity:0;visibility:hidden}}';
           document.head.appendChild(s);
         }
       })();
     </script>
   </head>
   <body data-zone={zone}>
+    <TestModeBanner client:load />
     <slot />
-    <UepToastContainer client:idle />
-    <UepDialogContainer client:idle />
+    {
+      /*
+      這三個必須 client:load，不能 idle：它們是「使用者操作前就得就緒」的
+      基礎設施，而互動層（HomePage / ReaderShell 都是 client:load，TopBar 與
+      識別證跟著它們走）一定比 idle 早到，形成結構性競態——
+
+      · UepToastContainer 掛的 __uepToastManager 是全站唯一的回饋出口，
+        25 處在用：登入登出結果、浮島解鎖、編輯器儲存成敗。它沒就緒時
+        那些提示全部靜默消失，使用者只看到「按了沒反應」
+      · UepDialogContainer 掛的 __uepDialogManager 是撕下登出的確認對話框，
+        沒有它 IdentCard.performLogout 會靜默失敗（拉到紅色鬆手沒反應）
+      · GlobalWelcomeHost 是登入／登出儀式的唯一播放者，而儀式 flag 是
+        「消費即清」——沒 hydrate 就沒人消費，flag 原封不動跟到下一頁才播
+
+      requestIdleCallback 在主執行緒持續繁忙時可以無限期不觸發，而首頁正是
+      全站最重的一頁（3D 地圖與粒子背景都是常駐 rAF）。高效能裝置上 idle
+      幾十毫秒內就到，所以這是只有慢裝置才看得見的故障。
+
+      ⚠️ Toast 與 Dialog 必須同進退：IdentCard 在 dialog 缺席時會改用 toast
+      告知使用者，若 toast 仍是 idle，那條 fallback 在它唯一會被觸發的情境
+      （主執行緒繁忙）下同樣不會出現，等於死碼。
+    */
+    }
+    <UepToastContainer client:load />
+    <UepDialogContainer client:load />
+    <GlobalWelcomeHost client:load />
+    {
+      /* UepFlagsHost 同樣不能 idle：它授予 `uep:intro`（進站即得）與推導
+         `uep:all-zone` / `uep:all-island`，而這些旗標是 Storage 對話 gate
+         的條件。idle 不觸發的裝置上，那些對話會永久鎖住且無跡可循。 */
+    }
+    <UepFlagsHost client:load />
+    <UepDevTools client:idle />
+    <ScanlineHudPortal client:idle />
   </body>
 </html>
 

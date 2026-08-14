@@ -1,6 +1,8 @@
 /* global atob, TextEncoder, crypto */
 import { defineMiddleware } from 'astro:middleware';
 
+import { isTestModeOverrideValue, TEST_MODE_COOKIE_NAME } from './lib/apiBase';
+
 const JWT_COOKIE = 'root-admin-jwt';
 const ACTIVE_COOKIE = 'root-admin-active';
 
@@ -76,6 +78,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // Dev 模式：本地 Worker 無 JWT_SECRET，不需要登入（跟文件站一樣）
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
     if (import.meta.env.DEV) {
+      // Test Mode 下 SSR proxy 需轉發真 JWT（test worker 會驗簽章、無 dev bypass），
+      // 無 JWT cookie 時導去真登入；非 Test Mode 維持 dev 免登入
+      const isTestModeDev = isTestModeOverrideValue(
+        context.cookies.get(TEST_MODE_COOKIE_NAME)?.value
+      );
+      if (isTestModeDev && !context.cookies.get(JWT_COOKIE)?.value) {
+        const redirect = encodeURIComponent(pathname);
+        return context.redirect(`/admin/login?redirect=${redirect}`);
+      }
       context.locals.user = {
         username: 'dev',
         role: 'super_admin',

@@ -23,12 +23,18 @@ import {
   safeJson,
   normalizeTimestamp,
   compareTimestamps,
+  diffByTimestamp,
   fmtTime,
   ask,
   checkLocalApi,
   checkRemoteApi,
+  abortOnAuthFailure,
 } from './sync-utils.mjs';
-import { login, getAuthHeaders } from './sync-auth.mjs';
+import {
+  resolveWriteToken,
+  getAuthHeaders,
+  getEnvToken,
+} from './sync-auth.mjs';
 
 // === 設定 ===
 const LOCAL_API = 'http://localhost:8788';
@@ -124,11 +130,15 @@ async function putPage(apiBase, page) {
         }),
       }
     );
-    if (!res.ok) return false;
     const json = await safeJson(res);
-    return json?.ok ?? false;
-  } catch {
-    return false;
+    if (!res.ok || !json?.ok) {
+      // 撞名（409）與其他寫入拒絕都要帶出原因——只印「失敗」時使用者
+      // 無從得知是 key 被別頁佔用，只會以為是網路或權限問題
+      return { ok: false, error: json?.error || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
   }
 }
 
@@ -280,12 +290,12 @@ async function executePush(pages, area) {
       ok++;
       continue;
     }
-    const success = await putPage(REMOTE_API, fullPage);
-    if (success) {
+    const result = await putPage(REMOTE_API, fullPage);
+    if (result.ok) {
       console.log(`  ↑ ${entry.id}`);
       ok++;
     } else {
-      console.log(`  ✗ 推送失敗 ${entry.id}`);
+      console.log(`  ✗ 推送失敗 ${entry.id}：${result.error}`);
       fail++;
     }
   }
@@ -308,12 +318,12 @@ async function executePull(pages, area) {
       ok++;
       continue;
     }
-    const success = await putPage(LOCAL_API, fullPage);
-    if (success) {
+    const result = await putPage(LOCAL_API, fullPage);
+    if (result.ok) {
       console.log(`  ↓ ${entry.id}`);
       ok++;
     } else {
-      console.log(`  ✗ 拉取失敗 ${entry.id}`);
+      console.log(`  ✗ 拉取失敗 ${entry.id}：${result.error}`);
       fail++;
     }
   }
@@ -410,14 +420,21 @@ async function main() {
       // 透過 dispatcher 執行，直接使用傳入的 token
       remoteToken = envToken;
     } else {
-      // 獨立執行，自行登入
-      const result = await login(REMOTE_API);
-      if (!result) {
+      // 獨立執行：有 API_TOKEN 環境變數就用，沒有才互動登入
+      const token = await resolveWriteToken({
+        loginApiUrl: REMOTE_API,
+        purpose: '同步',
+      });
+      if (!token) {
         console.error('❌ 認證失敗，無法繼續同步\n');
         process.exit(1);
       }
-      remoteToken = result.token;
+      remoteToken = token;
     }
+  } else {
+    // dry-run 不強制登入，但有 API_TOKEN 就帶上——旗標註冊表與 key 說明
+    // 兩個端點掛了 isAuthorized，不帶 token 會被靜默跳過，差異表少一截
+    remoteToken = process.env.SYNC_REMOTE_TOKEN || getEnvToken();
   }
 
   // === Purge 模式：只清除兩端的過期軟刪除記錄 ===
@@ -477,6 +494,12 @@ async function main() {
     console.log('✅ 清除完成！\n');
     return;
   }
+
+  // ⚠️ 旗標註冊表**必須先同步**，順序不能移到頁面之後。
+  // 存檔路徑會擋未註冊的自訂旗標（409），本地新註冊的旗標若還沒推上遠端，
+  // 用到它的頁面就會整批推不過去，而錯誤訊息只會說「旗標尚未註冊」，
+  // 看起來像頁面同步壞了。
+  await syncFlags();
 
   let totalPush = 0;
   let totalPull = 0;
@@ -619,6 +642,11 @@ async function main() {
     await syncHomepage();
   }
 
+  // === 劇情點／實體說明同步 ===
+  // 排在頁面之後：說明掛在 key 上，而 key 來自頁面。順序反過來不會出錯
+  // （PUT 是 upsert，不需要殼列先存在），但先有 key 再有說明比較好讀。
+  await syncInterlinkKeys();
+
   // 總結
   console.log('─'.repeat(40));
   console.log(
@@ -635,6 +663,7 @@ async function listAssets(apiBase) {
     const res = await fetch(`${apiBase}/api/assets`, {
       headers: authHeaders(apiBase),
     });
+    abortOnAuthFailure(res, '文件站 R2 資產', apiBase);
     if (!res.ok) return [];
     const json = await safeJson(res);
     return json?.ok ? (json.data?.items || []).map((i) => i.key) : [];
@@ -649,6 +678,7 @@ async function listDeletedAssets(apiBase) {
     const res = await fetch(`${apiBase}/api/assets/deleted`, {
       headers: authHeaders(apiBase),
     });
+    abortOnAuthFailure(res, '文件站資產刪除紀錄', apiBase);
     if (!res.ok) return [];
     const json = await safeJson(res);
     return json?.ok ? json.data || [] : [];
@@ -1037,6 +1067,324 @@ async function syncHomepage() {
     }
   }
 
+  console.log();
+}
+
+// === 旗標註冊表 / key 說明同步 ===
+//
+// 這兩張表都是「管理者手填、不從 pages 衍生」的資料，所以必須同步。
+// 對照組：`history_interlink_index` 是純衍生表（存檔時由 content 重建），
+// 同步它只會製造與內容不一致的機會，刻意不碰。
+
+/**
+ * 印出差異、決定同步方向。
+ *
+ * 回傳 `null` 代表使用者選擇跳過；否則回傳實際要執行的兩份清單。
+ */
+async function resolveSyncPlan({
+  header,
+  unit,
+  toPush,
+  toPull,
+  inSync,
+  key,
+  deleteOnRemote = [],
+  deleteOnLocal = [],
+}) {
+  const hasChanges =
+    toPush.length > 0 ||
+    toPull.length > 0 ||
+    deleteOnRemote.length > 0 ||
+    deleteOnLocal.length > 0;
+  console.log(header);
+
+  if (!hasChanges) {
+    console.log(`   ✓ 完全同步 (${inSync.length} ${unit})\n`);
+    return null;
+  }
+
+  if (toPush.length > 0) {
+    console.log(`\n   ↑ 本地較新 / 僅本地 (${toPush.length} ${unit}):`);
+    for (const p of toPush) console.log(`     ${key(p)}  — ${p.reason}`);
+  }
+  if (toPull.length > 0) {
+    console.log(`\n   ↓ 遠端較新 / 僅遠端 (${toPull.length} ${unit}):`);
+    for (const p of toPull) console.log(`     ${key(p)}  — ${p.reason}`);
+  }
+  if (deleteOnRemote.length > 0) {
+    console.log(`\n   🗑 傳播刪除到遠端 (${deleteOnRemote.length} ${unit}):`);
+    for (const p of deleteOnRemote)
+      console.log(`     ${key(p)}  — ${p.reason}`);
+  }
+  if (deleteOnLocal.length > 0) {
+    console.log(`\n   🗑 傳播刪除到本地 (${deleteOnLocal.length} ${unit}):`);
+    for (const p of deleteOnLocal) console.log(`     ${key(p)}  — ${p.reason}`);
+  }
+  if (inSync.length > 0) {
+    console.log(`\n   = 已同步: ${inSync.length} ${unit}`);
+  }
+  console.log();
+
+  let doPush = toPush;
+  let doPull = toPull;
+  let doDelRemote = deleteOnRemote;
+  let doDelLocal = deleteOnLocal;
+
+  if (DIRECTION === 'pull') {
+    doPush = [];
+    doDelRemote = [];
+  } else if (DIRECTION === 'push') {
+    doPull = [];
+    doDelLocal = [];
+  } else if (!DRY_RUN) {
+    const answer = await ask(
+      `   同步？ [y] 全部 / [push] 只推送 / [pull] 只拉取 / [n] 跳過: `
+    );
+    if (answer === 'n' || answer === 'no') {
+      console.log('   ⏭ 跳過\n');
+      return null;
+    }
+    if (answer === 'push') {
+      doPull = [];
+      doDelLocal = [];
+    }
+    if (answer === 'pull') {
+      doPush = [];
+      doDelRemote = [];
+    }
+  }
+
+  return { doPush, doPull, doDelRemote, doDelLocal };
+}
+
+async function fetchFlags(apiBase) {
+  try {
+    // 帶墓碑一起讀——沒有 deleted_at 就分不出「被刪了」與「還沒同步過來」，
+    // 刪除會在下一次同步被對面的活列蓋回來
+    const res = await fetch(`${apiBase}/api/flags?include_deleted=true`, {
+      headers: authHeaders(apiBase),
+    });
+    if (!res.ok) return null;
+    const json = await safeJson(res);
+    if (!json?.ok) return null;
+    const map = {};
+    for (const flag of json.data?.flags || []) map[flag.name] = flag;
+    return map;
+  } catch {
+    return null;
+  }
+}
+
+/** 寫入單一旗標（已存在走 PUT、不存在走 POST），保留來源時間戳 */
+async function writeFlag(apiBase, flag, exists) {
+  const payload = {
+    label: flag.label ?? null,
+    description: flag.description ?? null,
+    category: flag.category ?? null,
+    updatedAt: flag.updatedAt,
+  };
+  const url = exists
+    ? `${apiBase}/api/flags/${encodeURIComponent(flag.name)}`
+    : `${apiBase}/api/flags`;
+  try {
+    const res = await fetch(url, {
+      method: exists ? 'PUT' : 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(apiBase),
+      },
+      body: JSON.stringify(exists ? payload : { name: flag.name, ...payload }),
+    });
+    if (!res.ok) return false;
+    const json = await safeJson(res);
+    return json?.ok ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 傳播刪除：對面若還活著就把它也刪掉。
+ *
+ * 帶 `force=true`——刪除的決定在來源端已經做過（那邊的引用檢查擋過一次），
+ * 這裡再擋一次只會讓兩端永遠不一致：來源刪了、目標擋著，下一次同步又把
+ * 目標的活列拉回來。
+ */
+async function deleteFlagRemote(apiBase, name) {
+  try {
+    const res = await fetch(
+      `${apiBase}/api/flags/${encodeURIComponent(name)}?force=true`,
+      { method: 'DELETE', headers: authHeaders(apiBase) }
+    );
+    if (res.status === 404) return true; // 已經不在了，目的達成
+    if (!res.ok) return false;
+    const json = await safeJson(res);
+    return json?.ok ?? false;
+  } catch {
+    return false;
+  }
+}
+
+async function syncFlags() {
+  const [localMap, remoteMap] = await Promise.all([
+    fetchFlags(LOCAL_API),
+    fetchFlags(REMOTE_API),
+  ]);
+
+  // 端點需要授權；讀不到就跳過而不是報錯——舊版 worker 還沒有這個端點
+  if (!localMap || !remoteMap) {
+    console.log('\n🚩 旗標註冊表  — 端點無回應或未授權，跳過\n');
+    return;
+  }
+
+  const { toPush, toPull, deleteOnRemote, deleteOnLocal, inSync } =
+    diffByTimestamp(localMap, remoteMap);
+  const countLive = (map) =>
+    Object.values(map).filter((flag) => !flag.deletedAt).length;
+  const plan = await resolveSyncPlan({
+    header: `\n🚩 旗標註冊表  (本地: ${countLive(localMap)} / 遠端: ${countLive(remoteMap)})`,
+    unit: '個旗標',
+    toPush,
+    toPull,
+    deleteOnRemote,
+    deleteOnLocal,
+    inSync,
+    key: (entry) => entry.id,
+  });
+  if (!plan) return;
+
+  for (const entry of plan.doPush) {
+    if (DRY_RUN) {
+      console.log(`  → [dry-run] 會推送 ${entry.id}`);
+      continue;
+    }
+    // 對面是墓碑列時要走 POST 復活，不能 PUT（PUT 只更新活著的列）
+    const targetExists = Boolean(entry.remote && !entry.remote.deletedAt);
+    const ok = await writeFlag(REMOTE_API, entry.local, targetExists);
+    console.log(ok ? `  ↑ ${entry.id}` : `  ✗ 推送失敗 ${entry.id}`);
+  }
+  for (const entry of plan.doPull) {
+    if (DRY_RUN) {
+      console.log(`  ← [dry-run] 會拉取 ${entry.id}`);
+      continue;
+    }
+    const targetExists = Boolean(entry.local && !entry.local.deletedAt);
+    const ok = await writeFlag(LOCAL_API, entry.remote, targetExists);
+    console.log(ok ? `  ↓ ${entry.id}` : `  ✗ 拉取失敗 ${entry.id}`);
+  }
+  for (const entry of plan.doDelRemote) {
+    if (DRY_RUN) {
+      console.log(`  → [dry-run] 會刪除遠端 ${entry.id}`);
+      continue;
+    }
+    const ok = await deleteFlagRemote(REMOTE_API, entry.id);
+    console.log(ok ? `  🗑 遠端 ${entry.id}` : `  ✗ 遠端刪除失敗 ${entry.id}`);
+  }
+  for (const entry of plan.doDelLocal) {
+    if (DRY_RUN) {
+      console.log(`  ← [dry-run] 會刪除本地 ${entry.id}`);
+      continue;
+    }
+    const ok = await deleteFlagRemote(LOCAL_API, entry.id);
+    console.log(ok ? `  🗑 本地 ${entry.id}` : `  ✗ 本地刪除失敗 ${entry.id}`);
+  }
+  console.log();
+}
+
+/**
+ * 取兩端「有填過標題或說明」的 key。
+ *
+ * 空殼列不進同步：殼列是頁面存檔時自動建立的衍生資料，頁面同步過去之後
+ * 對面自然會有，推它只是製造一堆無意義的往返。
+ */
+async function fetchKeyMetas(apiBase) {
+  try {
+    const res = await fetch(`${apiBase}/api/interlink/keys`, {
+      headers: authHeaders(apiBase),
+    });
+    if (!res.ok) return null;
+    const json = await safeJson(res);
+    if (!json?.ok) return null;
+    const map = {};
+    for (const key of json.data?.keys || []) {
+      if (!key.title && !key.description) continue;
+      map[`${key.keyType}/${key.keyValue}`] = key;
+    }
+    return map;
+  } catch {
+    return null;
+  }
+}
+
+async function writeKeyMeta(apiBase, key) {
+  try {
+    const res = await fetch(
+      `${apiBase}/api/interlink/keys/${key.keyType}/${encodeURIComponent(key.keyValue)}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders(apiBase),
+        },
+        body: JSON.stringify({
+          title: key.title,
+          description: key.description,
+          updatedAt: key.updatedAt,
+        }),
+      }
+    );
+    if (!res.ok) return false;
+    const json = await safeJson(res);
+    return json?.ok ?? false;
+  } catch {
+    return false;
+  }
+}
+
+async function syncInterlinkKeys() {
+  const [localMap, remoteMap] = await Promise.all([
+    fetchKeyMetas(LOCAL_API),
+    fetchKeyMetas(REMOTE_API),
+  ]);
+
+  if (!localMap || !remoteMap) {
+    console.log('\n🔖 劇情點／實體說明  — 端點無回應或未授權，跳過\n');
+    return;
+  }
+  if (
+    Object.keys(localMap).length === 0 &&
+    Object.keys(remoteMap).length === 0
+  ) {
+    return;
+  }
+
+  const { toPush, toPull, inSync } = diffByTimestamp(localMap, remoteMap);
+  const plan = await resolveSyncPlan({
+    header: `\n🔖 劇情點／實體說明  (本地: ${Object.keys(localMap).length} / 遠端: ${Object.keys(remoteMap).length})`,
+    unit: '筆說明',
+    toPush,
+    toPull,
+    inSync,
+    key: (entry) => entry.id,
+  });
+  if (!plan) return;
+
+  for (const entry of plan.doPush) {
+    if (DRY_RUN) {
+      console.log(`  → [dry-run] 會推送 ${entry.id}`);
+      continue;
+    }
+    const ok = await writeKeyMeta(REMOTE_API, entry.local);
+    console.log(ok ? `  ↑ ${entry.id}` : `  ✗ 推送失敗 ${entry.id}`);
+  }
+  for (const entry of plan.doPull) {
+    if (DRY_RUN) {
+      console.log(`  ← [dry-run] 會拉取 ${entry.id}`);
+      continue;
+    }
+    const ok = await writeKeyMeta(LOCAL_API, entry.remote);
+    console.log(ok ? `  ↓ ${entry.id}` : `  ✗ 拉取失敗 ${entry.id}`);
+  }
   console.log();
 }
 

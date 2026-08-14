@@ -3,6 +3,7 @@ import ConfirmDialog, {
   type ConfirmDialogState,
   DIALOG_CLOSED,
 } from './ConfirmDialog';
+import { UploadSpinner } from './UploadSpinner';
 import './RootMediaLibrary.css';
 
 // ── types ──
@@ -66,6 +67,11 @@ export default function RootMediaLibrary({
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<AssetItem | null>(null);
   const [uploading, setUploading] = useState(false);
+  /** 多檔上傳的第 N 個——單檔時 total 為 1，spinner 自動省略計數 */
+  const [uploadProgress, setUploadProgress] = useState({
+    current: 0,
+    total: 0,
+  });
   const [dialog, setDialog] = useState<ConfirmDialogState>(DIALOG_CLOSED);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -118,13 +124,18 @@ export default function RootMediaLibrary({
       const allowed = Array.from(files).filter((f) => {
         if (filterType === 'audio') return f.type.startsWith('audio/');
         if (filterType === 'image') return f.type.startsWith('image/');
-        return f.type.startsWith('image/') || f.type.startsWith('audio/');
+        return (
+          f.type.startsWith('image/') ||
+          f.type.startsWith('audio/') ||
+          f.type.startsWith('video/')
+        );
       });
       if (allowed.length === 0) return;
 
       setUploading(true);
       const failed: string[] = [];
-      for (const file of allowed) {
+      for (const [idx, file] of allowed.entries()) {
+        setUploadProgress({ current: idx + 1, total: allowed.length });
         try {
           const res = await fetch(`${apiBase}/api/root/assets`, {
             method: 'POST',
@@ -141,6 +152,7 @@ export default function RootMediaLibrary({
         }
       }
       setUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
       if (failed.length > 0) {
         setDialog({
           open: true,
@@ -152,7 +164,7 @@ export default function RootMediaLibrary({
       fetchAssets();
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
-    [apiBase, authHeaders, fetchAssets]
+    [apiBase, authHeaders, fetchAssets, filterType]
   );
 
   // ── delete ──
@@ -224,12 +236,16 @@ export default function RootMediaLibrary({
   // ── filter helpers ──
   const AUDIO_EXTS = /\.(mp3|wav|ogg|flac|m4a|aac|wma|opus)$/i;
   const IMAGE_EXTS = /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i;
+  const VIDEO_EXTS = /\.(mp4|webm|mov)$/i;
 
   function isAudio(item: AssetItem): boolean {
     return item.contentType?.startsWith('audio/') || AUDIO_EXTS.test(item.key);
   }
   function isImage(item: AssetItem): boolean {
     return item.contentType?.startsWith('image/') || IMAGE_EXTS.test(item.key);
+  }
+  function isVideo(item: AssetItem): boolean {
+    return item.contentType?.startsWith('video/') || VIDEO_EXTS.test(item.key);
   }
 
   // ── filter ──
@@ -283,13 +299,27 @@ export default function RootMediaLibrary({
             className="qe-ml__upload-btn"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
+            aria-busy={uploading}
           >
-            {uploading ? 'uploading…' : '＋ upload'}
+            {uploading ? (
+              <UploadSpinner
+                current={uploadProgress.current}
+                total={uploadProgress.total}
+              />
+            ) : (
+              '＋ upload'
+            )}
           </button>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept={
+              filterType === 'audio'
+                ? 'audio/*'
+                : filterType === 'image'
+                  ? 'image/*'
+                  : 'image/*,audio/*,video/*'
+            }
             multiple
             style={{ display: 'none' }}
             onChange={(e) => handleUpload(e.target.files)}
@@ -314,12 +344,25 @@ export default function RootMediaLibrary({
                   className={`qe-ml__card${selected?.key === item.key ? ' qe-ml__card--selected' : ''}`}
                   onClick={() => handleCardClick(item)}
                 >
-                  <img
-                    className="qe-ml__thumb"
-                    src={buildAssetUrl(apiBase, item.key)}
-                    alt={item.originalName || item.key}
-                    loading="lazy"
-                  />
+                  {isVideo(item) ? (
+                    <video
+                      className="qe-ml__thumb"
+                      src={buildAssetUrl(apiBase, item.key)}
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                      onMouseEnter={(e) => void e.currentTarget.play()}
+                      onMouseLeave={(e) => e.currentTarget.pause()}
+                    />
+                  ) : (
+                    <img
+                      className="qe-ml__thumb"
+                      src={buildAssetUrl(apiBase, item.key)}
+                      alt={item.originalName || item.key}
+                      loading="lazy"
+                    />
+                  )}
                   <div className="qe-ml__card-meta">
                     <div className="qe-ml__card-name">
                       {item.originalName || getFilename(item.key)}
@@ -350,11 +393,22 @@ export default function RootMediaLibrary({
       {/* detail panel (page mode only) */}
       {mode === 'page' && selected && (
         <div className="qe-ml__detail">
-          <img
-            className="qe-ml__detail-preview"
-            src={buildAssetUrl(apiBase, selected.key)}
-            alt=""
-          />
+          {isVideo(selected) ? (
+            <video
+              className="qe-ml__detail-preview"
+              src={buildAssetUrl(apiBase, selected.key)}
+              controls
+              muted
+              loop
+              playsInline
+            />
+          ) : (
+            <img
+              className="qe-ml__detail-preview"
+              src={buildAssetUrl(apiBase, selected.key)}
+              alt=""
+            />
+          )}
 
           <div className="qe-ml__detail-field">
             <div className="qe-ml__detail-label">filename</div>

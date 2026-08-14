@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --var ETERNITY_DEV:true",
     "deploy": "wrangler deploy",
     "ship": "wrangler deploy",
     "test": "vitest run"

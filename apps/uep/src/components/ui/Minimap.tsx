@@ -1,6 +1,20 @@
-import React, { useLayoutEffect, useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useBrowserLayoutEffect } from '../../utils/useBrowserLayoutEffect';
 import type { ZoneData } from '../../data/zones';
 import { zoneTextColor } from '../../data/zones';
+// S6 行為對齊：拖曳定位邏輯與浮島系統共用同一份實作
+// （clamp/ratio/corner 語意一致，Minimap 是這套機制的原始出處）
+import {
+  clampToViewport,
+  fromRatio,
+  resolveCornerPosition,
+  toRatio,
+} from '../../islands/dragPosition';
+import type { PositionRatio, XYPosition } from '../../islands/dragPosition';
+import { MINIMAP_Z } from '../../islands/types';
+import { useZoneEntryActive } from '../../islands/useIslands';
+import { isZoneEntryActive } from '../zone/zoneEntryLock';
+import './Minimap.css';
 
 interface MinimapProps {
   zones: ZoneData[];
@@ -13,49 +27,13 @@ interface MinimapProps {
 const MINIMAP_POSITION_KEY = 'uep-minimap-position';
 const MINIMAP_WIDTH = 120;
 const MINIMAP_HEIGHT_APPROX = 140;
+/** 轉場動畫時長，必須與 Minimap.css 的 uep-minimap-leave 對齊 */
+const MINIMAP_LEAVE_MS = 280;
 
 // 永遠只用 left/top，不使用 right/bottom，避免四值同時存在時被合併為 inset
-type MinimapPosition = { left: number; top: number };
-
-/** 小地圖在視窗中的比例位置，用於 resize 時等比移動 */
-type PositionRatio = { lr: number; tr: number };
+type MinimapPosition = XYPosition;
 
 /* ────────────────────────── helpers ────────────────────────── */
-
-function clampPosition(
-  left: number,
-  top: number,
-  width: number,
-  height: number
-): MinimapPosition {
-  return {
-    left: Math.max(8, Math.min(window.innerWidth - width - 8, left)),
-    top: Math.max(8, Math.min(window.innerHeight - height - 8, top)),
-  };
-}
-
-/** 從絕對座標算出比例 */
-function toRatio(left: number, top: number): PositionRatio {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  return {
-    lr: vw > 0 ? left / vw : 0,
-    tr: vh > 0 ? top / vh : 0,
-  };
-}
-
-/** 從比例還原為絕對座標（再 clamp） */
-function fromRatio(
-  ratio: PositionRatio,
-  width: number,
-  height: number
-): MinimapPosition {
-  const raw = {
-    left: ratio.lr * window.innerWidth,
-    top: ratio.tr * window.innerHeight,
-  };
-  return clampPosition(raw.left, raw.top, width, height);
-}
 
 function readStoredPosition(): MinimapPosition | null {
   try {
@@ -68,23 +46,6 @@ function readStoredPosition(): MinimapPosition | null {
   } catch {
     return null;
   }
-}
-
-// 根據 position prop 換算 left/top pixel 值（需要知道元件尺寸）
-function resolveDefaultPosition(
-  position: NonNullable<MinimapProps['position']>,
-  w: number,
-  h: number
-): MinimapPosition {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const PAD = 20;
-  return {
-    'bottom-left': { left: PAD, top: vh - h - PAD },
-    'bottom-right': { left: vw - w - PAD, top: vh - h - PAD },
-    'top-left': { left: PAD, top: PAD },
-    'top-right': { left: vw - w - PAD, top: PAD },
-  }[position];
 }
 
 /* ══════════════════════════ Component ══════════════════════════ */
@@ -105,6 +66,25 @@ export default function Minimap({
   /** 記錄使用者設定位置時的比例，resize 時以此等比移動 */
   const ratioRef = useRef<PositionRatio>({ lr: 0, tr: 0 });
 
+  /**
+   * 轉場階段（S10-0）：
+   * - `idle` — 常態
+   * - `hiding` — 區域轉場離場動畫中，播完進 hidden
+   * - `hidden` — 轉場期間讓位，不佔畫面
+   * - `entering` — 轉場結束後的進場動畫（離場逆行）
+   *
+   * 小地圖不收合、不進 dock，所以沒有浮島那個 `closing` 階段。
+   * 首次 mount 不播進場動畫——那由既有的 `ready` 淡入負責，維持原本觀感；
+   * 但轉場進行中 mount（uep 站是 MPA，每次換頁都會重來一次）直接進 hidden，
+   * 不播一段沒人看得到的動畫。
+   */
+  const zoneEntryActive = useZoneEntryActive();
+  const [phase, setPhase] = useState<'idle' | 'hiding' | 'hidden' | 'entering'>(
+    () => (isZoneEntryActive() ? 'hidden' : 'idle')
+  );
+  const leaving = phase === 'hiding';
+  const entering = phase === 'entering';
+
   function updatePos(next: MinimapPosition) {
     posRef.current = next;
     setPos(next);
@@ -117,7 +97,7 @@ export default function Minimap({
   }
 
   /* ---------- mount：讀取存儲位置 ---------- */
-  useLayoutEffect(() => {
+  useBrowserLayoutEffect(() => {
     if (!ref.current) return;
     const w = ref.current.offsetWidth;
     const h = ref.current.offsetHeight;
@@ -125,9 +105,9 @@ export default function Minimap({
 
     let initial: MinimapPosition;
     if (stored) {
-      initial = clampPosition(stored.left, stored.top, w, h);
+      initial = clampToViewport(stored.left, stored.top, w, h);
     } else {
-      initial = resolveDefaultPosition(position, w, h);
+      initial = resolveCornerPosition(position, w, h);
     }
     setPositionWithRatio(initial);
     setReady(true);
@@ -149,6 +129,35 @@ export default function Minimap({
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  /* ---------- 轉場：讓位給區域入場動畫，結束後自己回來 ---------- */
+  useEffect(() => {
+    if (zoneEntryActive) {
+      setPhase((p) => (p === 'idle' || p === 'entering' ? 'hiding' : p));
+      return;
+    }
+    setPhase((p) => (p === 'hidden' || p === 'hiding' ? 'entering' : p));
+  }, [zoneEntryActive]);
+
+  /* 保底計時器：prefers-reduced-motion 會把 animation 整組關掉，
+     animationend 永遠不會來，只剩計時器負責推進階段。 */
+  useEffect(() => {
+    if (phase !== 'hiding' && phase !== 'entering') return;
+    const from = phase;
+    const to = from === 'hiding' ? 'hidden' : 'idle';
+    const timer = window.setTimeout(
+      () => setPhase((p) => (p === from ? to : p)),
+      MINIMAP_LEAVE_MS + 80
+    );
+    return () => window.clearTimeout(timer);
+  }, [phase]);
+
+  function handleAnimationEnd(e: React.AnimationEvent) {
+    /* 只認自己根節點的動畫，忽略子元素冒泡上來的 animationend */
+    if (e.target !== e.currentTarget) return;
+    if (phase === 'hiding') setPhase('hidden');
+    else if (phase === 'entering') setPhase('idle');
+  }
+
   /* ---------- drag handlers ---------- */
   function startDrag(e: React.PointerEvent) {
     if (!ref.current) return;
@@ -164,7 +173,7 @@ export default function Minimap({
     const py = e.clientY - drag.offY;
     const w = ref.current.offsetWidth;
     const h = ref.current.offsetHeight;
-    updatePos(clampPosition(px, py, w, h));
+    updatePos(clampToViewport(px, py, w, h));
   }
 
   function endDrag() {
@@ -183,7 +192,10 @@ export default function Minimap({
   return (
     <div
       ref={ref}
-      className="uep-minimap"
+      className={`uep-minimap${leaving ? ' uep-minimap--leaving' : ''}${
+        entering ? ' uep-minimap--entering' : ''
+      }`}
+      onAnimationEnd={handleAnimationEnd}
       style={{
         position: 'fixed',
         left: pos.left,
@@ -195,15 +207,20 @@ export default function Minimap({
         fontFamily: 'var(--font-mono)',
         fontSize: 10,
         color: 'var(--ink-soft)',
-        zIndex: 300,
+        zIndex: MINIMAP_Z,
         opacity: ready ? 1 : 0,
-        transition: drag
-          ? 'none'
-          : 'box-shadow .25s var(--ease), opacity .2s var(--ease)',
+        /* 轉場期間交給 animation 主導，transition 會跟關鍵影格打架 */
+        transition:
+          drag || leaving || entering
+            ? 'none'
+            : 'box-shadow .25s var(--ease), opacity .2s var(--ease)',
         boxShadow: drag
           ? '0 18px 40px rgba(0,0,0,.22)'
           : '0 6px 18px rgba(0,0,0,.10)',
         userSelect: 'none',
+        ...(phase === 'hidden'
+          ? { visibility: 'hidden' as const, pointerEvents: 'none' as const }
+          : null),
       }}
     >
       {/* drag handle */}
@@ -328,12 +345,6 @@ export default function Minimap({
       >
         {cur?.label || '邊際世界'}
       </div>
-
-      <style>{`
-        @media (max-width: 760px) {
-          .uep-minimap { display: none !important; }
-        }
-      `}</style>
     </div>
   );
 }

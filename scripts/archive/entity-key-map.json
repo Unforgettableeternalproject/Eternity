@@ -1,0 +1,265 @@
+{
+  "$note": "人工確認後另存為 scripts/entity-key-map.json 再跑 apply-entity-keys.mjs。值為 null 的條目會被 apply 略過（不需要 entityKey 的列表型條目直接留 null）。occurrences 僅供參考，apply 只讀 map。",
+  "$generated": "2026-07-06T07:00:30.629Z",
+  "$source": "http://localhost:8788",
+  "map": {
+    " [遣返]": "invera-recovery",
+    " [鎖定]": "invera-lock",
+    "[???]": null,
+    "[遣返]": null,
+    "[鎖定]": null,
+    "[鏡像]": "invera-reflection",
+    "「門」": "gate",
+    "〔共生意識〕": "vastera-dual-symbiosis",
+    "中央政府 Central Government (?,?,?,?,?,?)": "central-government",
+    "介質": "medium",
+    "伊森·奇萊 Eason Carrie": "eason-carrie",
+    "佩斯特·尼傑 Paster Niger": "paster-niger",
+    "公設宿舍編號001~560所 Public Dormitories No. 001~560": "public-dormitories",
+    "凱奇·巴頓 Kach Barten": "kach-barten",
+    "凱恩 Keine": "keine",
+    "凱文·鄂西斯 Kevin Ersis": "kevin-ersis",
+    "刻印": "inscription",
+    "區間界": "space-gate",
+    "卡林·巴克禮 Carin Berkley": "carin-berkley",
+    "卡爾汀妮 Kardiny": "kardiny",
+    "厄羅·斯洛 Earl Silow": "earl-silow",
+    "原型晶石": "prototype-crystal",
+    "叛亂者監獄 Rebel's Prison (一層: 悔過 Repentance | 二層: 鞭策 Discipline | 三層: 苦難 Suffering | 四層: 深淵 Abyss)": "rebel-s-prison",
+    "固有力": "invera",
+    "壁蜘蛛": "abyssilks",
+    "大清掃": "the-purge",
+    "奧蘭 Orland": "orland",
+    "彌爾薩·歐爾 Millsa Ohr": "millsa-ohr",
+    "戴爾維斯·凡尼索斯 Dalvis Vanisurse": "dalvis-vanisurse",
+    "擬魔": "pseudo-magic",
+    "敘述:": null,
+    "未知的存在...": null,
+    "標準採礦坑道工作區 Mining Work Area": "mining-work-area",
+    "渠道": "channel",
+    "狩夜": "hunt-night",
+    "畢安卡·密西斯 Bianca Massis": "bianca-massis",
+    "瘋人吶喊": "madman-s-cry",
+    "穆爾條約": "murielius-treaty",
+    "空間扭曲": "space-distortion",
+    "經濟資源倉庫 (倉儲區) Resource Warehouse (Storage Area)": "resource-warehouse",
+    "舊會議": "treffen",
+    "舊礦山 Old Mine Site": "old-mine-site",
+    "艾斯維爾·科索諾 (Xavier Colsono)": "xavier-colsono",
+    "艾斯維爾·科索諾 Xavier Colsono": "xavier-colsono",
+    "草原獵犬 (弱化)": "verdant-stalkhound-weakened",
+    "莫夫·奇萊 Molf Carrie": "molf-carrie",
+    "蒙尼賽爾·培恩 Moniser Paine": "moniser-paine",
+    "蓋倫·雷馬克 Garren Raymark": "garren-raymark",
+    "變形草": "shifter-plant",
+    "迷霧流石蠍": "mistblower",
+    "這裡的一切都尚未知": null,
+    "阿提克斯·布蘭米克 Atticus Bramirk": "atticus-bramirk",
+    "震盪": "oscillation",
+    "魔力 (大氣/體內)": "endo-exo-vis",
+    "魔力": "magix",
+    "魔晶石": "magic-crystal",
+    "魔法": "magic",
+    "魔獸": "beast",
+    "魔石精化技術 - 震盪": null
+  },
+  "occurrences": {
+    " [遣返]": [
+      "dossier concepts/server/records/invera [variant u] 不見天日的礦場/蒙尼賽爾·培恩"
+    ],
+    " [鎖定]": [
+      "dossier concepts/server/records/invera [variant u] 不見天日的礦場/卡林·巴克禮"
+    ],
+    "[???]": [
+      "dossier concepts/server/records/invera [variant u] 不見天日的礦場/佩斯特·尼傑",
+      "dossier concepts/server/records/invera [variant u] 不見天日的礦場/畢安卡·密西斯",
+      "dossier concepts/server/records/invera [variant u] 不見天日的礦場/彌爾薩·歐爾",
+      "dossier concepts/server/records/invera [variant u] 不見天日的礦場/艾斯維爾·科索諾",
+      "dossier concepts/server/records/invera [variant u] 不見天日的礦場/厄羅·斯洛"
+    ],
+    "[遣返]": [
+      "diff concepts/server/translation/multilingual 固有力遭遇/(預設)"
+    ],
+    "[鎖定]": [
+      "diff concepts/server/translation/multilingual 固有力遭遇/(預設)"
+    ],
+    "[鏡像]": [
+      "dossier concepts/server/records/invera [variant u] 不見天日的礦場/戴爾維斯·凡尼索斯",
+      "diff concepts/server/translation/multilingual 固有力遭遇/(預設)"
+    ],
+    "「門」": [
+      "diff concepts/server/translation/explainations 技術/未被歸類",
+      "diff concepts/server/translation/multilingual ◼︎◼︎理論/(預設)"
+    ],
+    "〔共生意識〕": [
+      "diff concepts/server/translation/multilingual ◼︎◼︎遭遇/(預設)"
+    ],
+    "中央政府 Central Government (?,?,?,?,?,?)": [
+      "dossier concepts/server/records/location_list [variant u] 三區 - 灰寂工場/中央: 康庫爾 Center - Konquer"
+    ],
+    "介質": [
+      "diff concepts/server/translation/explainations 理論/未被歸類",
+      "diff concepts/server/translation/multilingual 魔法理論/(預設)"
+    ],
+    "伊森·奇萊 Eason Carrie": [
+      "dossier concepts/server/records/character_list [variant u] 三區/政府相關"
+    ],
+    "佩斯特·尼傑 Paster Niger": [
+      "dossier concepts/server/records/character_list [variant u] 三區/總務高層"
+    ],
+    "公設宿舍編號001~560所 Public Dormitories No. 001~560": [
+      "dossier concepts/server/records/location_list [variant u] 三區 - 灰寂工場/各象限共有"
+    ],
+    "凱奇·巴頓 Kach Barten": [
+      "dossier concepts/server/records/character_list [variant u] 三區/無組織"
+    ],
+    "凱恩 Keine": [
+      "dossier concepts/server/records/character_list [variant u] 三區/政府相關"
+    ],
+    "凱文·鄂西斯 Kevin Ersis": [
+      "dossier concepts/server/records/character_list [variant u] 三區/舊會議"
+    ],
+    "刻印": [
+      "diff concepts/server/translation/explainations 理論/未被歸類",
+      "diff concepts/server/translation/multilingual 魔法理論/(預設)"
+    ],
+    "區間界": [
+      "diff concepts/server/translation/explainations 技術/未被歸類",
+      "diff concepts/server/translation/multilingual 概念名詞/(預設)"
+    ],
+    "卡林·巴克禮 Carin Berkley": [
+      "dossier concepts/server/records/character_list [variant u] 三區/政府相關"
+    ],
+    "卡爾汀妮 Kardiny": [
+      "dossier concepts/server/records/character_list [variant u] 未知之境.../「四區」"
+    ],
+    "厄羅·斯洛 Earl Silow": [
+      "dossier concepts/server/records/character_list [variant u] 三區/舊會議"
+    ],
+    "原型晶石": [
+      "diff concepts/server/translation/explainations 技術/未被歸類",
+      "diff concepts/server/translation/multilingual 魔法理論/(預設)"
+    ],
+    "叛亂者監獄 Rebel's Prison (一層: 悔過 Repentance | 二層: 鞭策 Discipline | 三層: 苦難 Suffering | 四層: 深淵 Abyss)": [
+      "dossier concepts/server/records/location_list [variant u] 三區 - 灰寂工場/中央: 康庫爾 Center - Konquer"
+    ],
+    "固有力": [
+      "diff concepts/server/translation/explainations 理論/未被歸類",
+      "diff concepts/server/translation/multilingual ◼︎◼︎◼︎理論/(預設)"
+    ],
+    "壁蜘蛛": [
+      "diff concepts/server/translation/multilingual 魔獸與◼︎◼︎遭遇/(預設)"
+    ],
+    "大清掃": [
+      "diff concepts/server/translation/explainations 事件/未被歸類",
+      "diff concepts/server/translation/multilingual 概念名詞/(預設)"
+    ],
+    "奧蘭 Orland": [
+      "dossier concepts/server/records/character_list [variant u] 三區/無組織"
+    ],
+    "彌爾薩·歐爾 Millsa Ohr": [
+      "dossier concepts/server/records/character_list [variant u] 三區/總務高層"
+    ],
+    "戴爾維斯·凡尼索斯 Dalvis Vanisurse": [
+      "dossier concepts/server/records/character_list [variant u] 未知之境.../「四區」"
+    ],
+    "擬魔": [
+      "diff concepts/server/translation/explainations 理論/未被歸類",
+      "diff concepts/server/translation/multilingual 魔法理論/(預設)"
+    ],
+    "敘述:": [
+      "dossier concepts/server/records/hostile_creatures [variant u] 三區記錄/壁蜘蛛",
+      "dossier concepts/server/records/hostile_creatures [variant u] 三區記錄/變形草",
+      "dossier concepts/server/records/hostile_creatures [variant u] 三區記錄/(預設)",
+      "dossier concepts/server/records/hostile_creatures [variant u] 三區記錄/迷霧流石蠍"
+    ],
+    "未知的存在...": ["browser concepts/server/browser/charateristics"],
+    "標準採礦坑道工作區 Mining Work Area": [
+      "dossier concepts/server/records/location_list [variant u] 三區 - 灰寂工場/第四象限: 戴司 Quadrant Four - Delth"
+    ],
+    "渠道": [
+      "diff concepts/server/translation/explainations 理論/未被歸類",
+      "diff concepts/server/translation/multilingual 魔法理論/(預設)"
+    ],
+    "狩夜": [
+      "diff concepts/server/translation/explainations 事件/未被歸類",
+      "diff concepts/server/translation/multilingual 概念名詞/(預設)"
+    ],
+    "畢安卡·密西斯 Bianca Massis": [
+      "dossier concepts/server/records/character_list [variant u] 三區/總務高層"
+    ],
+    "瘋人吶喊": [
+      "diff concepts/server/translation/explainations 事件/未被歸類",
+      "diff concepts/server/translation/multilingual 概念名詞/(預設)"
+    ],
+    "穆爾條約": [
+      "diff concepts/server/translation/explainations 公約/未被歸類",
+      "diff concepts/server/translation/multilingual 概念名詞/(預設)"
+    ],
+    "空間扭曲": [
+      "diff concepts/server/translation/explainations 理論/未被歸類",
+      "diff concepts/server/translation/multilingual ◼︎◼︎理論/(預設)"
+    ],
+    "經濟資源倉庫 (倉儲區) Resource Warehouse (Storage Area)": [
+      "dossier concepts/server/records/location_list [variant u] 三區 - 灰寂工場/第四象限: 戴司 Quadrant Four - Delth"
+    ],
+    "舊會議": [
+      "diff concepts/server/translation/explainations 組織/未被歸類",
+      "diff concepts/server/translation/multilingual 概念名詞/(預設)"
+    ],
+    "舊礦山 Old Mine Site": [
+      "dossier concepts/server/records/location_list [variant u] 三區 - 灰寂工場/第二象限: 帕絲蒂蘭斯 Quadrant Two - Pestilens"
+    ],
+    "艾斯維爾·科索諾 (Xavier Colsono)": [
+      "browser concepts/server/browser/charateristics"
+    ],
+    "艾斯維爾·科索諾 Xavier Colsono": [
+      "dossier concepts/server/records/character_list [variant u] 三區/無組織"
+    ],
+    "草原獵犬 (弱化)": [
+      "diff concepts/server/translation/multilingual 魔獸與◼︎◼︎遭遇/(預設)"
+    ],
+    "莫夫·奇萊 Molf Carrie": [
+      "dossier concepts/server/records/character_list [variant u] 未知之境.../「四區」"
+    ],
+    "蒙尼賽爾·培恩 Moniser Paine": [
+      "dossier concepts/server/records/character_list [variant u] 三區/政府相關"
+    ],
+    "蓋倫·雷馬克 Garren Raymark": [
+      "dossier concepts/server/records/character_list [variant u] 未知之境.../「四區」"
+    ],
+    "變形草": [
+      "diff concepts/server/translation/multilingual 魔獸與◼︎◼︎遭遇/(預設)"
+    ],
+    "迷霧流石蠍": [
+      "diff concepts/server/translation/multilingual 魔獸與◼︎◼︎遭遇/(預設)"
+    ],
+    "這裡的一切都尚未知": [
+      "dossier concepts/server/records/location_list [variant u] 三區 - 灰寂工場/第一象限: 費敏 Quadrant One - Famein",
+      "dossier concepts/server/records/location_list [variant u] 三區 - 灰寂工場/第三象限: 瓦爾 Quadrant Three - Wyar"
+    ],
+    "阿提克斯·布蘭米克 Atticus Bramirk": [
+      "dossier concepts/server/records/character_list [variant u] 三區/政府相關"
+    ],
+    "震盪": ["diff concepts/server/translation/multilingual 魔法理論/(預設)"],
+    "魔力 (大氣/體內)": [
+      "diff concepts/server/translation/multilingual 魔法理論/(預設)"
+    ],
+    "魔力": ["diff concepts/server/translation/explainations 理論/未被歸類"],
+    "魔晶石": [
+      "diff concepts/server/translation/explainations 技術/未被歸類",
+      "diff concepts/server/translation/multilingual 魔法理論/(預設)"
+    ],
+    "魔法": [
+      "diff concepts/server/translation/explainations 理論/未被歸類",
+      "diff concepts/server/translation/multilingual 魔法理論/(預設)"
+    ],
+    "魔獸": [
+      "diff concepts/server/translation/explainations 理論/未被歸類",
+      "diff concepts/server/translation/multilingual 魔法理論/(預設)"
+    ],
+    "魔石精化技術 - 震盪": [
+      "diff concepts/server/translation/explainations 技術/未被歸類"
+    ]
+  }
+}

@@ -1,0 +1,158 @@
+/*
+ * 「一張遺落的書籤」儀式頁 — 破舊書籤 + 羊皮紙語彙（S6-2）
+ * 佔據 Reader 內容區；配色沿用 history zone（暖褐 + 金）。
+ */
+
+.lost-bookmark-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 40px 20px;
+}
+
+.lost-bookmark-gate__inner {
+  position: relative;
+  max-width: 460px;
+  padding: 42px 38px 34px;
+  text-align: center;
+  background:
+    linear-gradient(165deg, rgba(139, 105, 60, 0.1) 0%, transparent 55%),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 27px,
+      rgba(139, 105, 60, 0.06) 28px
+    ),
+    var(--bg-card);
+  border: 1px solid rgba(139, 105, 60, 0.4);
+  border-radius: 2px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.16);
+  animation: lostBookmarkIn 0.6s var(--ease) both;
+}
+
+/* 頂端破舊書籤緞帶 */
+.lost-bookmark-gate__ribbon {
+  position: absolute;
+  top: -1px;
+  right: 34px;
+  width: 16px;
+  height: 42px;
+  background: var(--uep-gold);
+  opacity: 0.7;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 96%);
+  filter: saturate(0.8);
+}
+
+.lost-bookmark-gate__kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  color: var(--ink-mute);
+  margin-bottom: 10px;
+}
+
+.lost-bookmark-gate__title {
+  font-family: var(--font-serif-tc);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink-title);
+  margin: 0 0 14px;
+}
+
+.lost-bookmark-gate__desc {
+  font-family: var(--font-serif-tc);
+  font-size: 13.5px;
+  line-height: 2;
+  color: var(--ink-soft);
+  margin: 0 0 24px;
+}
+
+.lost-bookmark-gate__open {
+  all: unset;
+  display: inline-block;
+  padding: 8px 22px;
+  font-family: var(--font-serif-tc);
+  font-size: 14px;
+  color: var(--ink-title);
+  border: 1px solid rgba(139, 105, 60, 0.55);
+  border-radius: 2px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease),
+    background 0.2s var(--ease),
+    box-shadow 0.2s var(--ease);
+}
+
+.lost-bookmark-gate__open:hover:not(:disabled) {
+  border-color: var(--uep-gold);
+  background: rgba(212, 175, 55, 0.08);
+  box-shadow: 0 0 18px rgba(212, 175, 55, 0.18);
+}
+
+.lost-bookmark-gate__open:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+.lost-bookmark-gate__open:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+/* 甦醒動畫：卡片發光浮起 → 淡出（時長與 AWAKEN_MS 對齊） */
+.lost-bookmark-gate.is-awakening .lost-bookmark-gate__inner {
+  animation: lostBookmarkAwaken 1.4s var(--ease) both;
+}
+
+.lost-bookmark-gate.is-awakening .lost-bookmark-gate__ribbon {
+  animation: lostBookmarkRibbon 1.4s var(--ease) both;
+}
+
+@keyframes lostBookmarkIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lostBookmarkAwaken {
+  0% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.16);
+  }
+  45% {
+    transform: translateY(-10px) scale(1.02);
+    box-shadow: 0 22px 60px rgba(212, 175, 55, 0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-26px) scale(1.05);
+    box-shadow: 0 30px 80px rgba(212, 175, 55, 0.4);
+  }
+}
+
+@keyframes lostBookmarkRibbon {
+  0% {
+    opacity: 0.7;
+  }
+  60% {
+    opacity: 1;
+    filter: saturate(1.4) brightness(1.2);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lost-bookmark-gate__inner,
+  .lost-bookmark-gate.is-awakening .lost-bookmark-gate__inner,
+  .lost-bookmark-gate.is-awakening .lost-bookmark-gate__ribbon {
+    animation-duration: 0.01s;
+  }
+}

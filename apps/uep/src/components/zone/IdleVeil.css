@@ -1,0 +1,463 @@
+/* ──────────────────────────────────────────────────────────────
+   IdleVeil — 掛機時從四周漫入的靜電霧
+
+   刻意不沿用內容保護的 glitch 語彙：那是「訊號被切斷」，這裡是「沒有人
+   在看」——霧是靜的、慢的，靜電只是它的雜訊底噪，不是主體。
+
+   z-index 2300：低於 ReaderNudge(2400) 與浮島(2500+)，因為帷幕是背景狀態，
+   不該蓋掉任何要求使用者做決定的東西。
+
+   ## 🚨 @property 不是可選的
+
+   `--ivl-c` 每 250ms 由 JS 換一次。若它只是普通自訂屬性，瀏覽器把它當
+   **字串**看待——`background: radial-gradient(... calc(var(--ivl-c) ...))`
+   的 transition **完全不會插值**，畫面就是每 250ms 硬跳一格（2026-08-04
+   艾斯維爾回報的「斷裂感很重」正是這個）。
+
+   註冊成 `<number>` 之後它才是可動畫的型別，gradient 會跟著逐幀重算。
+   不支援 @property 的瀏覽器降級回階梯式，功能不受影響。
+   ────────────────────────────────────────────────────────────── */
+
+@property --ivl-c {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --ivl-d {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+.ivl {
+  position: fixed;
+  inset: 0;
+  /* 帷幕是罩住整個頁面的氛圍層，所以要在浮島（2000–2999）、便條（3000）
+     與識別證（3100）之上——不然其他東西都起霧了只有那幾樣還是清的。
+     低於教學聚光燈（3200）。 */
+  z-index: 3150;
+  /* 撥開帷幕的方式就是動——沒有任何東西需要點 */
+  pointer-events: none;
+  /* 暗色模式的靜電用 overlay 混合，isolate 讓它只跟帷幕自己的霧混，
+     不會去混到底下的頁面內容 */
+  isolation: isolate;
+
+  --ivl-tint: 250 250 247;
+  --ivl-word: 42 38 32;
+  /* 指標位置的預設值：還沒收到 pointermove 前先擺在畫面外 */
+  --ivl-px: -100vw;
+  --ivl-py: -100vh;
+  --ivl-d: 0;
+
+  /* ── 擦拭洞 ──
+     以指標為中心、隨驅散進度長大的一塊「要被減掉的區域」。它是**遮罩**
+     不是圖層：每一層霧都用 `mask-composite: subtract` 把它從自己的
+     vignette 裡扣掉，洞裡就露出未經模糊的原始內容。
+
+     🚨 2026-08-04：這裡原本是一個獨立的 `.ivl-wipe` 圖層，用
+     `mix-blend-mode: destination-out` 想把霧擦掉——但 `destination-out`
+     是 canvas／mask-composite 的運算子，**不是合法的 mix-blend-mode 值**。
+     整個宣告被瀏覽器丟棄，那層於是用 normal 模式把自己的黑色 gradient
+     直接畫在畫面上，變成一顆大黑球。
+
+     半徑從 0 起算（`--ivl-d` 為 0 時完全沒有洞）——指標只是停在那裡而已，
+     還沒開始撥就不該先破一個口。 */
+  /* 洞的半徑，指標與軌跡共用一份 */
+  --ivl-r: calc(var(--ivl-d) * 46vmax + min(1, var(--ivl-d) * 10) * 90px);
+
+  /* 軌跡取樣點的預設座標：畫面外＝那一層等於不存在。
+     組數必須與 `lib/idleVeil.ts` 的 TRAIL_MAX 一致。 */
+  --ivl-tx0: -100vw;
+  --ivl-ty0: -100vh;
+  --ivl-tx1: -100vw;
+  --ivl-ty1: -100vh;
+  --ivl-tx2: -100vw;
+  --ivl-ty2: -100vh;
+  --ivl-tx3: -100vw;
+  --ivl-ty3: -100vh;
+  --ivl-tx4: -100vw;
+  --ivl-ty4: -100vh;
+  --ivl-tx5: -100vw;
+  --ivl-ty5: -100vh;
+  --ivl-tx6: -100vw;
+  --ivl-ty6: -100vh;
+  --ivl-tx7: -100vw;
+  --ivl-ty7: -100vh;
+
+  /* 指標當下的洞，加上走過的路。
+     🚨 這個變數會展開成**多層** mask，而套用它的地方只寫一個
+     `mask-composite: subtract`——CSS 的 layer list 在值不足時會循環補齊
+     （與 background 同規則），所以那一個 subtract 會套到每一層，
+     結果是「依序把每個洞都扣掉」。改成多值時要連同這個假設一起檢查。
+
+     ⚠️ 只能掛在 `.ivl-wipe` 上，不可以再放回各霧層——見那條規則的說明。 */
+  --ivl-hole:
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-px) var(--ivl-py),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx0) var(--ivl-ty0),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx1) var(--ivl-ty1),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx2) var(--ivl-ty2),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx3) var(--ivl-ty3),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx4) var(--ivl-ty4),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx5) var(--ivl-ty5),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx6) var(--ivl-ty6),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    ),
+    radial-gradient(
+      circle var(--ivl-r) at var(--ivl-tx7) var(--ivl-ty7),
+      #000 0%,
+      rgb(0 0 0 / 62%) 44%,
+      transparent 72%
+    );
+
+  /* 階段之間的濃度變化走這條，1.1 秒是「漫過來」而不是「切過去」的關鍵 */
+  transition: --ivl-c 1100ms cubic-bezier(0.32, 0.06, 0.28, 1);
+}
+
+/* ── 散去 ──
+   撥開的那一刻整層直接消失太生硬：使用者剛做完一個持續的動作（劃了
+   幾百 px），結果畫面用一格切掉，前面所有「越撥越淡」的回饋在最後一步
+   被作廢。改成整層淡出，並讓它稍微往外擴一點，像是散開而不是關掉。
+
+   時間與 `IdleVeil.tsx` 的 `LEAVE_MS` 對齊。 */
+.ivl--leaving {
+  animation: ivl-dissolve 620ms ease-out both;
+  /* 散開途中不再吃任何互動判定，也不該再被 rAF 更新 */
+  pointer-events: none;
+}
+
+@keyframes ivl-dissolve {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ivl--leaving {
+    animation: ivl-dissolve-fade 400ms linear both;
+  }
+
+  @keyframes ivl-dissolve-fade {
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 0;
+    }
+  }
+}
+
+/* ── 擦拭宿主 ──
+   所有會被擦開的東西（兩層霧、靜電、臉）都放在這一層裡，洞掛在**它**身上。
+
+   🚨 2026-08-09：洞原本是各層自己 subtract 的，那有兩個致命問題——
+   mask 的座標系是元素自己的 box，而 `.ivl-fog` 是 `inset: -8%`、
+   `.ivl-static` 是 `inset: -12%`，兩層各自往左上外擴，於是同一組 viewport
+   座標在它們身上畫出來的洞**都偏左上、而且偏的量還不一樣**（看起來就是
+   「洞不在滑鼠上，還分裂成兩個」）。更糟的是霧層都掛著 drift 動畫的
+   transform，mask 跟著元素一起漂，擦開的位置會自己慢慢跑掉。
+
+   所以這一層必須 `inset: 0`、**不得加任何 transform 或 animation**——
+   它存在的唯一理由就是提供一個與 viewport 對齊且不動的座標系。 */
+.ivl-wipe {
+  position: absolute;
+  inset: 0;
+  mask-image: linear-gradient(#000, #000), var(--ivl-hole);
+  -webkit-mask-composite: source-out;
+  mask-composite: subtract;
+}
+
+/* ── 霧本體：兩層各自漂移，邊界才不會是一個完美的橢圓 ── */
+.ivl-fog {
+  position: absolute;
+  inset: -8%;
+  transition: --ivl-c 1100ms cubic-bezier(0.32, 0.06, 0.28, 1);
+}
+
+.ivl-fog--a {
+  background: radial-gradient(
+    ellipse 78% 76% at 48% 46%,
+    rgb(var(--ivl-tint) / 0%) calc((1 - var(--ivl-c)) * 56%),
+    rgb(var(--ivl-tint) / 74%) calc((1 - var(--ivl-c)) * 56% + 24%),
+    rgb(var(--ivl-tint) / 96%) 100%
+  );
+  backdrop-filter: blur(calc(var(--ivl-c) * 7px));
+
+  /* 只留自己的 vignette（霧的形狀）。擦拭洞在 `.ivl-wipe` 上統一處理——
+     這一層帶著 drift 的 transform，洞放這裡會跟著漂走 */
+  mask-image: radial-gradient(
+    ellipse 78% 76% at 48% 46%,
+    transparent calc((1 - var(--ivl-c)) * 56%),
+    #000 calc((1 - var(--ivl-c)) * 56% + 20%)
+  );
+  animation: ivl-drift-a 34s ease-in-out infinite;
+}
+
+/* 第二層錯開週期與方向，兩層疊起來邊界會緩慢蠕動 */
+.ivl-fog--b {
+  background: radial-gradient(
+    ellipse 82% 70% at 54% 56%,
+    rgb(var(--ivl-tint) / 0%) calc((1 - var(--ivl-c)) * 60%),
+    rgb(var(--ivl-tint) / 52%) calc((1 - var(--ivl-c)) * 60% + 26%),
+    rgb(var(--ivl-tint) / 82%) 100%
+  );
+  /* 形狀是滿版矩形，擦拭在 .ivl-wipe——這裡不需要任何 mask */
+  animation: ivl-drift-b 47s ease-in-out infinite;
+}
+
+@keyframes ivl-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate(1.6%, -1.2%) scale(1.03);
+  }
+
+  66% {
+    transform: translate(-1.2%, 1.6%) scale(1.01);
+  }
+}
+
+@keyframes ivl-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1.02);
+  }
+
+  40% {
+    transform: translate(-2%, -1.6%) scale(1);
+  }
+
+  75% {
+    transform: translate(1.4%, 2%) scale(1.04);
+  }
+}
+
+/* ── 靜電：霧的雜訊底噪 ── */
+.ivl-static {
+  position: absolute;
+  inset: -12%;
+  opacity: calc(var(--ivl-c) * 0.16);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* 同 .ivl-fog：只留形狀，擦拭統一在 .ivl-wipe */
+  mask-image: radial-gradient(
+    ellipse 80% 80% at 50% 50%,
+    transparent calc((1 - var(--ivl-c)) * 56%),
+    #000 calc((1 - var(--ivl-c)) * 56% + 28%)
+  );
+  /* 位移而不是重畫：turbulence 很貴，只讓它平移就有靜電感 */
+  animation: ivl-static-jitter 620ms steps(3) infinite;
+  transition: opacity 900ms linear;
+}
+
+/* turbulence 產生的是亮雜訊，直接疊在暗色霧上會變成一層灰紗。
+   混合模式改成 overlay 並壓低不透明度，讓它回到「底噪」的位置 */
+[data-theme='dark'] .ivl-static {
+  opacity: calc(var(--ivl-c) * 0.1);
+  mix-blend-mode: overlay;
+}
+
+@keyframes ivl-static-jitter {
+  0% {
+    transform: translate(0, 0);
+  }
+
+  33% {
+    transform: translate(-2%, 1.5%);
+  }
+
+  66% {
+    transform: translate(1.5%, -2%);
+  }
+
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* ── 階段轉換的湧入波 ──
+   每進一階，一道由外向內的推波掃過去。這是「換階段」這件事唯一的
+   顯性訊號——只靠濃度變化的話，慢到看不出發生了什麼。 */
+.ivl-surge {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 90% 88% at 50% 50%,
+    transparent 40%,
+    rgb(var(--ivl-tint) / 62%) 78%,
+    rgb(var(--ivl-tint) / 0%) 100%
+  );
+  animation: ivl-surge-in 1700ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+
+@keyframes ivl-surge-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+
+  38% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+}
+
+/* ── 全遮時浮出來的臉 ──
+   素材本身就是一張灰色虛線畫的大臉，直接放不需要再加濾鏡。
+
+   ⚠️ 它必須跟兩層霧、靜電一起待在 `.ivl-wipe` 裡：指標撥開霧的時候，
+   臉在洞裡的那塊也要跟著被扣掉。掛到宿主外面的話，擦出來的洞裡會露出
+   一張浮在乾淨內容上的臉，看起來像是臉在霧的前面而不是霧的一部分。 */
+.ivl-face {
+  position: absolute;
+  inset: 0;
+
+  /* 顯示寬度要拿出來當變數：水平補償的量是它的百分比 */
+  --ivl-face-w: min(68vw, 94vh);
+
+  background-image: url('/uep/art/afk-fade.webp');
+  background-repeat: no-repeat;
+  background-size: var(--ivl-face-w) auto;
+
+  /*
+   * 水平：置中再左移 5.1%。
+   *
+   * 素材的透明邊是依 alpha bbox 裁的，而原稿左上角有幾筆零星筆觸把 bbox
+   * 往左撐開——臉因此不在圖片的幾何中心。實測墨線 bbox 是 327~1436
+   * （圖寬 1600），中心 881，偏右 81px 正好是 5.1%。單純 center 會看起來
+   * 微妙地偏右。
+   *
+   * 垂直：偏上，把畫面下緣讓給「空曠~」。這個值與 `--ivl-face-w`、
+   * `.ivl-word` 的 padding-bottom 是一組的——臉再大或再低一點，下巴就會
+   * 壓到字上。
+   */
+  background-position: calc(50% - var(--ivl-face-w) * 0.051) 34%;
+  opacity: 0.6;
+  animation: ivl-face-in 2200ms var(--ease-out) both;
+}
+
+@keyframes ivl-face-in {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+    filter: blur(8px);
+  }
+
+  to {
+    opacity: 0.35;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+/* ── 全遮時的那句話 ──
+   臉佔了中央，字讓到下方 ── */
+.ivl-word {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: end center;
+  padding-bottom: 12vh;
+  color: rgb(var(--ivl-word) / 34%);
+  font-family: var(--font-display);
+  font-size: clamp(28px, 6vw, 56px);
+  letter-spacing: 0.42em;
+  /* letter-spacing 會在最後一個字後面也加空隙，補回來才是真的置中 */
+  text-indent: 0.42em;
+  animation:
+    ivl-word-in 1800ms var(--ease-out) both,
+    ivl-word-breathe 6s ease-in-out 1800ms infinite;
+}
+
+@keyframes ivl-word-in {
+  from {
+    opacity: 0;
+    letter-spacing: 0.72em;
+    filter: blur(6px);
+  }
+
+  to {
+    opacity: 1;
+    letter-spacing: 0.42em;
+    filter: blur(0);
+  }
+}
+
+@keyframes ivl-word-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.62;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 漂移、靜電抖動、湧入波、呼吸都是質感層，關掉不影響「霧有多濃」這個
+     狀態本身；濃度的 transition 保留，否則又變回逐格硬跳 */
+  .ivl-fog--a,
+  .ivl-fog--b,
+  .ivl-static,
+  .ivl-surge,
+  .ivl-face,
+  .ivl-word {
+    animation: none;
+  }
+
+  .ivl-surge {
+    display: none;
+  }
+}

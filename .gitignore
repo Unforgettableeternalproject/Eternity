@@ -34,6 +34,8 @@ out/
 .cache/
 .temp/
 .tmp/
+# Astro 產生的型別/快取目錄（每次 build 重生，不該進版控）
+.astro/
 
 # Logs and test files
 logs/
@@ -59,6 +61,7 @@ temp/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+scripts/local/
 
 # Wrangler local state
 .wrangler/
@@ -83,4 +86,14 @@ README_Example.zh-tw.md
 settings.local.json
 CLAUDE.md
 AGENTS.md
-.claude/worktrees/**
+.claude/
+
+# entityKey 遷移產物（generate-entity-keys.mjs 輸出，人工確認後另存 entity-key-map.json）
+scripts/archive/entity-key-map.proposed.json
+
+# Playwright MCP 的暫存產物（頁面快照/截圖，非專案檔案）
+.playwright-mcp/
+scripts/font-subset/src/
+
+# optimize-assets.mjs 的原檔備份（轉檔前的 R2 原始素材，體積大且可從備份還原）
+.asset-backup/

@@ -1,0 +1,15 @@
+---
+/**
+ * 茶會頁（S11 彩蛋）
+ *
+ * 入口是休息提醒偶爾出現的「前往茶會」；直接打網址進來也走得到，只是
+ * 那時桌邊沒有人。有人／沒人的判定完全在客戶端（sessionStorage 旗標），
+ * 所以這頁維持靜態 prerender，不需要 SSR。
+ */
+import DesignLayout from '../layouts/DesignLayout.astro';
+import TeatimePage from '../components/teatime/TeatimePage';
+---
+
+<DesignLayout title="茶會 · U.E.P Imaginary Space">
+  <TeatimePage client:load />
+</DesignLayout>

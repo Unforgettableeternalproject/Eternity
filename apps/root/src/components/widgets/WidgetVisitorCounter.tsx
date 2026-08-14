@@ -18,8 +18,8 @@ export default function WidgetVisitorCounter() {
 
     (async () => {
       try {
-        // 取得計數
-        const res = await fetch(`${apiUrl}/api/visitor/count`);
+        // 取得計數（明確帶 site=root；未帶參數 Worker 端也視為 root，此處顯式化以利偵錯）
+        const res = await fetch(`${apiUrl}/api/visitor/count?site=root`);
         const json = (await res.json()) as { totalVisitors?: number };
         let total = json.totalVisitors || 0;
 
@@ -33,9 +33,12 @@ export default function WidgetVisitorCounter() {
           path === '/en/';
 
         if (isHome && !sessionStorage.getItem('visitor-tracked')) {
-          const trackRes = await fetch(`${apiUrl}/api/visitor/track`, {
-            method: 'POST',
-          });
+          const trackRes = await fetch(
+            `${apiUrl}/api/visitor/track?site=root`,
+            {
+              method: 'POST',
+            }
+          );
           const trackJson = (await trackRes.json()) as {
             totalVisitors?: number;
           };

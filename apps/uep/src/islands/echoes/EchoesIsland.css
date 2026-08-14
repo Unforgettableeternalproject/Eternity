@@ -1,0 +1,1166 @@
+/**
+ * EchoesIsland — 流浪回聲 視覺（S8 B-3）
+ *
+ * 依 Eternity-Design/components/echoes-island.jsx 定案稿：
+ * 淺色 + hairline 輪廓化，黑色回聲球＝播放鍵，分類色作光暈/漣漪/衛星。
+ * 視窗外殼樣式（.uep-island）在 islands.css，這裡只管 body。
+ */
+
+@keyframes uep-eisland-ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.7);
+    opacity: 0;
+  }
+}
+
+@keyframes uep-eisland-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes uep-eisland-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.045);
+  }
+}
+
+@keyframes uep-eisland-suggest {
+  0%,
+  100% {
+    filter: saturate(0.85) brightness(1);
+  }
+  50% {
+    filter: saturate(1.25) brightness(1.28);
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * S9-C.3 — v2 設計稿提案 B「水面」外殼
+ *
+ * 整座島是一池水：上緣是真的在流動的水面（兩層波峰反向漂移），黑球半浮
+ * 在水線上、下方帶倒影，佇列是沉在水裡的回聲球。
+ *
+ * 配色策略：**水線以下**依當前播放的 cluster 染色，未播放為灰
+ * （艾斯維爾 2026-07-25 定案）。水面與波浪恆為灰白——那是「水」本身，
+ * 不是回聲的顏色。
+ *
+ * 深色化不逐條改寫：整座島區域性重新定義 --ink* / --hairline* token，
+ * 既有 600 行版面樣式全部跟著翻成水下白色系。這是當初把配色寫成 token
+ * 而不是硬編碼的回報。
+ * ──────────────────────────────────────────────────────────────── */
+
+/* 水色註冊成真正的顏色屬性——切歌時色相才能過渡而不是硬跳
+   （漸層本身不能 transition，能 transition 的是它讀的這個變數） */
+@property --uep-pool-accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #355c7d;
+}
+
+.uep-eisland {
+  position: relative;
+  isolation: isolate; /* 讓 z-index:-1 的回聲球只退到島背景之上 */
+  /* 槽緣與水面都在文件流內，內容自然接在水面之下——不再靠 padding-top
+     幫絕對定位的水面讓位（S9-C.10 前的作法，水面一動就得同步改三處
+     magic number）。水面高度仍以變數暴露，回聲球要據此避開水面。 */
+  --brim-h: 40px;
+  --island-close-top: 16px; /* = 島頭內距 13 + 3 */
+  --stage-pad-x: 14px;
+  /* 波形中心線＝回聲球球心，相對舞台頂（舞台上距 12 + 球半徑 48） */
+  --wave-axis: 60px;
+
+  padding: 0;
+  /* 4px 對齊其他四座島（2~6px）。16px 的大圓角是這座島看起來像 macOS
+     視窗、而其他島像實物的主因之一（艾斯維爾 2026-07-25 回饋） */
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  user-select: none;
+  color: var(--ink);
+
+  /* ── 亮色：日光下的淺水 ──
+   * S9-C.10 的亮色版只把水體淺了一階，卻整座島沿用「水下白色系」的白字，
+   * 於是水必須夠深字才讀得到——兩個模式看起來幾乎一樣
+   * （艾斯維爾 2026-07-25 三驗）。要真的變淺就得連墨一起翻面：淺水配深墨。 */
+  /* 墨也吃 accent。整座島只有水在染色時，槽緣與字留在原地不動，
+     兩者疊在一起就是一組不相干的顏色硬湊（艾斯維爾 2026-07-25 四驗）。
+     混色比例往標題端加重——它要看得出是「這首曲子的顏色」，
+     內文只取一點讓整體協調，不能為了染色犧牲可讀性。 */
+  --ink-base: rgba(16, 42, 56, 0.9);
+  --ink: color-mix(in srgb, var(--uep-pool-accent) 20%, var(--ink-base));
+  --ink-title: color-mix(in srgb, var(--uep-pool-accent) 52%, #0d2632);
+  --ink-soft: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 20%,
+    rgba(16, 42, 56, 0.74)
+  );
+  --ink-mute: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 22%,
+    rgba(16, 42, 56, 0.54)
+  );
+  --hairline: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 28%,
+    rgba(16, 42, 56, 0.2)
+  );
+  --hairline-strong: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 28%,
+    rgba(16, 42, 56, 0.34)
+  );
+  --bg-card: rgba(255, 255, 255, 0.44);
+  --ink-shadow: 0 1px 2px rgba(255, 255, 255, 0.55);
+
+  /* 水體深淺的兩端
+   * ⚠️ 這幾個灰藍不能再壓暗：白底頁面上、深色底座之間，只要基底往灰走，
+   * accent 混進去就是一團屍灰（艾斯維爾 2026-07-26 五驗）。亮色的層次要
+   * 靠 accent 的色相濃淡拉出來，不是靠明度往下掉。 */
+  --pool-hi: #fcfdfe;
+  --pool-mid: #e7eff4;
+  --pool-lo: #c6d8e3;
+  --pool-base-hi: #dae4ea;
+  --pool-base-lo: #bfcdd6;
+  --pool-rim: rgba(255, 255, 255, 0.85);
+  --pool-cast: rgba(40, 70, 95, 0.22);
+  --pool-sheen: rgba(255, 255, 255, 0.75);
+  /* 背景細線的墨色（其他四座島都有紙紋／機殼紋，這座淡到幾乎只是質地） */
+  --pool-line-rgb: 40 70 95;
+  --pool-line-alpha: 0.05;
+  --pool-line-blend: multiply;
+
+  /* 波形輪廓／水下透光／回聲球——在淺水上白色會整個消失，各自換一組。
+     線比原本的填色波浪需要更實一點：1.2px 的細線一旦半透明就等於沒有。 */
+  --wave-a: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 58%,
+    rgba(70, 105, 135, 0.62)
+  );
+  --wave-b: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 58%,
+    rgba(70, 105, 135, 0.34)
+  );
+  --caustic: rgba(255, 255, 255, 0.55);
+  --caustic-blend: soft-light;
+  --orb-core: rgba(255, 255, 255, 0.85);
+  --orb-edge: rgba(255, 255, 255, 0.24);
+  /* 球下方：亮色用投影（不用倒影） */
+  --orb-cast-shadow: rgba(38, 66, 86, 0.3);
+
+  /* 整池依當前回聲染色，上淺下深（淺藍→深藍、淺紅→深紅）。
+     水面不再保留灰——灰只剩「池裡一枚回聲都沒有」這一種情況。
+     ⚠️ 兩個模式的混色比例不同（亮色低得多）：#355C7D 這種中深色 accent
+     混 74% 進淺底照樣會把水拉回深藍，淺水就白做了。亮色改靠色相辨識，
+     不靠明度。比例寫在 background 裡而非變數——color-mix 的百分比吃
+     var() 的瀏覽器支援不如兩段各寫一次來得穩。 */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--uep-pool-accent) 14%, var(--pool-hi)) 0%,
+    color-mix(in srgb, var(--uep-pool-accent) 30%, var(--pool-mid)) 32%,
+    color-mix(in srgb, var(--uep-pool-accent) 46%, var(--pool-lo)) 100%
+  );
+  transition: --uep-pool-accent 0.6s var(--ease);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--pool-rim);
+  box-shadow:
+    0 20px 44px var(--pool-cast),
+    inset 0 1px 0 var(--pool-sheen);
+}
+
+/* ── 深色：夜裡的深水，水下白色系 ── */
+[data-theme='dark'] .uep-eisland {
+  --ink-base: rgba(255, 255, 255, 0.88);
+  --ink: color-mix(in srgb, var(--uep-pool-accent) 12%, var(--ink-base));
+  --ink-title: color-mix(in srgb, var(--uep-pool-accent) 38%, #f4fbff);
+  --ink-soft: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 12%,
+    rgba(255, 255, 255, 0.76)
+  );
+  --ink-mute: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 16%,
+    rgba(255, 255, 255, 0.6)
+  );
+  --hairline: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 26%,
+    rgba(255, 255, 255, 0.26)
+  );
+  --hairline-strong: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 26%,
+    rgba(255, 255, 255, 0.4)
+  );
+  --bg-card: rgba(255, 255, 255, 0.14);
+  --ink-shadow: 0 1px 3px rgba(5, 20, 35, 0.5);
+
+  --pool-hi: #6a747c;
+  --pool-mid: #38424a;
+  /* 底端不再壓到近黑：74% accent 疊 #0d1318 讓水體與底座糊成同一塊暗紅
+     （艾斯維爾 2026-07-26），底座要看得出是另一件東西 */
+  --pool-lo: #141c22;
+  --pool-base-hi: #232d34;
+  --pool-base-lo: #141b20;
+  --pool-rim: rgba(255, 255, 255, 0.16);
+  --pool-cast: rgba(0, 0, 0, 0.5);
+  --pool-sheen: rgba(255, 255, 255, 0.28);
+  --pool-line-rgb: 255 255 255;
+  --pool-line-alpha: 0.04;
+  --pool-line-blend: overlay;
+
+  --wave-a: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 26%,
+    rgba(255, 255, 255, 0.5)
+  );
+  --wave-b: color-mix(
+    in srgb,
+    var(--uep-pool-accent) 26%,
+    rgba(255, 255, 255, 0.28)
+  );
+  --caustic: rgba(255, 255, 255, 0.22);
+  --caustic-blend: soft-light;
+  --orb-core: rgba(255, 255, 255, 0.55);
+  --orb-edge: rgba(255, 255, 255, 0.12);
+
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--uep-pool-accent) 26%, var(--pool-hi)) 0%,
+    color-mix(in srgb, var(--uep-pool-accent) 54%, var(--pool-mid)) 32%,
+    color-mix(in srgb, var(--uep-pool-accent) 62%, var(--pool-lo)) 100%
+  );
+}
+
+/* ── 水下透光（S9-C.10，S9-C.15 改寫）──
+ * 原本是兩道交錯的斜紋（光折射的網），但兩道 repeating-linear-gradient
+ * 疊起來會織出規則的菱形格，在一座小島上讀起來是「網格裝飾」而不是水
+ * （艾斯維爾 2026-07-25 四驗）。改成單一道從水面灑下的柔光——沒有線條，
+ * 只有明暗，水的層次仍在，但不再有圖案要人去看。 */
+.uep-eisland::before {
+  content: '';
+  position: absolute;
+  inset: var(--brim-h) 0 0;
+  pointer-events: none;
+  z-index: 0;
+  mix-blend-mode: var(--caustic-blend);
+  background: radial-gradient(
+    150% 72% at 50% 0%,
+    var(--caustic) 0%,
+    transparent 70%
+  );
+}
+
+/* ── 背景細線 ──
+ * 五座島各有自己的質地；這座是**波狀**的細線，與球心那兩道波形輪廓同一
+ * 語彙——斜的直線紋是 storage 那張紙的講法（艾斯維爾 2026-07-26）。
+ * 比其他島淡：線是波狀的，覆蓋面積本來就比斜紋少一半。
+ *
+ * 形狀走 mask、顏色走 background——data URI 裡的 stroke 吃不到 CSS 變數，
+ * 反過來做才能讓兩個模式共用同一張圖。
+ *
+ * z-index: -1 是重點：它是水裡的質地，不是蓋在器物上的紙紋，所以退到
+ * 所有內容之下——播放球、曲名、控制列都在它上面（艾斯維爾 2026-07-26）。
+ * 父層的 isolation: isolate 讓 -1 只退到島背景之上，不會漏到島外。 */
+.uep-eisland::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  mix-blend-mode: var(--pool-line-blend);
+  background: rgb(var(--pool-line-rgb) / var(--pool-line-alpha));
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='8'%3E%3Cpath d='M0 5Q6.5 2 13 5T26 5' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='8'%3E%3Cpath d='M0 5Q6.5 2 13 5T26 5' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
+  -webkit-mask-size: 26px 8px;
+  mask-size: 26px 8px;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+}
+
+/* ── 島頭（＝拖曳把手）──
+ * 曾經是一塊「盛著水的石緣」：自己的漸層、自己的下邊框、自己的投影。
+ * 那讓它從島上獨立出來，看起來像上個世代 media player 的標題列
+ * （艾斯維爾 2026-07-26）。現在它什麼材質都沒有，島名就落在水上——
+ * 與 history 的書名列同一個做法（那邊也只有字與一道細線，沒有底板）。 */
+.uep-eisland__brim {
+  position: relative;
+  z-index: 4;
+  box-sizing: border-box;
+  height: var(--brim-h);
+  padding: 13px 16px 0;
+  background: transparent;
+}
+
+.uep-eisland__name {
+  font-family: var(--font-display, serif);
+  color: var(--ink-title);
+  text-shadow: var(--ink-shadow);
+}
+
+/* ── 波形輪廓 ──
+ * 兩道漂移的線，中心軸落在回聲球的球心：線從島的一側過來，被球擋住，
+ * 再從另一側出去——球看起來是穿在波形上的，而不是浮在一片水面下方
+ * （艾斯維爾 2026-07-26）。左右兩端淡出，避免線硬生生撞上島緣。
+ *
+ * 掛在 .uep-eisland__stage 內（不是島的絕對座標）：插播 banner／關聯曲
+ * 提示會把舞台往下推，線必須跟著球走。負的 left/right 抵掉舞台的水平
+ * 內距，線才鋪滿整島寬度；z-index: -1 讓它退到舞台內容之下——舞台自己
+ * 是 z-index 2 的 stacking context，退不出島背景之外。 */
+.uep-eisland__wave {
+  position: absolute;
+  left: calc(-1 * var(--stage-pad-x));
+  right: calc(-1 * var(--stage-pad-x));
+  top: var(--wave-axis);
+  height: 40px;
+  transform: translateY(-50%);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 14%,
+    #000 86%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 14%,
+    #000 86%,
+    transparent 100%
+  );
+}
+
+.uep-eisland__wave svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
+  animation: uep-eisland-wave 9s linear infinite;
+}
+
+/* 只有輪廓，沒有填色。non-scaling-stroke 讓線寬不被 200% 寬 +
+   preserveAspectRatio:none 的縮放拉扁。 */
+.uep-eisland__wave path {
+  fill: none;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.uep-eisland__wave svg:first-child path {
+  stroke: var(--wave-a);
+}
+
+.uep-eisland__wave svg:nth-child(2) path {
+  stroke: var(--wave-b);
+}
+
+.uep-eisland__wave svg:nth-child(2) {
+  animation-duration: 14s;
+  animation-direction: reverse;
+  opacity: 0.62;
+}
+
+@keyframes uep-eisland-wave {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ── 退潮（收合）──
+ * 曾經是水珠（不像按鈕）、再改成 ×（在材質上像異物）。現在是島名同一行的
+ * 一個短詞，跟其他四座島同一語彙（位置與字級走 .uep-island-close）。 */
+.uep-eisland__close {
+  color: var(--ink-soft);
+  text-shadow: var(--ink-shadow);
+}
+
+.uep-eisland__close:hover {
+  color: var(--ink-title);
+}
+
+/* ── 球下方的落影 ──
+ * 亮色＝投影：淺水上的倒影是一團暗塊，正是「整座島發灰」的來源之一。
+ * 深色＝倒影：深水本來就會映東西，那裡它是對的。
+ * 球的底色由 --orb-bg 傳進來（inline），亮色刻意不用它。 */
+.uep-eisland__orb-cast {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 24px);
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at 50% 30%,
+    var(--orb-cast-shadow) 0%,
+    transparent 72%
+  );
+  filter: blur(3px);
+  pointer-events: none;
+}
+
+[data-theme='dark'] .uep-eisland__orb-cast {
+  top: calc(50% + 26px);
+  transform: translateX(-50%) scaleY(-1);
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  background: var(--orb-bg);
+  filter: blur(2px);
+  opacity: 0.42;
+}
+
+/* ── 池底座 ──
+ * 取代原本的泡沫球（2026-07-25 回饋）：水體不再憑空截斷，而是立在一塊
+ * 檯面上；上緣一道亮線＝水與底座的交界。
+ * 內陰影用 --pool-cast 而非寫死的黑：亮色下那道黑讓底座變成一條黑帶，
+ * 白底頁面上整座島跟著往灰走（艾斯維爾 2026-07-26）。 */
+.uep-eisland__base {
+  height: 14px;
+  margin-top: 6px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--uep-pool-accent) 38%, var(--pool-base-hi)),
+    color-mix(in srgb, var(--uep-pool-accent) 24%, var(--pool-base-lo))
+  );
+  box-shadow:
+    inset 0 1px 0 var(--pool-sheen),
+    inset 0 -2px 6px var(--pool-cast);
+  transition: --uep-pool-accent 0.6s var(--ease);
+}
+
+/* ── 播放中浮上來的回聲球 ──
+ * 與 zone 背景的 EchoesRipple 同一語彙，但頻率低得多、更小也更淡——
+ * 島是工具，不該把 zone 的氣氛整套搬進來喧賓奪主。 */
+.uep-eisland__orbs {
+  position: absolute;
+  /* 上不越過島頭、下不蓋住底座 */
+  inset: var(--brim-h) 0 20px;
+  overflow: hidden;
+  pointer-events: none;
+  /* 沉在文字後面。父層的 isolation: isolate 讓 -1 只退到島背景之上，
+     不會整層消失到島外 */
+  z-index: -1;
+}
+
+.uep-eisland__orbs span {
+  position: absolute;
+  bottom: -12px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 36% 30%,
+    var(--orb-core),
+    var(--orb-edge) 65%,
+    transparent
+  );
+  opacity: 0;
+  animation-name: uep-eisland-rise;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes uep-eisland-rise {
+  0% {
+    transform: translateY(0) scale(0.7);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.5;
+  }
+  70% {
+    opacity: 0.28;
+  }
+  100% {
+    transform: translateY(-190px) scale(1.15);
+    opacity: 0;
+  }
+}
+
+/* ── 插播 banner ──
+ * 與關聯曲提示同一個病灶：插播時整池被染成插播曲的 accent，banner 的字
+ * 若也用 accent 就等於同色疊同色。同樣給它不透明紙面 + 深/淺化的字色。 */
+.uep-eisland__interrupt {
+  --interrupt: #355c7d;
+  --interrupt-plate: color-mix(in srgb, var(--interrupt) 12%, #f7fbfd);
+  --interrupt-ink: color-mix(in srgb, var(--interrupt) 55%, #102028);
+  margin: 8px 12px 0;
+  padding: 6px 10px;
+  border: 1px dashed color-mix(in srgb, var(--interrupt) 62%, transparent);
+  border-radius: 8px;
+  background: var(--interrupt-plate);
+  color: var(--interrupt-ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[data-theme='dark'] .uep-eisland__interrupt {
+  --interrupt-plate: color-mix(in srgb, var(--interrupt) 22%, #0f181e);
+  --interrupt-ink: color-mix(in srgb, var(--interrupt) 40%, #e6f4fb);
+}
+
+.uep-eisland__interrupt-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--interrupt);
+  box-shadow: 0 0 6px var(--interrupt);
+}
+
+.uep-eisland__interrupt-back {
+  margin-left: auto;
+  /* 紙面上不再吃島的 --ink-mute（那條混 accent 且為半透明白/黑） */
+  color: color-mix(in srgb, var(--interrupt-ink) 74%, transparent);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-family: var(--font-serif-tc);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+}
+
+/* ── Interactive embedding：島內關聯曲提示 ──
+ *
+ * 這張卡出現時整池水被染成同一個 accent（poolAccent 讀 suggestion.accent），
+ * 而島的 --bg-card 是半透明的——原本的 `accent 8% + bg-card` 底幾乎等於直接
+ * 露出深染的水，卡上的字又同樣吃 accent，整張卡糊成一團同色
+ * （艾斯維爾 2026-07-26 回饋：字被背景蓋過）。
+ *
+ * 修法：卡片自帶**不透明**紙面，字色改用「深/淺化過的 accent」而非 accent
+ * 本身——保留是哪一種回聲的色彩身分，但把明度拉開到讀得到。 */
+.uep-eisland__suggestion {
+  --suggestion: #355c7d;
+  --suggestion-plate: color-mix(in srgb, var(--suggestion) 12%, #f7fbfd);
+  --suggestion-ink: color-mix(in srgb, var(--suggestion) 16%, #14232c);
+  --suggestion-kicker: color-mix(in srgb, var(--suggestion) 55%, #102028);
+  --suggestion-line: color-mix(in srgb, var(--suggestion) 30%, #4a5b66);
+  margin: 8px 12px 0;
+  padding: 8px 9px;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--suggestion) 58%, transparent);
+  border-radius: 9px;
+  background: var(--suggestion-plate);
+}
+
+[data-theme='dark'] .uep-eisland__suggestion {
+  --suggestion-plate: color-mix(in srgb, var(--suggestion) 22%, #0f181e);
+  --suggestion-ink: color-mix(in srgb, var(--suggestion) 12%, #f2fafe);
+  --suggestion-kicker: color-mix(in srgb, var(--suggestion) 40%, #e6f4fb);
+  --suggestion-line: color-mix(in srgb, var(--suggestion) 26%, #c3d6e0);
+}
+
+.uep-eisland__suggestion-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--suggestion);
+  box-shadow: 0 0 8px var(--suggestion);
+}
+
+.uep-eisland__suggestion-copy {
+  min-width: 0;
+}
+
+.uep-eisland__suggestion-copy small,
+.uep-eisland__suggestion-copy strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uep-eisland__suggestion-copy small {
+  color: var(--suggestion-kicker);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 0.14em;
+}
+
+/* 曲名不吃島的 --ink-title（那條也混 accent，疊在同色紙面上仍偏糊） */
+.uep-eisland__suggestion-copy strong {
+  margin-top: 2px;
+  color: var(--suggestion-ink);
+  font-family: var(--font-serif-tc);
+  font-size: 11px;
+}
+
+.uep-eisland__suggestion button {
+  padding: 4px 7px;
+  border: 1px solid var(--suggestion);
+  border-radius: 999px;
+  background: var(--suggestion);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  /* 四種 cluster 色都是中明度，白字在上面靠這道陰影穩住邊界 */
+  text-shadow: 0 1px 2px rgba(12, 24, 32, 0.45);
+}
+
+.uep-eisland__suggestion button.is-dismiss {
+  border-color: var(--suggestion-line);
+  background: transparent;
+  color: var(--suggestion-ink);
+  text-shadow: none;
+}
+
+/* ── 舞台：回聲球 + 曲目資訊橫排 ──
+ * z-index 疊在波形之上：線走到球這裡就被球擋住，看起來是穿到球後面去。 */
+.uep-eisland__stage {
+  position: relative;
+  z-index: 2;
+  padding: 12px var(--stage-pad-x) 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.uep-eisland__orb {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.uep-eisland__orbit-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 16px);
+  height: calc(100% - 16px);
+  border-radius: 50%;
+  border: 1px dashed var(--hairline-strong);
+  opacity: 0.6;
+}
+
+.uep-eisland__ripple {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  border: 1px solid;
+  transform: translate(-50%, -50%);
+  animation: uep-eisland-ripple 2.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+.uep-eisland__ripple.is-interrupt {
+  animation-duration: 1.7s;
+}
+
+.uep-eisland__orbit {
+  position: absolute;
+  inset: 0;
+  animation: uep-eisland-orbit 26s linear infinite;
+}
+
+.uep-eisland__sat {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(20, 12, 4, 0.25);
+}
+
+.uep-eisland__ball {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border: none;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  /* 底色由 inline ballBg() 決定：待機淡灰、播放中染分類色 */
+  transition:
+    filter 0.2s,
+    background 0.4s;
+}
+
+.uep-eisland__ball:hover:not(:disabled) {
+  filter: brightness(1.18);
+}
+
+.uep-eisland__ball:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.uep-eisland__ball.is-playing {
+  animation: uep-eisland-breathe 3.6s ease-in-out infinite;
+}
+
+.uep-eisland__ball.is-suggesting {
+  animation: uep-eisland-suggest 1.1s ease-in-out infinite;
+}
+
+.uep-eisland__ball-glyph {
+  /* 淡灰球配深字；播放染色後換淺字 */
+  color: #6d6759;
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  transform: translateX(1px);
+  opacity: 0.9;
+  transition: color 0.4s;
+}
+
+.uep-eisland__ball.is-playing .uep-eisland__ball-glyph {
+  color: #fffcf0;
+  transform: none;
+}
+
+.uep-eisland__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.uep-eisland__title {
+  font-family: var(--font-serif-tc);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink-title);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 波形線從球後面出來，會經過曲名下方——一道淡陰影把字撐起來 */
+  text-shadow: var(--ink-shadow);
+}
+
+.uep-eisland__meta {
+  margin-top: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.uep-eisland__meta-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.uep-eisland__empty-hint {
+  font-family: var(--font-serif-tc);
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--ink-mute);
+  line-height: 1.7;
+}
+
+/* ── seek ── */
+.uep-eisland__seek {
+  padding: 8px 16px 0;
+}
+
+.uep-eisland__seek-track {
+  position: relative;
+  height: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.uep-eisland__seek-track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--hairline);
+}
+
+.uep-eisland__seek-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+.uep-eisland__seek-thumb {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  /* 底色由 inline ballBg() 決定（與中央球同語彙） */
+  pointer-events: none;
+}
+
+.uep-eisland__seek-input,
+.uep-eisland__vol-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+}
+
+.uep-eisland__seek-input:disabled {
+  cursor: default;
+}
+
+.uep-eisland__times {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+  margin-top: 1px;
+}
+
+/* ── 控制列 ── */
+.uep-eisland__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 16px 5px;
+}
+
+.uep-eisland__flex {
+  flex: 1;
+}
+
+.uep-eisland__ctl {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 0;
+  font-size: 10px;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+}
+
+.uep-eisland__ctl-glyph {
+  display: block;
+  line-height: 1;
+}
+
+.uep-eisland__ctl-svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: currentColor;
+}
+
+.uep-eisland__ctl:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.uep-eisland__ctl:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.uep-eisland__clear {
+  color: var(--ink-mute);
+  font-size: 16px;
+}
+
+.uep-eisland__clear:hover:not(:disabled),
+.uep-eisland__clear:focus-visible:not(:disabled) {
+  border-color: color-mix(in srgb, #8f4d58 70%, var(--hairline-strong));
+  color: #8f4d58;
+}
+
+.uep-eisland__loop {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+  position: relative;
+  color: var(--ink-mute);
+}
+
+.uep-eisland__loop-one {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 7px;
+  font-family: var(--font-mono);
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.uep-eisland__vol {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 62px;
+}
+
+.uep-eisland__vol-glyph {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-mute);
+}
+
+.uep-eisland__vol-track {
+  position: relative;
+  flex: 1;
+  height: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.uep-eisland__vol-track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--hairline);
+}
+
+.uep-eisland__vol-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--ink-mute);
+}
+
+/* ── 佇列 ── */
+.uep-eisland__queue {
+  margin-top: 4px;
+  border-top: 1px solid var(--hairline);
+}
+
+.uep-eisland__queue-toggle {
+  width: 100%;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.uep-eisland__queue-arrow {
+  font-size: 8px;
+  transition: transform 0.2s;
+}
+
+.uep-eisland__queue-arrow.is-open {
+  transform: rotate(90deg);
+}
+
+.uep-eisland__queue-dots {
+  display: flex;
+  gap: 3px;
+  margin-left: 2px;
+}
+
+.uep-eisland__queue-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  opacity: 0.8;
+}
+
+.uep-eisland__queue-count {
+  color: var(--ink-mute);
+}
+
+.uep-eisland__queue-list {
+  max-height: 176px;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.uep-eisland__row {
+  display: grid;
+  grid-template-columns: 16px 1fr 18px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 14px 6px 12px;
+  cursor: pointer;
+}
+
+.uep-eisland__row:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.uep-eisland__row-orb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  justify-self: center;
+}
+
+.uep-eisland__row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-serif-tc);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-title);
+}
+
+.uep-eisland__row-x {
+  background: transparent;
+  border: none;
+  color: var(--ink-mute);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.uep-eisland__row:hover .uep-eisland__row-x,
+.uep-eisland__row-x:focus-visible {
+  opacity: 1;
+}
+
+.uep-eisland__queue-empty {
+  padding: 14px 14px 8px;
+  text-align: center;
+  font-family: var(--font-serif-tc);
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--ink-mute);
+}
+
+/* ── 佇列＝沉在水裡的回聲（S9-C.3） ──
+ * 越後面的曲目沉得越深、越模糊，順序不必再靠數字說明。
+ * 只糊到第三列為止且 hover 立刻清晰——中文字模糊過頭就不是效果是障礙。 */
+.uep-eisland__row {
+  transition:
+    padding-left 0.2s var(--ease),
+    opacity 0.2s var(--ease),
+    filter 0.2s var(--ease);
+}
+
+.uep-eisland__row:nth-child(2) {
+  padding-left: 24px;
+  opacity: 0.86;
+}
+
+.uep-eisland__row:nth-child(3) {
+  padding-left: 36px;
+  opacity: 0.72;
+  filter: blur(0.3px);
+}
+
+.uep-eisland__row:nth-child(n + 4) {
+  padding-left: 48px;
+  opacity: 0.6;
+  filter: blur(0.5px);
+}
+
+.uep-eisland__row:hover,
+.uep-eisland__row:focus-within {
+  padding-left: 12px;
+  opacity: 1;
+  filter: none;
+}
+
+/* 清除鍵的暗紅在深水裡幾乎看不見，提亮成珊瑚色。
+   ⚠️ 這條原本沒有 [data-theme='dark'] 前綴，於是亮色模式的淺水上也吃到
+   珊瑚色，對比整個掉光（S9-C 深色化時的漏網，2026-07-26 補上）。 */
+[data-theme='dark'] .uep-eisland__clear:hover:not(:disabled),
+[data-theme='dark'] .uep-eisland__clear:focus-visible:not(:disabled) {
+  border-color: rgba(255, 160, 160, 0.7);
+  color: #ffb0ae;
+}
+
+/* ── 離場：水位退去；進場為逆行（水漲回來） ── */
+.uep-island--echoes.uep-island--leaving,
+.uep-island--echoes.uep-island--entering {
+  transform-origin: center bottom;
+  animation: uep-eisland-drain 0.42s var(--ease) forwards;
+}
+
+.uep-island--echoes.uep-island--entering {
+  animation-direction: reverse;
+}
+
+@keyframes uep-eisland-drain {
+  0% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  55% {
+    transform: scaleY(0.62) translateY(6px);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scaleY(0.06) translateY(18px);
+    opacity: 0;
+  }
+}
+
+/* ── reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .uep-eisland__ripple,
+  .uep-eisland__orbit,
+  .uep-eisland__ball.is-playing,
+  .uep-eisland__ball.is-suggesting,
+  .uep-eisland__wave svg,
+  .uep-eisland__orbs span,
+  .uep-island--echoes.uep-island--leaving,
+  .uep-island--echoes.uep-island--entering {
+    animation: none;
+  }
+}

@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # feature/** 也要跑：長期功能分支（epic 等級的開發一開就是好幾週）在合併前
+  # 完全沒有 CI 覆蓋，所有驗證都只發生在本機，而本機的 node_modules 可能與
+  # lockfile 不同步——`--frozen-lockfile` 的乾淨安裝底下是紅的，本機卻是綠的。
   push:
-    branches: [main, develop, staging]
+    branches: [main, develop, staging, 'feature/**']
   pull_request:
     branches: [main, develop, staging]
 
@@ -221,10 +224,14 @@ jobs:
           # 伺服器端產生的 merge commit 由 GitHub 自動簽名（Verified），
           # 本地 CLI merge 的 commit 沒有簽名，會讓後續 release PR
           # 被 main 的 verified signatures 規則擋下
+          #
+          # 注意：不可加 [skip ci]——auto-merge 可能產生語意錯誤的合併結果
+          # （如 v0.9.8.2 sync-back 曾把 RichEditor 的區塊重複兩份），
+          # 必須讓 CI 在 sync 後完整驗證 develop
           gh api "repos/${{ github.repository }}/merges" \
             -f base=develop \
             -f head=main \
-            -f commit_message="chore: sync from main after ${BRANCH_TYPE} v${VERSION} [skip ci]"
+            -f commit_message="chore: sync from main after ${BRANCH_TYPE} v${VERSION}"
           echo "✅ Synced changes back to develop (GitHub-signed merge)"
 
       - name: Sync back to staging (release only)

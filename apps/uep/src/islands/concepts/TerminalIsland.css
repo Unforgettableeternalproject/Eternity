@@ -1,0 +1,395 @@
+/*
+ * Terminal Island —「移動終端」視覺（Epic 2 S7-C）
+ *
+ * 語彙取自 Eternity-Design concepts-base.jsx：
+ * 深綠終端底、mono 字體、行分色（meta/in/ok/err/row）、$ prompt。
+ * 深色色票：CONC_MAIN=#2d6a4f、CONC_SOFT=#74c69d、ink=#a6e0bd。
+ *
+ * S9-C.12 起：
+ * 1. 全部色值走 --tm-* token，亮色模式換一組（磷光綠螢幕 → 感熱紙上的
+ *    綠墨），不逐條改寫 340 行。這是其他四座島已用過的省力法。
+ * 2. 外殼改 bare，機殼由 .uep-terminal 自畫——皮膚掛在通用 .uep-island
+ *    上時，一旦外殼歸零（bare）整套背景邊框都會跟著消失。
+ */
+
+/* ── 終端本體（＝機殼） ── */
+.uep-terminal {
+  /* 亮色：不是把深色反白，而是另一種真的存在過的終端——淺磷光底、
+     深綠墨。純白底綠字會刺眼，底色壓成帶綠的灰白 */
+  --tm-bg: #e9efe9;
+  --tm-bg-head: #dae4dc;
+  --tm-bg-prompt: #dfe8e0;
+  --tm-main: #1f4d39;
+  --tm-soft: #276b4c;
+  --tm-ink: #24503b;
+  --tm-hi: #0a1f16;
+  --tm-ok: #1c6b35;
+  --tm-err: #9c3030;
+  --tm-row: #2f5a46;
+  --tm-main-rgb: 31 77 57;
+  --tm-soft-rgb: 39 107 76;
+  --tm-ink-rgb: 36 80 59;
+  --tm-cast: rgba(30, 60, 45, 0.28);
+  --island-close-top: 16px; /* = 機殼標頭內距 13 + 3 */
+
+  position: relative;
+  border: 1px solid var(--tm-main);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--tm-bg);
+  box-shadow:
+    0 14px 38px var(--tm-cast),
+    0 0 0 1px rgb(var(--tm-main-rgb) / 0.2),
+    inset 0 0 0 1px rgb(var(--tm-soft-rgb) / 0.08);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--tm-ink);
+}
+
+/* 深色：原本的磷光綠螢幕 */
+[data-theme='dark'] .uep-terminal {
+  --tm-bg: #070d0a;
+  --tm-bg-head: #0c1814;
+  --tm-bg-prompt: #0a1410;
+  --tm-main: #2d6a4f;
+  --tm-soft: #74c69d;
+  --tm-ink: #a6e0bd;
+  --tm-hi: #ffffff;
+  --tm-ok: #9be3a5;
+  --tm-err: #e08a8a;
+  --tm-row: #cfe9d9;
+  --tm-main-rgb: 45 106 79;
+  --tm-soft-rgb: 116 198 157;
+  --tm-ink-rgb: 166 224 189;
+  --tm-cast: rgba(0, 0, 0, 0.5);
+}
+
+/* ── 機殼標頭（＝島頭＋拖曳把手） ── */
+.uep-terminal__masthead {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 13px 16px 0;
+  background: var(--tm-bg-head);
+  border-bottom: 1px solid rgb(var(--tm-main-rgb) / 0.45);
+}
+
+/* 島名跟著另外四座島用 display 字體。等寬字型沒有中文字符，「移動終端」
+   四個字會 fallback 到系統等寬中文，跟其他島擺在一起明顯格格不入
+   （艾斯維爾 2026-07-25 二驗）。等寬只留給前面的提示符。 */
+.uep-terminal__name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-display, serif);
+  color: var(--tm-soft);
+}
+
+.uep-terminal__name-sign {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* 「離線」同理不吃 mono，字體走共用的 .uep-island-close */
+.uep-terminal__close {
+  color: rgb(var(--tm-ink-rgb) / 0.7);
+}
+
+.uep-terminal__close:hover {
+  color: var(--tm-hi);
+}
+
+.uep-terminal__body {
+  height: 220px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  line-height: 1.6;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--tm-soft-rgb) / 0.35) transparent;
+}
+
+/* ── 輸出行分色 ── */
+.uep-terminal__line {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.uep-terminal__line--meta {
+  color: rgb(var(--tm-ink-rgb) / 0.55);
+}
+
+.uep-terminal__line--in {
+  color: var(--tm-soft);
+}
+
+.uep-terminal__line--ok {
+  color: var(--tm-ok);
+}
+
+.uep-terminal__line--err {
+  color: var(--tm-err);
+}
+
+.uep-terminal__line--row {
+  color: var(--tm-row);
+}
+
+/* 打字機游標——僅在正在打字的行末端出現（艾斯維爾定案的終端感） */
+.uep-terminal__cursor {
+  display: inline-block;
+  margin-left: 1px;
+  color: var(--tm-soft);
+  animation: uep-terminal-cursor-blink 0.9s steps(2, end) infinite;
+}
+
+@keyframes uep-terminal-cursor-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-terminal__cursor {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/* 分組標題行（ls 結構化輸出——category/group） */
+.uep-terminal__line--head {
+  color: var(--tm-soft);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+}
+
+.uep-terminal__line--head.uep-terminal__line--fade {
+  color: rgb(var(--tm-soft-rgb) / 0.7);
+  font-weight: 400;
+  margin-top: 0;
+}
+
+.uep-terminal__line--fade {
+  color: rgb(var(--tm-ink-rgb) / 0.5);
+}
+
+/* 可點擊列（查詢結果/ls 條目） */
+.uep-terminal__line-btn {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border-radius: 2px;
+}
+
+.uep-terminal__line-btn:hover {
+  background: rgb(var(--tm-main-rgb) / 0.25);
+  color: var(--tm-hi);
+}
+
+.uep-terminal__line-btn:focus-visible {
+  outline: 1px solid var(--tm-soft);
+  outline-offset: 1px;
+}
+
+/* 帶行尾符號的行：主文字 + 獨立可點符號 */
+.uep-terminal__line-flex {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.uep-terminal__line-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.uep-terminal__suffix-btn {
+  all: unset;
+  box-sizing: border-box;
+  flex: none;
+  padding: 0 5px;
+  color: var(--tm-soft);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.uep-terminal__suffix-btn:hover {
+  background: rgb(var(--tm-main-rgb) / 0.35);
+  color: var(--tm-hi);
+}
+
+.uep-terminal__suffix-btn:focus-visible {
+  outline: 1px solid var(--tm-soft);
+  outline-offset: 1px;
+}
+
+/* ── 首次使用引導 chips ── */
+.uep-terminal__chips {
+  margin-top: 6px;
+  opacity: 0.75;
+}
+
+.uep-terminal__chips-label {
+  color: rgb(var(--tm-ink-rgb) / 0.45);
+}
+
+.uep-terminal__chip {
+  all: unset;
+  box-sizing: border-box;
+  margin: 4px 5px 0 0;
+  padding: 2px 8px;
+  border: 1px solid rgb(var(--tm-main-rgb) / 0.6);
+  border-radius: 2px;
+  color: var(--tm-soft);
+  font-size: 10.5px;
+  cursor: pointer;
+  transition:
+    border-color 0.18s var(--ease),
+    color 0.18s var(--ease);
+}
+
+.uep-terminal__chip:hover {
+  border-color: var(--tm-soft);
+  color: var(--tm-hi);
+}
+
+.uep-terminal__chip:focus-visible {
+  outline: 1px solid var(--tm-soft);
+  outline-offset: 1px;
+}
+
+/* ── prompt 列 ── */
+.uep-terminal__prompt {
+  position: relative; /* 補全候選列表的定位錨 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid rgb(var(--tm-main-rgb) / 0.45);
+  background: var(--tm-bg-prompt);
+}
+
+/* ── 補全候選列表（slash-command 式向上展開） ── */
+.uep-terminal__suggest {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--tm-bg-head);
+  border: 1px solid rgb(var(--tm-main-rgb) / 0.6);
+  border-bottom: none;
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.45);
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--tm-soft-rgb) / 0.35) transparent;
+}
+
+.uep-terminal__suggest-item {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  color: var(--tm-ink);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uep-terminal__suggest-item:hover {
+  background: rgb(var(--tm-main-rgb) / 0.25);
+}
+
+.uep-terminal__suggest-item.is-active {
+  background: rgb(var(--tm-main-rgb) / 0.45);
+  color: var(--tm-hi);
+}
+
+.uep-terminal__suggest-hint {
+  padding: 3px 10px;
+  color: rgb(var(--tm-ink-rgb) / 0.4);
+  font-size: 9.5px;
+  border-top: 1px solid rgb(var(--tm-main-rgb) / 0.3);
+}
+
+.uep-terminal__prompt-sign {
+  color: var(--tm-main);
+  font-weight: 600;
+}
+
+.uep-terminal__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--tm-ink);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.uep-terminal__input::placeholder {
+  color: rgb(var(--tm-ink-rgb) / 0.35);
+}
+
+.uep-terminal__enter {
+  color: rgb(var(--tm-main-rgb) / 0.8);
+}
+
+/* ── 離場：CRT 關機（S9-C.6，艾斯維爾 2026-07-25 指定各島專屬收合） ──
+ * 終端機不會「縮小飛走」，它是斷電：畫面先橫向塌成一條掃描線，
+ * 亮度衝高，然後那條線也消失。外殼維持 default chrome，只換收合動畫。 */
+.uep-island--concepts.uep-island--leaving,
+.uep-island--concepts.uep-island--entering {
+  transform-origin: center center;
+  animation: uep-terminal-crt-off 0.42s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* 進場 = 逆行的開機：掃描線從中央拉開，亮度從過曝收回正常 */
+.uep-island--concepts.uep-island--entering {
+  animation-direction: reverse;
+}
+
+@keyframes uep-terminal-crt-off {
+  0% {
+    transform: scale(1, 1);
+    filter: brightness(1);
+    opacity: 1;
+  }
+  48% {
+    transform: scale(1.01, 0.055);
+    filter: brightness(2.4);
+    opacity: 1;
+  }
+  72% {
+    transform: scale(0.9, 0.035);
+    filter: brightness(2.8);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(0.12, 0.012);
+    filter: brightness(3.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-island--concepts.uep-island--leaving,
+  .uep-island--concepts.uep-island--entering {
+    animation: none;
+  }
+}

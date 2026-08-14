@@ -1,0 +1,98 @@
+#!/usr/bin/env node
+/**
+ * 原始碼編碼檢查——擋住直接寫進檔案的控制字元。
+ *
+ * 起因（2026-07-27）：`terminalCore.ts` 與 `history-interlink.ts` 各有一個
+ * **字面 NUL byte**，是把 `\0` 當複合 map key 分隔符時直接輸出了那個字元，
+ * 而不是寫成 `\u0000` escape。技巧本身沒問題（NUL 不可能出現在內容裡，
+ * 拿來當分隔符很安全），寫成字面才是問題：
+ *
+ * - `git diff` 認定整個檔案是 binary，變更再也看不到
+ * - `grep` / `ripgrep` 直接跳過該檔（搜尋會靜默漏掉它）
+ * - 部分編輯器會在存檔時把它吃掉或轉義，造成無聲的行為變更
+ *
+ * 而現有的關卡**一個都攔不住**：TypeScript 認為字串裡的 NUL 完全合法、
+ * ESLint 沒有對應規則、Prettier 原樣保留、測試照跑照過。只有人用文字工具
+ * 搜尋時才會偶然發現——那份 NUL 在版控裡活了 11 天。
+ *
+ * 檢查範圍是 git 追蹤中的文字類原始檔。二進位資產（圖片、字型）不在清單裡。
+ */
+
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+
+/** 要檢查的副檔名——文字類原始碼與設定檔 */
+const TEXT_EXT =
+  /\.(ts|tsx|js|jsx|mjs|cjs|astro|css|scss|json|jsonc|md|mdx|sql|toml|ya?ml|html|txt)$/i;
+
+/**
+ * 不允許出現的字元與說明。
+ *
+ * 只列真正會破壞工具鏈的：NUL 讓檔案被當成 binary；其餘 C0 控制字元
+ * （除了 tab / LF / CR）在原始碼裡沒有合法用途，出現多半是複製貼上的意外。
+ */
+const FORBIDDEN = [
+  { code: 0x00, name: 'NUL', hint: '改寫成 \\u0000 escape' },
+  { code: 0x08, name: 'BACKSPACE', hint: '改寫成 \\b' },
+  { code: 0x0b, name: 'VERTICAL TAB', hint: '改寫成 \\v' },
+  { code: 0x0c, name: 'FORM FEED', hint: '改寫成 \\f' },
+  { code: 0x1b, name: 'ESC', hint: '改寫成 \\u001b' },
+];
+
+/**
+ * 檢查對象 = 已追蹤（`--cached`）＋ 尚未追蹤但不被 gitignore 的檔案
+ * （`--others --exclude-standard`）。
+ *
+ * ⚠️ 只掃已追蹤的會漏掉**新檔**——而新檔正是最容易帶進問題的那一類：
+ * 本腳本自己第一次寫出來時就含一個字面 NUL，因為當時還沒 `git add`，
+ * 掃不到自己，`pnpm check` 照樣綠燈放行。
+ */
+function listCandidateFiles() {
+  const out = execFileSync(
+    'git',
+    ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+    { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
+  );
+  return out.split('\0').filter((f) => f && TEXT_EXT.test(f));
+}
+
+/** 回傳該檔案中所有違規位置（行號 + 字元說明） */
+function findViolations(file) {
+  let buf;
+  try {
+    buf = readFileSync(file);
+  } catch {
+    return []; // 已刪除但仍在索引中——交給 git 自己報，不是編碼問題
+  }
+  const hits = [];
+  let line = 1;
+  for (let i = 0; i < buf.length; i++) {
+    const byte = buf[i];
+    if (byte === 0x0a) {
+      line++;
+      continue;
+    }
+    const bad = FORBIDDEN.find((f) => f.code === byte);
+    if (bad) hits.push({ line, ...bad });
+  }
+  return hits;
+}
+
+const failures = [];
+for (const file of listCandidateFiles()) {
+  for (const hit of findViolations(file)) {
+    failures.push(`${file}:${hit.line}  ${hit.name} — ${hit.hint}`);
+  }
+}
+
+if (failures.length > 0) {
+  console.error('原始碼含不該直接寫入的控制字元：\n');
+  for (const f of failures) console.error(`  ${f}`);
+  console.error(
+    '\n這類字元會讓 git diff 把檔案當成 binary、讓 grep 整個跳過該檔。' +
+      '\n請改用對應的 escape 寫法（語意完全等價）。'
+  );
+  process.exit(1);
+}
+
+console.log('原始碼編碼檢查通過');

@@ -21,9 +21,6 @@ const zoneInfo = zone ? ZONE_MAP[zone] : null;
 if (!zoneInfo) {
   return Astro.redirect('/admin');
 }
-
-const apiBase =
-  import.meta.env.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
 ---
 
 <DesignLayout title={`首頁編輯 · ${zoneInfo.label} - U.E.P Admin`}>
@@ -32,6 +29,6 @@ const apiBase =
     area={zone!}
     zoneLabel={zoneInfo.label}
     zoneColor={zoneInfo.color}
-    apiBase={apiBase}
+    apiBase={Astro.url.origin}
   />
 </DesignLayout>

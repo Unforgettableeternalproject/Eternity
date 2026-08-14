@@ -1,11 +1,30 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { ZoneData } from '../../data/zones';
 import type { JourneyNarrative } from '../../data/journey';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
-import ZoneAtmosphere from '../ui/ZoneAtmosphere';
+import type ZoneAtmosphereType from '../ui/ZoneAtmosphere';
 import UepDialogue from '../ui/UepDialogue';
 import renderHtmlWithUep from '../ui/renderHtmlWithUep';
 import './JourneyScene.css';
+
+/**
+ * 背景氛圍層延後載入——首頁一次渲染五個 zone，每個都掛一份，而首屏是
+ * Hero，五份氛圍層沒有一個在第一眼看得到。它退出首屏 JS，SSR 也不再
+ * 輸出這五份的 DOM。純裝飾層晚一點浮現不影響功能與版面（absolute 疊層）。
+ *
+ * ⚠️ **不能用 React.lazy + Suspense。** 首頁是 client:load，五個
+ * JourneyScene 在 hydration 期間就存在，Suspense 邊界會在 hydration
+ * 完成前收到 lazy 的解析更新 → React error #421，該邊界整個退回客戶端
+ * 渲染。代價是五個 zone 的子樹丟棄 SSR 的 HTML 重畫，遠大於省下的體積。
+ * （BigMapModal 那邊可以用 Suspense，因為它是點擊後才渲染，那時
+ * hydration 早就結束。）
+ *
+ * 改用 state + effect 動態 import：SSR 與客戶端首次渲染都是 null，
+ * 兩邊一致不會有 hydration mismatch，effect 之後才補上。
+ *
+ * 其餘 Reader 各自只掛一份、且就在首屏，維持直接 import。
+ */
+type AtmosphereComponent = typeof ZoneAtmosphereType;
 
 interface JourneySceneProps {
   zone: ZoneData;
@@ -32,6 +51,21 @@ export default function JourneyScene({
     threshold: 0.22,
     rootMargin: '0px 0px -18px 0px',
   });
+
+  /* 見檔頭：延後載入氛圍層，但不經 Suspense */
+  const [Atmosphere, setAtmosphere] = useState<AtmosphereComponent | null>(
+    null
+  );
+  useEffect(() => {
+    let alive = true;
+    void import('../ui/ZoneAtmosphere').then((mod) => {
+      /* setState 傳函式會被當成 updater，元件型別要包一層 */
+      if (alive) setAtmosphere(() => mod.default);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const uepLines = isMobile
     ? narrative.uepLines.slice(0, 2)
@@ -69,7 +103,9 @@ export default function JourneyScene({
       }
       data-zone-id={zone.id}
     >
-      <ZoneAtmosphere zone={zone} intensity={isMobile ? 'subtle' : 'rich'} />
+      {Atmosphere && (
+        <Atmosphere zone={zone} intensity={isMobile ? 'subtle' : 'rich'} />
+      )}
       <div className="journey-scene__bg" />
 
       <div className="journey-scene__inner">

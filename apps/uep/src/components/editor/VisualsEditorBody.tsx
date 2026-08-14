@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+/* global AbortController */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SpriteEditorModal from './SpriteEditorModal';
 import {
   getDialog,
@@ -8,6 +9,12 @@ import {
   fetchImageAssets,
   type AssetItem as ImagePickerItem,
 } from './editorHelpers';
+import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
+import GateConditionEditor from './GateConditionEditor';
+import { UploadSpinner } from './UploadSpinner';
+import { isSamePagePath } from '../../lib/pagePath';
+import type { GateCondition } from '../../progress';
+import type { ImageDisplayState } from '../../visuals';
 
 // ──────────────────────────────────────────────────────────────
 //  型別定義
@@ -47,6 +54,16 @@ export interface ImageItem {
   animations?: SpriteAnimations;
   /** 基準像素大小（展示縮放用） */
   basePixelSize?: number;
+
+  // ── 三態解鎖欄位（S8 下半場 §1-2；未設定＝天生解鎖）──
+  // 第一張圖（sortOrder 排序後）不吃這些欄位——恆等於 gallery 解鎖。
+  // 精靈圖（isSpriteSheet）本輪不接三態。
+  /** 初始狀態：locked / partial / unlocked（預設 unlocked） */
+  initialState?: ImageDisplayState;
+  /** 鎖定條件：離開鎖定態的閘 */
+  lockGate?: GateCondition | null;
+  /** 部分鎖定條件：離開部分解鎖態的閘 */
+  partialGate?: GateCondition | null;
 }
 
 export interface VisualsData {
@@ -54,12 +71,53 @@ export interface VisualsData {
   images: ImageItem[];
   /** 分組標籤（同 group 的 gallery 在 subcat 中歸在一起）*/
   group: string;
-  /** 遮蔽等級 0-3 */
-  spoilerLevel: number;
-  /** 解鎖條件 */
-  gate: string;
+  /**
+   * gallery 解鎖閘（GateCondition 物件；null = 無條件）的唯讀鏡像。
+   * 單一寫入來源是 Inspector 的 PROGRESS GATE 面板（RichEditor `gate`
+   * state → metadata.gate）——serializeVisualsData 不再輸出 gate，
+   * 避免 Echoes D 段踩過的「兩個編輯器互相覆蓋 metadata.gate」bug。
+   */
+  gate: GateCondition | null;
+  /**
+   * 解鎖提示文案（metadata.gateHint）：鎖定 gallery 的封印面板顯示的
+   * 劇情提示，不參與條件求值。讀取相容舊自由文字 gate 字串（2026-07-19
+   * 拍板：靜默失效，僅承接為提示文案）——同 Echoes spoilerGate 手法。
+   */
+  gateHint: string;
+  /**
+   * entityKey（僅陳列走廊 profiles）：Interactive Embedding 反查用，
+   * 同 zone 唯一（V-B 編輯器驗證）
+   */
+  entityKey: string;
+  /**
+   * 劇情點 key（僅鑲框室 illustrations）：Visual Clue 引用用，
+   * 同 zone 唯一（V-B 編輯器驗證）。S10-1 起取代原本的 illustrationId，
+   * 與 Echoes 劇情歌共用同一個 storyKey 命名空間——同一個劇情點可以
+   * 同時掛一首歌與一張插圖，這正是共享識別碼的初衷。
+   */
+  storyKey: string;
   /** 展示風格 */
   layout: string;
+}
+
+/**
+ * 正規化 metadata.gate 的物件形狀為 GateCondition。
+ * 非物件（含舊自由文字字串）、空條件一律回 null。
+ */
+export function normalizeGateObject(value: unknown): GateCondition | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const requiresFlags = Array.isArray(raw.requiresFlags)
+    ? raw.requiresFlags.filter(
+        (f): f is string => typeof f === 'string' && f.trim().length > 0
+      )
+    : [];
+  const pristineOnly = raw.pristineOnly === true;
+  if (requiresFlags.length === 0 && !pristineOnly) return null;
+  const gate: GateCondition = {};
+  if (requiresFlags.length > 0) gate.requiresFlags = requiresFlags;
+  if (pristineOnly) gate.pristineOnly = true;
+  return gate;
 }
 
 export const LAYOUT_OPTIONS = [
@@ -72,11 +130,30 @@ export const LAYOUT_OPTIONS = [
 ] as const;
 
 export function parseVisualsData(metadata: Record<string, any>): VisualsData {
+  const rawGate = metadata?.gate;
   return {
-    images: Array.isArray(metadata?.images) ? metadata.images : [],
+    // 依 sortOrder 正規化陣列順序（穩定排序，與 runtime 的
+    // resolveGalleryImages 同構）——編輯器以 index 0 落實「第一張圖
+    // 恆等式」，匯入/舊資料的陣列順序與 sortOrder 不一致時，未正規化
+    // 會鎖錯圖片
+    images: Array.isArray(metadata?.images)
+      ? [...metadata.images].sort(
+          (a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0)
+        )
+      : [],
     group: metadata?.group || '',
-    spoilerLevel: metadata?.spoilerLevel ?? 0,
-    gate: metadata?.gate || '',
+    // 物件 → 結構化閘（唯讀鏡像）；字串 → 舊資料靜默失效
+    gate: normalizeGateObject(rawGate),
+    // 提示文案：新 key gateHint 優先，舊字串 gate 讀取相容
+    gateHint:
+      typeof metadata?.gateHint === 'string'
+        ? metadata.gateHint
+        : typeof rawGate === 'string'
+          ? rawGate
+          : '',
+    entityKey:
+      typeof metadata?.entityKey === 'string' ? metadata.entityKey : '',
+    storyKey: typeof metadata?.storyKey === 'string' ? metadata.storyKey : '',
     layout: metadata?.layout || '',
   };
 }
@@ -85,10 +162,117 @@ export function serializeVisualsData(data: VisualsData): Record<string, any> {
   return {
     images: data.images,
     group: data.group || undefined,
-    spoilerLevel: data.spoilerLevel,
-    gate: data.gate || undefined,
+    // 不輸出 spoilerLevel——Visuals 已排除 spoiler 降級鏈（艾斯維爾 07/20
+    // 驗收定案：gallery 級遮蔽等級整個退場，劇透防護由 per-image 三態
+    // 承擔），舊值於下次存檔時卸下
+    // 不輸出 gate——結構化閘由 Inspector PROGRESS GATE 面板單一來源保存；
+    // 舊自由文字 gate 承接進 gateHint 後即從 metadata.gate 卸下
+    gateHint: data.gateHint.trim() || undefined,
+    entityKey: data.entityKey.trim() || undefined,
+    storyKey: data.storyKey.trim() || undefined,
     layout: data.layout || undefined,
   };
+}
+
+// ──────────────────────────────────────────────────────────────
+//  圖片三態行為鏈描述（S8 下半場 V-B.17）
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * 依 8 案狀態機（設計文件 §1-3）描述當前組合的行為鏈，
+ * 讓編輯者所見即所得。warn = 案 8（partialGate 形同虛設，
+ * 拍板：提示不阻擋）。
+ */
+export function describeImageChain(
+  initialState: ImageDisplayState,
+  hasLockGate: boolean,
+  hasPartialGate: boolean
+): { text: string; warn: boolean } {
+  if (initialState === 'unlocked') {
+    // 案 7
+    return { text: '永遠解鎖——條件全部不生效', warn: false };
+  }
+  if (initialState === 'partial') {
+    if (hasPartialGate) {
+      // 案 4/5 前者
+      return {
+        text: hasLockGate
+          ? '部分解鎖 →(部分條件)→ 解鎖（鎖定條件不生效）'
+          : '部分解鎖 →(部分條件)→ 解鎖',
+        warn: false,
+      };
+    }
+    if (hasLockGate) {
+      // 案 5
+      return {
+        text: '部分解鎖 →(鎖定條件視為離開條件)→ 解鎖',
+        warn: false,
+      };
+    }
+    // 案 6
+    return { text: '永遠部分解鎖', warn: false };
+  }
+  // initialState === 'locked'
+  if (hasLockGate) {
+    return hasPartialGate
+      ? { text: '鎖定 →(鎖定條件)→ 部分解鎖 →(部分條件)→ 解鎖', warn: false } // 案 1
+      : { text: '鎖定 →(鎖定條件)→ 解鎖（跳過部分解鎖）', warn: false }; // 案 2
+  }
+  if (hasPartialGate) {
+    // 案 8：提示不阻擋
+    return {
+      text: '永遠鎖定——沒有鎖定條件就無法離開鎖定態，部分條件不會生效',
+      warn: true,
+    };
+  }
+  // 案 3
+  return { text: '永遠鎖定（未釋出內容）', warn: false };
+}
+
+// ──────────────────────────────────────────────────────────────
+//  分館規則與唯一性收集（S8 下半場 V-B.16）
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * 從 pageSlug（不含 area 前綴，如 `profiles/characters/xxx`）推導
+ * gallery 所屬分館 id——與 content-api 的 divisionId 推導同構
+ * （`visuals/{division}/...` 第二段）。
+ */
+export function deriveDivisionId(pageSlug: string): string {
+  return pageSlug.split('/')[0] || '';
+}
+
+interface VisualsTreeNodeForKeys {
+  id: string;
+  pageType?: string;
+  metadata?: { entityKey?: unknown; storyKey?: unknown };
+  children?: VisualsTreeNodeForKeys[];
+}
+
+/**
+ * 收集同 zone 其他 gallery 的 entityKey / storyKey（排除自身），
+ * 唯一性硬驗證用——比照 Echoes collectOtherEchoesEntityKeys。
+ */
+export function collectOtherVisualsGalleryKeys(
+  nodes: VisualsTreeNodeForKeys[],
+  galleryId: string
+): { entityKeys: Set<string>; storyKeys: Set<string> } {
+  const entityKeys = new Set<string>();
+  const storyKeys = new Set<string>();
+  const walk = (items: VisualsTreeNodeForKeys[]) => {
+    for (const node of items) {
+      if (node.pageType === 'gallery' && !isSamePagePath(node.id, galleryId)) {
+        const key = node.metadata?.entityKey;
+        if (typeof key === 'string' && key.trim()) entityKeys.add(key.trim());
+        const story = node.metadata?.storyKey;
+        if (typeof story === 'string' && story.trim())
+          storyKeys.add(story.trim());
+      }
+      if (Array.isArray(node.children)) walk(node.children);
+    }
+  };
+  walk(nodes);
+  return { entityKeys, storyKeys };
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -101,11 +285,15 @@ function generateId(): string {
 
 // uploadAsset, fetchImageAssets, buildImageUrl, deleteAsset 已移至 editorHelpers.ts
 
-const SPOILER_LEVELS = [
-  { l: 0, n: '無' },
-  { l: 1, n: '霧化' },
-  { l: 2, n: '遮罩' },
-  { l: 3, n: '雜訊' },
+/** 三態初始狀態選項（A/B/C，設計文件 §1-2） */
+const IMAGE_STATE_OPTIONS: {
+  value: ImageDisplayState;
+  code: string;
+  label: string;
+}[] = [
+  { value: 'locked', code: 'A', label: '鎖定' },
+  { value: 'partial', code: 'B', label: '部分解鎖' },
+  { value: 'unlocked', code: 'C', label: '解鎖' },
 ];
 
 // ──────────────────────────────────────────────────────────────
@@ -115,20 +303,125 @@ const SPOILER_LEVELS = [
 interface VisualsEditorBodyProps {
   accent: string;
   initialData: VisualsData;
+  apiBase: string;
+  /** gallery 頁 id（含 area 前綴，如 visuals/profiles/...） */
+  galleryId: string;
+  /** 頁 slug（不含 area 前綴）——分館推導用 */
+  pageSlug: string;
   onDataChange: (data: VisualsData) => void;
   onDirty: () => void;
+  /** 驗證問題回報——存檔前 RichEditor 據此阻擋（同 Echoes 模式） */
+  onValidationChange?: (issues: string[]) => void;
 }
 
 export default function VisualsEditorBody({
   accent,
   initialData,
+  apiBase,
+  galleryId,
+  pageSlug,
   onDataChange,
   onDirty,
+  onValidationChange,
 }: VisualsEditorBodyProps) {
   const [data, setData] = useState<VisualsData>(initialData);
   const [uploading, setUploading] = useState(false);
+  /** 多檔上傳的第 N 張——單檔時 total 為 1，spinner 自動省略計數 */
+  const [uploadProgress, setUploadProgress] = useState({
+    current: 0,
+    total: 0,
+  });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** 替換中的圖片 id——替換共用同一個隱藏 input，靠這個決定寫回哪一筆 */
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
+  const [replacingId, setReplacingId] = useState<string | null>(null);
+
+  // 分館規則：entityKey 僅陳列走廊（profiles）、storyKey 僅鑲框室
+  // （illustrations）——依 division 顯隱（§1-1）
+  const divisionId = deriveDivisionId(pageSlug);
+  const showEntityKey = divisionId === 'profiles';
+  const showStoryKey = divisionId === 'illustrations';
+
+  // 唯一性硬驗證：同 zone 唯一，查核失敗阻擋存檔可重試（比照 Echoes）
+  const [otherKeys, setOtherKeys] = useState<{
+    entityKeys: Set<string>;
+    storyKeys: Set<string>;
+  }>(() => ({ entityKeys: new Set(), storyKeys: new Set() }));
+  const [keyCheckStatus, setKeyCheckStatus] = useState<
+    'loading' | 'ready' | 'error'
+  >('loading');
+  const [keyCheckReload, setKeyCheckReload] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setKeyCheckStatus('loading');
+    fetch(`${apiBase}/api/content/visuals/tree`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((payload) => {
+        if (!payload?.ok || !Array.isArray(payload.data)) {
+          throw new Error('Visuals tree payload 格式錯誤');
+        }
+        setOtherKeys(collectOtherVisualsGalleryKeys(payload.data, galleryId));
+        setKeyCheckStatus('ready');
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setKeyCheckStatus('error');
+      });
+    return () => controller.abort();
+  }, [apiBase, galleryId, keyCheckReload]);
+
+  const validationIssues = useMemo(() => {
+    const issues: string[] = [];
+    const checkKey = (
+      label: string,
+      value: string,
+      taken: Set<string>,
+      takenMessage: string
+    ) => {
+      const key = value.trim();
+      if (!key) return;
+      if (!ENTITY_KEY_PATTERN.test(key)) {
+        issues.push(`${label}「${key}」不是合法 kebab-case`);
+      } else if (keyCheckStatus === 'loading') {
+        issues.push(`正在查核${label}唯一性，請稍候`);
+      } else if (keyCheckStatus === 'error') {
+        issues.push(`無法查核${label}唯一性，請重試後再儲存`);
+      } else if (taken.has(key)) {
+        issues.push(takenMessage.replace('{key}', key));
+      }
+    };
+    if (showEntityKey)
+      checkKey(
+        'entityKey',
+        data.entityKey,
+        otherKeys.entityKeys,
+        'entityKey「{key}」已被其他 gallery 使用'
+      );
+    if (showStoryKey)
+      checkKey(
+        '劇情點 key',
+        data.storyKey,
+        otherKeys.storyKeys,
+        '劇情點 key「{key}」已被其他 gallery 使用'
+      );
+    return issues;
+  }, [
+    data.entityKey,
+    data.storyKey,
+    keyCheckStatus,
+    otherKeys,
+    showEntityKey,
+    showStoryKey,
+  ]);
+
+  useEffect(() => {
+    onValidationChange?.(validationIssues);
+  }, [onValidationChange, validationIssues]);
 
   // 編輯器模式：普通圖片 / 精靈圖
   type EditorMode = 'image' | 'sprite';
@@ -156,15 +449,29 @@ export default function VisualsEditorBody({
     file: string;
   } | null>(null);
 
+  /**
+   * 寫入的權威來源。
+   *
+   * 上傳／替換是非同步的，handler 裡的 `data` 是啟動當下的閉包快照；等 await
+   * 回來時它可能已經過期，用它組 next 會把期間完成的另一筆寫入整個蓋掉（新增
+   * 的圖片或替換的結果消失，已上傳的 R2 檔案變成孤兒，而使用者看到的是成功
+   * 回饋）。所有寫入都改讀這個 ref，就不受 re-render 時序影響。
+   *
+   * ⚠️ 不可在 render 期間賦值（`dataRef.current = data`）——那會用尚未更新的
+   * state 覆蓋掉 update 剛寫進去的新值。
+   */
+  const dataRef = useRef(data);
+
   const update = (patch: Partial<VisualsData>) => {
-    const next = { ...data, ...patch };
+    const next = { ...dataRef.current, ...patch };
+    dataRef.current = next;
     setData(next);
     onDataChange(next);
     onDirty();
   };
 
   const updateImage = (imageId: string, patch: Partial<ImageItem>) => {
-    const nextImages = data.images.map((img) =>
+    const nextImages = dataRef.current.images.map((img) =>
       img.id === imageId ? { ...img, ...patch } : img
     );
     update({ images: nextImages });
@@ -172,41 +479,97 @@ export default function VisualsEditorBody({
 
   const removeImage = (imageId: string) => {
     update({
-      images: data.images
+      images: dataRef.current.images
         .filter((img) => img.id !== imageId)
         .map((img, i) => ({ ...img, sortOrder: i })),
     });
   };
 
+  /**
+   * 素材操作互斥閘：新增、替換、媒體庫選取、模式切換共用一把鎖，同時只跑
+   * 一條。光靠 dataRef 修好覆蓋問題還不夠——並行時使用者無從得知哪張圖在
+   * 動，而模式切換會直接把 images 清空，進行中的上傳回來就沒有落點。
+   *
+   * 這個 state 供 UI 停用用；判斷一律走 assetBusyRef。
+   */
+  const assetBusy = uploading || replacingId !== null;
+
+  /**
+   * 閘的同步鏡像。
+   *
+   * state 要等 re-render 才看得到，同一個 tick 內的第二次觸發用它判斷會直接
+   * 穿過去；`await` 之後讀閉包 state 也是舊值。所有 guard 判斷讀這個 ref，
+   * 由發起操作的 handler 自己負責開關。
+   */
+  const assetBusyRef = useRef(false);
+
   // 上傳圖片
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    // UI 已停用，這是防守第二層（例如拖放或鍵盤觸發的意外並行）
+    if (assetBusyRef.current) {
+      e.target.value = '';
+      return;
+    }
+    assetBusyRef.current = true;
     setUploading(true);
+    setUploadProgress({ current: 1, total: files.length });
     try {
       const newImages: ImageItem[] = [];
       for (let i = 0; i < files.length; i++) {
+        setUploadProgress({ current: i + 1, total: files.length });
         const result = await uploadAsset(files[i]);
         if (result) {
           newImages.push({
             id: generateId(),
             file: result.key,
             caption: '',
-            sortOrder: data.images.length + newImages.length,
+            sortOrder: dataRef.current.images.length + newImages.length,
           });
         }
       }
       if (newImages.length > 0) {
-        update({ images: [...data.images, ...newImages] });
+        update({ images: [...dataRef.current.images, ...newImages] });
       }
     } finally {
+      assetBusyRef.current = false;
       setUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  // 從媒體庫選擇
-  const openImagePicker = async () => {
+  /**
+   * 替換單張圖片：只改寫這一筆的 `file`，caption／排序／解鎖設定原封不動。
+   *
+   * 刻意不刪 R2 上的舊檔——同一個 key 可能被其他 gallery 或富文本引用，
+   * 真要清掉走圖片列的刪除流程（那裡才有「僅移除引用 / 永久刪除」的選擇）。
+   */
+  const handleImageReplace = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const targetId = replaceTargetId;
+    if (!file || !targetId) return;
+    if (assetBusyRef.current) {
+      e.target.value = '';
+      return;
+    }
+    assetBusyRef.current = true;
+    setReplacingId(targetId);
+    try {
+      const result = await uploadAsset(file);
+      if (result) updateImage(targetId, { file: result.key });
+    } finally {
+      assetBusyRef.current = false;
+      setReplacingId(null);
+      setReplaceTargetId(null);
+      if (replaceInputRef.current) replaceInputRef.current.value = '';
+    }
+  };
+
+  // 從媒體庫選擇；targetId 非空代表替換該筆而非新增
+  const openImagePicker = async (targetId?: string) => {
+    setReplaceTargetId(targetId ?? null);
     setPickerOpen(true);
     setPickerLoading(true);
     const items = await fetchImageAssets();
@@ -214,16 +577,26 @@ export default function VisualsEditorBody({
     setPickerLoading(false);
   };
 
+  const closeImagePicker = () => {
+    setPickerOpen(false);
+    setReplaceTargetId(null);
+  };
+
   const selectFromLibrary = (item: ImagePickerItem) => {
-    const already = data.images.some((img) => img.file === item.key);
+    if (replaceTargetId) {
+      updateImage(replaceTargetId, { file: item.key });
+      closeImagePicker();
+      return;
+    }
+    const already = dataRef.current.images.some((img) => img.file === item.key);
     if (already) return;
     const newImg: ImageItem = {
       id: generateId(),
       file: item.key,
       caption: '',
-      sortOrder: data.images.length,
+      sortOrder: dataRef.current.images.length,
     };
-    update({ images: [...data.images, newImg] });
+    update({ images: [...dataRef.current.images, newImg] });
     setPickerOpen(false);
   };
 
@@ -271,8 +644,11 @@ export default function VisualsEditorBody({
   // 切換模式時清理資料
   const switchMode = async (mode: EditorMode) => {
     if (mode === editorMode) return;
+    // 清空 images 會抽掉進行中上傳／替換的落點：新增回來會把普通圖片寫進
+    // sprite 模式，替換則因為目標項目已消失而完全落空，兩者都留下孤兒 R2 檔案
+    if (assetBusyRef.current) return;
     if (
-      data.images.length > 0 &&
+      dataRef.current.images.length > 0 &&
       !(await getDialog().confirm(
         mode === 'sprite'
           ? '切換到精靈圖模式會清除目前的圖片，確定嗎？'
@@ -281,6 +657,8 @@ export default function VisualsEditorBody({
     ) {
       return;
     }
+    // 確認對話框是 await 的，這期間仍可能有操作啟動（例如拖放）
+    if (assetBusyRef.current) return;
     update({ images: [], layout: mode === 'sprite' ? 'sprite' : '' });
     setEditorMode(mode);
   };
@@ -544,6 +922,12 @@ export default function VisualsEditorBody({
             key={mode}
             type="button"
             onClick={() => switchMode(mode)}
+            disabled={assetBusy && editorMode !== mode}
+            title={
+              assetBusy && editorMode !== mode
+                ? '素材處理中，完成後才能切換模式'
+                : undefined
+            }
             style={{
               padding: '8px 20px',
               border: 'none',
@@ -555,7 +939,8 @@ export default function VisualsEditorBody({
               color: editorMode === mode ? accent : 'var(--ink-mute)',
               fontWeight: editorMode === mode ? 600 : 400,
               fontSize: 13,
-              cursor: 'pointer',
+              cursor: assetBusy && editorMode !== mode ? 'default' : 'pointer',
+              opacity: assetBusy && editorMode !== mode ? 0.5 : 1,
               transition: 'all 0.15s',
             }}
           >
@@ -580,7 +965,8 @@ export default function VisualsEditorBody({
               <button
                 className="ned-btn-ghost ned-btn-sm"
                 type="button"
-                onClick={openImagePicker}
+                onClick={() => openImagePicker()}
+                disabled={assetBusy}
                 style={{ color: accent }}
               >
                 📂 媒體庫
@@ -589,10 +975,19 @@ export default function VisualsEditorBody({
                 className="ned-btn-ghost ned-btn-sm"
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
+                disabled={assetBusy}
+                aria-busy={uploading}
                 style={{ color: accent }}
               >
-                {uploading ? '上傳中...' : '+ 上傳圖片'}
+                {uploading ? (
+                  <UploadSpinner
+                    label="上傳中"
+                    current={uploadProgress.current}
+                    total={uploadProgress.total}
+                  />
+                ) : (
+                  '+ 上傳圖片'
+                )}
               </button>
             </div>
           </div>
@@ -604,6 +999,14 @@ export default function VisualsEditorBody({
             multiple
             style={{ display: 'none' }}
             onChange={handleImageUpload}
+          />
+
+          <input
+            ref={replaceInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleImageReplace}
           />
 
           {data.images.length === 0 && (
@@ -734,6 +1137,45 @@ export default function VisualsEditorBody({
                           />
                         </div>
                       )}
+
+                      {/* 替換圖檔：只換 file，caption 與解鎖設定留著 */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 6,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <button
+                          className="ned-btn-ghost ned-btn-sm"
+                          type="button"
+                          onClick={() => {
+                            setReplaceTargetId(img.id);
+                            replaceInputRef.current?.click();
+                          }}
+                          disabled={assetBusy}
+                          aria-busy={replacingId === img.id}
+                          style={{ color: accent }}
+                          title="上傳新檔案取代這張圖"
+                        >
+                          {replacingId === img.id ? (
+                            <UploadSpinner label="上傳中" />
+                          ) : (
+                            '⟳ 替換圖片'
+                          )}
+                        </button>
+                        <button
+                          className="ned-btn-ghost ned-btn-sm"
+                          type="button"
+                          onClick={() => openImagePicker(img.id)}
+                          disabled={assetBusy}
+                          style={{ color: accent }}
+                          title="從媒體庫挑一張取代這張圖"
+                        >
+                          📂 從媒體庫替換
+                        </button>
+                      </div>
+
                       <label className="ned-field-label ned-field-label--sm">
                         說明 (Caption)
                       </label>
@@ -748,6 +1190,121 @@ export default function VisualsEditorBody({
                           })
                         }
                       />
+
+                      {/* 三態解鎖（S8 下半場 V-B.17）。
+                          第一張圖恆等式：欄位鎖定；重排時約束跟著新的
+                          第一張走，原第一張的既有資料保留但不生效
+                          （resolver 只認 index 0）。 */}
+                      {i === 0 ? (
+                        <div
+                          className="ned-gate-scope-hint"
+                          style={{ marginTop: 10 }}
+                        >
+                          ⓘ 第一張圖恆等於 gallery
+                          解鎖狀態，不設自身條件；重排圖片後此約束跟隨新的第一張。
+                          {(img.initialState === 'locked' ||
+                            img.initialState === 'partial' ||
+                            normalizeGateObject(img.lockGate) ||
+                            normalizeGateObject(img.partialGate)) &&
+                            ' 此圖先前設定的三態資料保留但不生效。'}
+                        </div>
+                      ) : (
+                        (() => {
+                          const effectiveInitial: ImageDisplayState =
+                            img.initialState === 'locked' ||
+                            img.initialState === 'partial'
+                              ? img.initialState
+                              : 'unlocked';
+                          const chain = describeImageChain(
+                            effectiveInitial,
+                            !!normalizeGateObject(img.lockGate),
+                            !!normalizeGateObject(img.partialGate)
+                          );
+                          return (
+                            <div style={{ marginTop: 12 }}>
+                              <label className="ned-field-label ned-field-label--sm">
+                                初始狀態 (三態解鎖)
+                              </label>
+                              <div className="ned-spoiler-buttons">
+                                {IMAGE_STATE_OPTIONS.map((o) => {
+                                  const active = effectiveInitial === o.value;
+                                  return (
+                                    <button
+                                      key={o.value}
+                                      type="button"
+                                      className={`ned-spoiler-btn ${active ? 'is-active' : ''}`}
+                                      style={{
+                                        borderColor: active
+                                          ? accent
+                                          : 'var(--hairline-strong)',
+                                        background: active
+                                          ? `${accent}12`
+                                          : 'transparent',
+                                        color: active
+                                          ? accent
+                                          : 'var(--ink-soft)',
+                                      }}
+                                      onClick={() =>
+                                        updateImage(img.id, {
+                                          // C（解鎖）＝預設語意，省略欄位保持
+                                          // metadata 精簡
+                                          initialState:
+                                            o.value === 'unlocked'
+                                              ? undefined
+                                              : o.value,
+                                        })
+                                      }
+                                    >
+                                      {o.code}
+                                      <span className="ned-spoiler-btn-label">
+                                        {o.label}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <div
+                                className="ned-gate-scope-hint"
+                                style={
+                                  chain.warn
+                                    ? { color: 'goldenrod' }
+                                    : undefined
+                                }
+                              >
+                                {chain.warn ? '⚠' : 'ⓘ'} {chain.text}
+                              </div>
+                              {effectiveInitial !== 'unlocked' && (
+                                <>
+                                  <label className="ned-field-label ned-field-label--sm">
+                                    鎖定條件（離開 A 的閘）
+                                  </label>
+                                  <GateConditionEditor
+                                    value={normalizeGateObject(img.lockGate)}
+                                    onChange={(next) =>
+                                      updateImage(img.id, { lockGate: next })
+                                    }
+                                    apiBase={apiBase}
+                                    accent={accent}
+                                    showScopeHint={false}
+                                  />
+                                  <label className="ned-field-label ned-field-label--sm">
+                                    部分條件（離開 B 的閘）
+                                  </label>
+                                  <GateConditionEditor
+                                    value={normalizeGateObject(img.partialGate)}
+                                    onChange={(next) =>
+                                      updateImage(img.id, { partialGate: next })
+                                    }
+                                    apiBase={apiBase}
+                                    accent={accent}
+                                    showScopeHint={false}
+                                  />
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()
+                      )}
                     </div>
                   )}
                 </div>
@@ -767,38 +1324,75 @@ export default function VisualsEditorBody({
         onChange={(e) => update({ group: e.target.value })}
       />
 
-      {/* 遮蔽等級 */}
-      <label className="ned-field-label">遮蔽等級 (Spoiler Level)</label>
-      <div className="ned-spoiler-buttons">
-        {SPOILER_LEVELS.map((o) => (
-          <button
-            key={o.l}
-            className={`ned-spoiler-btn ${data.spoilerLevel === o.l ? 'is-active' : ''}`}
-            style={{
-              borderColor:
-                data.spoilerLevel === o.l ? accent : 'var(--hairline-strong)',
-              background:
-                data.spoilerLevel === o.l ? `${accent}12` : 'transparent',
-              color: data.spoilerLevel === o.l ? accent : 'var(--ink-soft)',
-            }}
-            onClick={() => update({ spoilerLevel: o.l })}
-            type="button"
-          >
-            L{o.l}
-            <span className="ned-spoiler-btn-label">{o.n}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* 解鎖條件 */}
-      <label className="ned-field-label">解鎖條件 (劇情前置)</label>
+      {/* 解鎖提示文案——鎖定 gallery 的封印面板顯示的劇情提示，不參與
+          求值。解鎖條件本身由右側 Inspector 的 PROGRESS GATE 面板管理。 */}
+      <label className="ned-field-label">解鎖提示文案</label>
       <input
         className="ned-field"
         type="text"
-        value={data.gate}
-        placeholder="哪段劇情解鎖此畫廊"
-        onChange={(e) => update({ gate: e.target.value })}
+        value={data.gateHint}
+        placeholder="例如：讀完第三章後再觀看"
+        onChange={(e) => update({ gateHint: e.target.value })}
       />
+      <div className="ned-gate-scope-hint">
+        ⓘ 顯示在未解鎖 gallery 的封印面板上；gallery 的解鎖條件請在右側 PROGRESS
+        GATE 面板設定。
+      </div>
+
+      {/* 跨 zone 識別欄位：entityKey（陳列走廊）/ 劇情點 key（鑲框室），
+          依分館顯隱（S8 下半場 §1-1），同 zone 唯一 */}
+      {(showEntityKey || showStoryKey) && (
+        <div className="ned-echoes-entity-section">
+          {showEntityKey && (
+            <>
+              <EntityKeyField
+                value={data.entityKey || undefined}
+                existingKeys={otherKeys.entityKeys}
+                onChange={(entityKey) => update({ entityKey: entityKey || '' })}
+                duplicateMessage="此 entityKey 已被其他 gallery 使用"
+              />
+              <div className="ned-gate-scope-hint">
+                entityKey 用於角色／區域嵌入反查設定圖 gallery（浮動幻影提示
+                卡）；未綁定的 gallery 不參與嵌入反查。
+              </div>
+            </>
+          )}
+          {showStoryKey && (
+            <>
+              <EntityKeyField
+                value={data.storyKey || undefined}
+                existingKeys={otherKeys.storyKeys}
+                onChange={(storyKey) => update({ storyKey: storyKey || '' })}
+                label="劇情點 key"
+                placeholder="如 rain-sea-finale（選填）"
+                duplicateMessage="此劇情點 key 已被其他 gallery 使用"
+              />
+              <div className="ned-gate-scope-hint">
+                劇情點 key 供 History 文中的 Visual Clue 引用此 gallery；未設定
+                即無法被 clue 指向。同一個 key 也可以掛在 Echoes
+                的劇情歌上——歌與插圖會被視為同一個劇情點的兩面。
+              </div>
+            </>
+          )}
+          {(data.entityKey || data.storyKey) && keyCheckStatus === 'error' && (
+            <button
+              type="button"
+              className="ned-btn-ghost ned-btn-sm"
+              onClick={() => setKeyCheckReload((value) => value + 1)}
+            >
+              重試唯一性查核
+            </button>
+          )}
+        </div>
+      )}
+
+      {validationIssues.length > 0 && (
+        <div className="ned-echoes-validation" role="alert">
+          {validationIssues.map((issue) => (
+            <div key={issue}>⚠ {issue}</div>
+          ))}
+        </div>
+      )}
 
       {/* 展示風格 */}
       <label className="ned-field-label">展示風格 (Layout)</label>
@@ -944,7 +1538,7 @@ export default function VisualsEditorBody({
             alignItems: 'center',
             justifyContent: 'center',
           }}
-          onClick={() => setPickerOpen(false)}
+          onClick={closeImagePicker}
         >
           <div
             style={{
@@ -970,7 +1564,9 @@ export default function VisualsEditorBody({
               }}
             >
               <div>
-                <strong>從媒體庫選擇圖片</strong>
+                <strong>
+                  {replaceTargetId ? '從媒體庫替換圖片' : '從媒體庫選擇圖片'}
+                </strong>
                 <span
                   style={{
                     marginLeft: 10,
@@ -983,7 +1579,7 @@ export default function VisualsEditorBody({
               </div>
               <button
                 type="button"
-                onClick={() => setPickerOpen(false)}
+                onClick={closeImagePicker}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -1027,14 +1623,16 @@ export default function VisualsEditorBody({
                   }}
                 >
                   {pickerItems.map((item) => {
+                    // 替換模式下，被替換的那一筆自己不算佔用（否則整格灰掉無從點選）
                     const already = data.images.some(
-                      (img) => img.file === item.key
+                      (img) =>
+                        img.file === item.key && img.id !== replaceTargetId
                     );
                     return (
                       <button
                         key={item.key}
                         type="button"
-                        disabled={already}
+                        disabled={already || assetBusy}
                         onClick={() => selectFromLibrary(item)}
                         style={{
                           display: 'flex',

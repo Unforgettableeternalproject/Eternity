@@ -170,13 +170,13 @@
   letter-spacing: -0.02em;
 }
 
+/* 首頁文字右邊界統一跟隨 landing 內容寬（Ariel 2026-08-12） */
 .visuals-landing-subtitle {
   font-family: var(--font-serif-tc);
   font-size: 16px;
   font-style: italic;
   color: var(--ink-soft);
   line-height: 1.9;
-  max-width: 620px;
   margin-top: 16px;
 }
 
@@ -455,15 +455,16 @@
   stroke-dashoffset: 0 !important;
 }
 
-/* 非 hover 的引導線完全隱藏（用 dashoffset = 線長） */
-.visuals-road-guide {
-  stroke-opacity: 0.7;
-}
-
-/* 沒有 hover 時全部隱藏 */
+/* 沒有 hover 時收回中心。
+   ⚠️ 這裡的 `transition` 必須把 stroke-dashoffset 一起寫進去——transition
+   是整份覆蓋而不是疊加，只列 stroke-opacity 會把基礎規則裡的
+   `stroke-dashoffset 0.45s` 一併抹掉，線就不是縮回去而是原地淡掉。
+   兩者同步長，否則線還沒收完就已經看不見了。 */
 .visuals-crossroad:not([data-hover]) .visuals-road-guide {
   stroke-opacity: 0;
-  transition: stroke-opacity 0.2s;
+  transition:
+    stroke-opacity 0.45s var(--ease, ease),
+    stroke-dashoffset 0.45s var(--ease, ease);
 }
 
 /* Hover 時路盡頭微光加強 */
@@ -1567,6 +1568,34 @@
   margin-bottom: 8px;
 }
 
+/* 映照入口（V-C）：投射 gallery 到浮動幻影 */
+.visuals-mirror-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 10px;
+  padding: 4px 12px;
+  border: 1px solid
+    color-mix(in srgb, var(--visuals-main, #5e548e) 45%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--visuals-main, #5e548e);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.visuals-mirror-btn:hover {
+  background: color-mix(in srgb, var(--visuals-main, #5e548e) 12%, transparent);
+  box-shadow: 0 0 10px
+    color-mix(in srgb, var(--visuals-main, #5e548e) 25%, transparent);
+}
+
 /* --- Corridor --- */
 .visuals-gallery-corridor {
   border: 1px solid var(--line);
@@ -2214,129 +2243,6 @@
   }
 }
 
-/* === Spoiler 濾鏡 === */
-.visuals-spoiler-1 {
-  filter: blur(8px);
-}
-.visuals-spoiler-2 {
-  filter: blur(14px) grayscale(1) contrast(0.3) brightness(0.5);
-}
-.visuals-spoiler-3 {
-  filter: blur(24px) saturate(0) brightness(0.12);
-}
-
-/* L2 剪影：暗色邊框 + 標題區提示 */
-.vis-spoiler-silhouette .visuals-gallery-card-thumb {
-  border: 1px solid rgba(94, 84, 142, 0.3);
-}
-
-/* L3 資料損壞：多層 overlay — 掃描線 + 雜訊色塊 + glitch 文字 */
-.vis-spoiler-corrupt {
-  position: relative;
-  overflow: hidden;
-}
-
-.vis-spoiler-corrupt .visuals-gallery-card-thumb {
-  position: relative;
-}
-
-/* 第一層：密集掃描線 */
-.vis-spoiler-corrupt::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 40px;
-  z-index: 2;
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 1px,
-      rgba(94, 84, 142, 0.15) 1px,
-      rgba(94, 84, 142, 0.15) 2px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      transparent,
-      transparent 3px,
-      rgba(30, 20, 50, 0.06) 3px,
-      rgba(30, 20, 50, 0.06) 6px
-    );
-  animation: visSpoilerScanline 2s linear infinite;
-}
-
-/* 第二層：glitch 文字 + 遮蔽背景 */
-.vis-spoiler-corrupt::after {
-  content: '▓▒░ SEALED ░▒▓';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 40px;
-  z-index: 3;
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.3em;
-  color: rgba(159, 134, 192, 0.85);
-  text-shadow:
-    0 0 8px rgba(94, 84, 142, 0.6),
-    2px 0 0 rgba(200, 50, 50, 0.3),
-    -2px 0 0 rgba(50, 50, 200, 0.3);
-  background:
-    radial-gradient(
-      ellipse at center,
-      rgba(20, 14, 36, 0.6) 0%,
-      transparent 65%
-    ),
-    linear-gradient(180deg, transparent 30%, rgba(20, 14, 36, 0.4) 100%);
-  animation: visSpoilerGlitch 2.5s ease-in-out infinite;
-}
-
-@keyframes visSpoilerScanline {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 0 2px;
-  }
-}
-
-@keyframes visSpoilerGlitch {
-  0%,
-  85%,
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-  87% {
-    opacity: 0.6;
-    transform: translateX(-3px) skewX(-1deg);
-  }
-  89% {
-    opacity: 1;
-    transform: translateX(2px);
-  }
-  91% {
-    opacity: 0.4;
-    transform: translateX(-1px) skewX(0.5deg);
-  }
-  93% {
-    opacity: 0.8;
-    transform: translateX(1px) skewX(-0.3deg);
-  }
-  95% {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 /* === Lightbox === */
 .visuals-lightbox {
   position: fixed;
@@ -2432,70 +2338,6 @@
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.16em;
-  cursor: pointer;
-}
-
-/* === Spoiler 對話框 === */
-.visuals-spoiler-dialog {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.visuals-spoiler-dialog-inner {
-  border: 1px solid crimson;
-  background: var(--bg-card);
-  padding: 28px 32px;
-  max-width: 420px;
-  width: 90%;
-  text-align: center;
-}
-
-.visuals-spoiler-dialog-title {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.22em;
-  color: crimson;
-  margin-bottom: 12px;
-}
-
-.visuals-spoiler-dialog-gate {
-  font-family: var(--font-serif-tc);
-  font-size: 15px;
-  color: var(--ink-soft);
-  line-height: 1.8;
-  margin-bottom: 20px;
-}
-
-.visuals-spoiler-dialog-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-}
-
-.visuals-spoiler-dialog-confirm {
-  padding: 10px 20px;
-  border: 1px solid crimson;
-  background: transparent;
-  color: crimson;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  cursor: pointer;
-}
-
-.visuals-spoiler-dialog-cancel {
-  padding: 10px 20px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink-soft);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
   cursor: pointer;
 }
 
@@ -2985,4 +2827,111 @@
   .visuals-gallery-corridor {
     animation: none !important;
   }
+}
+
+/* === 三態解鎖（S8 下半場 V-B.19）=== */
+
+/* A 鎖定佔位格：格子存在（總張數可見）但整張擋住，不載入實際圖片 */
+.visuals-img-locked-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--visuals-main, #5e548e) 8%, transparent),
+      color-mix(in srgb, var(--visuals-main, #5e548e) 8%, transparent) 10px,
+      transparent 10px,
+      transparent 22px
+    ),
+    var(--bg-elevated, #17141f);
+  border: 1px dashed
+    color-mix(in srgb, var(--visuals-main, #5e548e) 45%, transparent);
+  color: color-mix(in srgb, var(--visuals-main, #5e548e) 70%, #aaa);
+}
+
+.visuals-img-locked-icon {
+  font-size: 1.6rem;
+  opacity: 0.75;
+}
+
+.visuals-img-locked-text {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  opacity: 0.6;
+}
+
+.visuals-museum-frame.is-locked,
+.visuals-pinboard-card.is-locked,
+.visuals-pixel-cell.is-locked,
+.visuals-corridor-main.is-locked {
+  cursor: not-allowed;
+}
+
+/* B 部分解鎖：模糊遮罩——可窺不可視；hover 放大提示照常（可進 lightbox） */
+.visuals-img-partial img {
+  filter: blur(16px) saturate(0.55) brightness(0.72);
+  transform: scale(1.06); /* 遮住模糊邊緣的清晰帶 */
+}
+
+/* B 放大仍遮罩：lightbox 中的模糊不解除 */
+.visuals-lightbox-img.is-partial {
+  filter: blur(26px) saturate(0.55) brightness(0.7);
+}
+
+.visuals-lightbox-partial-tag {
+  margin-left: 8px;
+  font-size: 0.72rem;
+  color: color-mix(in srgb, var(--visuals-main, #5e548e) 65%, #ccc);
+  letter-spacing: 0.06em;
+}
+
+/* gallery 閘鎖定：列表卡與 deep-link 封印面板 */
+.visuals-gallery-card--sealed {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.visuals-gallery-card--sealed .visuals-img-locked-cell {
+  aspect-ratio: 4 / 3;
+  min-height: 0;
+  border: none;
+  border-bottom: 1px dashed
+    color-mix(in srgb, var(--visuals-main, #5e548e) 45%, transparent);
+}
+
+.visuals-gallery-sealed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 72px 24px;
+  text-align: center;
+  border: 1px dashed
+    color-mix(in srgb, var(--visuals-main, #5e548e) 40%, transparent);
+  background: color-mix(in srgb, var(--visuals-main, #5e548e) 5%, transparent);
+}
+
+.visuals-gallery-sealed .visuals-img-locked-icon {
+  font-size: 2.2rem;
+}
+
+.visuals-gallery-sealed-title {
+  font-family: var(--font-display, serif);
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  color: var(--ink, #ddd);
+}
+
+.visuals-gallery-sealed-hint {
+  font-size: 0.82rem;
+  color: var(--ink-mute, #888);
+  max-width: 420px;
+  line-height: 1.7;
 }

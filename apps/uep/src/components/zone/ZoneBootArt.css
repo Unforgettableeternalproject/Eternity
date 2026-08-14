@@ -1,0 +1,105 @@
+/* ──────────────────────────────────────────────────────────────
+   ZoneBootArt — 區域入場動畫裡的 U.E.P
+
+   五個 boot 容器（.hist-boot / .echo-boot / .vis-boot / .conc-boot /
+   .sto-boot）都是 position:fixed inset:0，所以這裡用絕對定位即可，
+   不必知道自己被掛在哪一區。
+
+   退場刻意什麼都不寫：父層 `.is-ready` 的 opacity transition 會把整層
+   帶走，她跟著走才會與 boot 同一個節奏。
+
+   ## 位移走變數而不是寫死在 keyframes 裡
+
+   進場動畫要動的只有 scale，但 transform 是一個屬性——keyframes 裡寫了
+   `translate(-50%,-50%)` 就等於把定位方式一起鎖死，之後任何一區想改用
+   bottom/left 對齊都得再複製一份 keyframes。`--art-tx/ty` 讓定位與動畫
+   各歸各的。
+   ────────────────────────────────────────────────────────────── */
+
+.zone-boot-art {
+  --art-tx: -50%;
+  --art-ty: -50%;
+
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  /* 高度當基準而不是寬度：五張構圖寬窄差很多（單人到雙人），
+     統一高度份量才會相當 */
+  height: min(40vh, 46vw);
+  width: auto;
+  transform: translate(var(--art-tx), var(--art-ty)) scale(0.9);
+  opacity: 0;
+  filter: drop-shadow(0 0 18px rgba(213, 182, 24, 0.55))
+    drop-shadow(0 0 56px rgba(213, 182, 24, 0.3));
+  /* boot 最短 1800ms（concepts 2000ms）。350ms 起、900ms 演完，
+     中段浮現、之後停著等 boot 收掉 */
+  animation: zone-boot-art-in 900ms 350ms var(--ease-out) forwards;
+}
+
+@keyframes zone-boot-art-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--art-tx), var(--art-ty)) scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(var(--art-tx), var(--art-ty)) scale(1);
+  }
+}
+
+/* concepts 的 boot 中央是終端機開機文字。兩者一左一右**貼著中線**分開，
+   而不是各自跑到畫面兩端——所以座標從中心算起而不是用百分比，視窗變寬
+   時中間那道間隙才不會跟著撐開（見 ConceptsReader.css 的 .conc-boot-center） */
+.zone-boot-art--concepts {
+  /* 兩人合起來要落在畫面中線上：文字寬約 275、間隙 50、立繪寬約 210，
+     所以文字從 -268 起、立繪心在 +162（見 ConceptsReader.css 的
+     .conc-boot-center，那兩個數字是一組的）。
+
+     手機上這組絕對值會把兩邊都推出畫面，所以偏移與尺寸一起隨 vw 收斂——
+     立繪的高度也要跟著壓（46vw 的高度在窄螢幕會讓她寬到吃掉文字的位置）。
+     ⚠️ 這裡的 33.75vw／34vw 與 .conc-boot-center 的 43.6vw／3vw 是同一組
+     算式的四個數字，改一個就要重算全部。 */
+  left: calc(50% + min(162px, 33.75vw));
+  height: min(40vh, 34vw);
+}
+
+/* storage 的箱子一個個掉下來，她坐在整堆的頂上——水平維持置中（箱堆
+   本身是置中的），只有垂直改成貼著最高那一箱的頂邊。
+
+   地面高度取 `.sto-boot` 的 `--sto-boot-base`（箱堆與地板同源），再加上
+   最後落下的 `.sto-box-7` 的頂邊位置（bottom:148px + 高 50）。
+   ⚠️ 動到 `.sto-box-7` 的尺寸或位置時這裡要跟著改；基準線本身則是
+   共用變數，改那一個就好。 */
+.zone-boot-art--storage {
+  --art-ty: 0;
+
+  top: auto;
+  bottom: calc(var(--sto-boot-base) + 198px);
+  /* 箱子在 1.05s 開始掉、1.55s 落定。太早出現的話她是坐在還沒到位的
+     箱子上，等這一箱進畫面才浮現 */
+  animation-delay: 1.15s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zone-boot-art {
+    /* 只留淡入，但基準 transform 要補成最終狀態——不然她會定格在
+       進場動畫的起始縮放上 */
+    transform: translate(var(--art-tx), var(--art-ty));
+    animation: zone-boot-art-fade 500ms 350ms linear forwards;
+  }
+
+  .zone-boot-art--storage {
+    animation-delay: 1.15s;
+  }
+
+  @keyframes zone-boot-art-fade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}

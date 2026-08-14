@@ -28,5 +28,68 @@ bucket_name = "eternity-root-assets"
 crons = ["0 4 * * *"]
 
 # 環境變數
+#
+# ⚠️ 這裡與 [env.test.vars] 都**不可**設定 ETERNITY_DEV。認證在缺 JWT_SECRET 時
+#    是否退回原始碼裡的 dev secret，完全以該旗標為準；它只由 package.json 的
+#    dev script（`wrangler dev --var ETERNITY_DEV:true`）注入，任何部署出去的
+#    worker 都拿不到，因此缺 secret 一律 fail closed。設在這裡等於讓正式環境
+#    的認證變成 fail-open。
 [vars]
 ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-8v7.pages.dev,https://*.eternity-uep.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"
+# visitor-counter Worker base URL — /api/widget/discord-stats 由此拿文件站訪客數
+# 缺失時該欄位回 null，端點仍 200
+VISITOR_API_URL = "https://eternity-visitor-counter.ptyc4076.workers.dev"
+[[services]]
+binding = "VISITOR_COUNTER"
+service = "eternity-visitor-counter"
+
+# ─── TEST 環境（Issue #41 隔離測試環境）──────────────────────
+# 部署指令：wrangler deploy --env test
+# Migration：wrangler d1 migrations apply eternity-content-test --remote --env test
+#
+# 注意：wrangler [env.*] 不繼承頂層 binding / vars，每個 binding 必須完整重宣告。
+# 未宣告 [triggers] → test env 不部署 cron（避免干擾 prod 維護邏輯）。
+[env.test]
+name = "eternity-content-api-test"
+
+# TEST D1（獨立資料庫；database_id 於 Cloudflare 建立資源後回填）
+[[env.test.d1_databases]]
+binding = "CONTENT_DB"
+database_name = "eternity-content-test"
+database_id = "71adde52-e169-452c-bf76-2b710c09586b"
+migrations_dir = "migrations"
+
+# TEST R2（文件站資產）
+[[env.test.r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "eternity-assets-test"
+
+# TEST R2（主站資產）
+[[env.test.r2_buckets]]
+binding = "ROOT_ASSETS_BUCKET"
+bucket_name = "eternity-root-assets-test"
+
+# TEST env 變數
+# ⚠️ test worker 的 Admin JWT 驗證改用本地 verifyJwt，需以 secret 設定與正式相同的
+#    JWT_SECRET：`wrangler secret put JWT_SECRET --env test`（值 = 正式 worker 的 JWT_SECRET）。
+#    不可再用「向正式 worker fetch /api/auth/me 遠端驗證」——同帳號 worker-to-worker
+#    HTTP fetch 會被 Cloudflare 擋成 error 1042，遠端驗證在真實環境永遠失敗。
+[env.test.vars]
+# CORS：允許正式站切換 test mode、實際 staging/test Pages 與 localhost
+ALLOWED_ORIGINS = "https://unforgettableeternalproject.com,https://uep.unforgettableeternalproject.com,https://*.eternity-uep-staging.pages.dev,https://*.eternity-root-staging.pages.dev,https://*.eternity-uep-test.pages.dev,https://*.eternity-root-test.pages.dev,https://*.eternity-uep.pages.dev,https://*.eternity-8v7.pages.dev,http://localhost:4321,http://127.0.0.1:4321,http://localhost:4320,http://127.0.0.1:4320"
+VISITOR_API_URL = "https://eternity-visitor-counter.ptyc4076.workers.dev"
+# Worker 內部旗標：test env 才啟用 /api/test/reset 等測試專屬端點
+ETERNITY_TEST_ENV = "true"
+
+# TEST env 服務綁定（visitor-counter 共用同一個，不需 test 分身）
+[[env.test.services]]
+binding = "VISITOR_COUNTER"
+service = "eternity-visitor-counter"
+
+# Cron 覆蓋：test env 不跑 scheduled 任務
+# ⚠️ 特例：wrangler 對 [triggers] 是「繼承頂層再合併」，不是「未宣告即無」。
+# 必須在 [env.test] 明確宣告空 crons 陣列才能真正停掉 cron 部署。
+# （奈也/奈留初版稿假設不宣告 = 無 cron，實測部署後仍會繼承 0 4 * * *，本行為修正。）
+[env.test.triggers]
+crons = []
+

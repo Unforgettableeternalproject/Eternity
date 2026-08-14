@@ -1,0 +1,755 @@
+/**
+ * VisualsIsland —「浮動幻影」樣式（S8 下半場 V-C）
+ *
+ * 前綴 uep-visland-*。第一版功能骨架優先（艾斯維爾 07/19：除 Concepts
+ * 外各島後續統一重調更 immersive），語彙沿 Visuals zone 的幻影紫
+ * （--visuals-main #5E548E）與畫框意象。
+ */
+
+/* S9-C.4 — v2 設計稿提案 B「投影」外殼。
+ * 島本體＝一台投影裝置：上方降下光錐、畫面覆掃描線並不定時閃動、
+ * 底部一層紫霞。深色殼是這個提案的代價也是它的畫面感來源。
+ *
+ * 深色化沿用 Echoes 的手法：區域性重定義既有樣式用的 --text-* token，
+ * 不逐條改寫 350 行。 */
+.uep-visland {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: var(--font-body, sans-serif);
+  color: #e6e3f2;
+  background: linear-gradient(180deg, var(--ph-shell-a), var(--ph-shell-b));
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  border: 1px solid var(--ph-rim);
+  box-shadow:
+    0 22px 50px var(--ph-cast),
+    inset 0 1px 0 rgba(200, 195, 230, 0.22);
+
+  /* 投影裝置本來就是深色物件，兩套色的差別在「多沉」：亮色模式下不能沉到
+     像一塊黑洞，深色模式下則要壓得比頁面更暗，才不會自己在發光 */
+  --ph-shell-a: rgba(72, 67, 96, 0.7);
+  --ph-shell-b: rgba(44, 41, 60, 0.76);
+  --ph-rim: rgba(170, 162, 210, 0.32);
+  --ph-cast: rgba(10, 8, 20, 0.4);
+  --text-primary: #f2f0fa;
+  --text-secondary: rgba(226, 222, 244, 0.62);
+}
+
+[data-theme='dark'] .uep-visland {
+  --ph-shell-a: rgba(38, 35, 52, 0.82);
+  --ph-shell-b: rgba(18, 17, 26, 0.88);
+  --ph-rim: rgba(140, 132, 180, 0.24);
+  --ph-cast: rgba(0, 0, 0, 0.6);
+}
+
+/* ── entity 嵌入提示卡 ── */
+
+.uep-visland__suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, #5e548e 45%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, #5e548e 8%, transparent);
+}
+
+.uep-visland__suggestion-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5e548e;
+  box-shadow: 0 0 6px #5e548e;
+  animation: uep-visland-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes uep-visland-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-visland__suggestion-dot {
+    animation: none;
+  }
+}
+
+.uep-visland__suggestion-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* 幻影紫 #5E548E 疊在島自己的深紫殼上讀不到——與島頭 kicker 同一個病灶
+   （見下方「幾乎看不到」那條），字一律用提亮版。卡片的框線、底色與圓點
+   仍留原色：那是這張卡的身分，不必讀，只要看得出是幻影的東西。 */
+.uep-visland__suggestion-copy small {
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
+  color: #b0a4e8;
+}
+
+.uep-visland__suggestion-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.uep-visland__suggestion button {
+  flex: none;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, #b0a4e8 62%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.68rem;
+  color: #b0a4e8;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.uep-visland__suggestion button:hover {
+  background: color-mix(in srgb, #b0a4e8 18%, transparent);
+}
+
+.uep-visland__suggestion button.is-dismiss {
+  border-color: color-mix(in srgb, #b0a4e8 26%, transparent);
+  color: var(--text-secondary, #7a7267);
+}
+
+/* ── 島頭（島名 → 分隔線 → 投射中的 gallery） ── */
+
+.uep-visland__masthead {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+}
+
+.uep-visland__name {
+  font-family: var(--font-display, serif);
+  color: #f2f0fa;
+}
+
+/* 分隔線用光學語彙：中段亮、兩端散開，像投影機打出來的一道光 */
+.uep-visland__rule {
+  height: 1px;
+  margin: 7px 0 9px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(176, 164, 232, 0.5) 22%,
+    rgba(176, 164, 232, 0.5) 78%,
+    transparent
+  );
+}
+
+.uep-visland__header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.uep-visland__kicker {
+  flex: none;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  color: #5e548e;
+  opacity: 0.75;
+}
+
+.uep-visland__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+/* 清除投射：浮在畫框右上角（stage 為定位基準），與島頭的收合鈕徹底分開 */
+.uep-visland__clear {
+  position: absolute;
+  z-index: 3;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #5e548e 34%, transparent);
+  border-radius: 50%;
+  background: rgba(23, 20, 31, 0.55);
+  color: rgba(226, 222, 244, 0.72);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+.uep-visland__clear:hover,
+.uep-visland__clear:focus-visible {
+  border-color: #5e548e;
+  background: color-mix(in srgb, #5e548e 12%, transparent);
+  color: #8f83c9;
+}
+
+.uep-visland__placeholder {
+  padding: 18px 12px;
+  border: 1px dashed color-mix(in srgb, #5e548e 40%, transparent);
+  border-radius: 6px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #7a7267);
+}
+
+/* ── 大圖舞台 ── */
+
+.uep-visland__stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.uep-visland__frame {
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+  height: 208px;
+  border: 1px solid color-mix(in srgb, #5e548e 35%, transparent);
+  border-radius: 6px;
+  background:
+    radial-gradient(
+      circle at 50% 40%,
+      color-mix(in srgb, #5e548e 14%, transparent),
+      transparent 70%
+    ),
+    #17141f;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.45);
+}
+
+.uep-visland__frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* B 部分解鎖：模糊遮罩（放大檢視不屬於島，遮罩不解除） */
+.uep-visland__frame.is-partial img {
+  filter: blur(14px) saturate(0.7);
+  transform: scale(1.06); /* 遮住模糊邊緣的透出 */
+}
+
+.uep-visland__frame.is-partial::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(94, 84, 142, 0.18),
+    rgba(23, 20, 31, 0.42)
+  );
+  pointer-events: none;
+}
+
+.uep-visland__arrow {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 44px;
+  border: none;
+  border-radius: 5px;
+  background: rgba(23, 20, 31, 0.55);
+  color: #e8e4f4;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.uep-visland__arrow:hover {
+  background: rgba(94, 84, 142, 0.75);
+}
+
+.uep-visland__arrow.is-left {
+  left: 6px;
+}
+
+.uep-visland__arrow.is-right {
+  right: 6px;
+}
+
+/* ── A 鎖定格 ── */
+
+.uep-visland__locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  color: color-mix(in srgb, #5e548e 55%, #9a93b5);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 10px,
+      rgba(94, 84, 142, 0.08) 10px 20px
+    ),
+    #1b1826;
+}
+
+.uep-visland__locked span {
+  font-size: 1.3rem;
+}
+
+.uep-visland__locked small {
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+}
+
+.uep-visland__locked.is-compact span {
+  font-size: 0.85rem;
+}
+
+/* ── caption 列 ── */
+
+.uep-visland__caption {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.76rem;
+}
+
+.uep-visland__counter {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  color: #5e548e;
+}
+
+.uep-visland__caption-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary, #2c2620);
+}
+
+.uep-visland__partial-tag {
+  font-style: normal;
+  font-size: 0.66rem;
+  color: var(--text-secondary, #7a7267);
+}
+
+/* ── 縮圖快切列 ── */
+
+.uep-visland__strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.uep-visland__thumb {
+  flex: none;
+  overflow: hidden;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #5e548e 30%, transparent);
+  border-radius: 4px;
+  background: #17141f;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.uep-visland__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.uep-visland__thumb.is-partial img {
+  filter: blur(6px) saturate(0.7);
+}
+
+.uep-visland__thumb.is-active {
+  border-color: #5e548e;
+  box-shadow: 0 0 0 1px #5e548e;
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * S9-C.4 — 投影裝置的光學層與空畫框
+ * ════════════════════════════════════════════════════════════════ */
+
+/* 光錐：從島頂降下的梯形光束 */
+.uep-visland__cone {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  width: 74%;
+  height: 100%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(190, 180, 240, 0.3),
+    transparent 62%
+  );
+  clip-path: polygon(34% 0, 66% 0, 100% 100%, 0 100%);
+  z-index: 1;
+  animation: uep-visland-flick 6s ease-in-out infinite;
+}
+
+/* 掃描線：刻意疊在內容之上——投影本來就是「隔著光看畫面」 */
+.uep-visland__scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.055) 0 1px,
+    transparent 1px 3px
+  );
+}
+
+/* 底部紫霞 */
+.uep-visland__haze {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40%;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(0deg, rgba(94, 84, 142, 0.35), transparent);
+}
+
+@keyframes uep-visland-flick {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  42% {
+    opacity: 0.72;
+  }
+  44% {
+    opacity: 0.95;
+  }
+  61% {
+    opacity: 0.8;
+  }
+}
+
+/* 散去（收合）——位置與字級走 .uep-island-close，這裡只給幻影的墨色 */
+.uep-visland__dismiss {
+  color: rgba(220, 216, 238, 0.62);
+}
+
+.uep-visland__dismiss:hover {
+  color: #cfc7f5;
+}
+
+/* gallery 資訊改直排（kicker 一行、標題一行）；清除鈕已移到畫框上，
+   這裡不再需要為它留欄位 */
+.uep-visland__header {
+  position: relative;
+  display: grid;
+  grid-template-areas:
+    'kicker'
+    'title';
+  align-items: center;
+  gap: 2px;
+  border-bottom: none;
+}
+
+/* 幻影紫 #5E548E 直接放在深紫底上幾乎讀不到（艾斯維爾 2026-07-25
+   「左上角的標題幾乎看不到」）——kicker 改用提亮版，opacity 也拿掉 */
+.uep-visland__kicker {
+  grid-area: kicker;
+  color: #b0a4e8;
+  opacity: 1;
+}
+
+.uep-visland__title {
+  grid-area: title;
+  color: #f2f0fa;
+}
+
+.uep-visland__title.is-empty {
+  opacity: 0.72;
+}
+
+.uep-visland__counter {
+  color: #b0a4e8;
+}
+
+/* 畫框：投影中的畫面會不定時閃動 */
+.uep-visland__frame {
+  background: linear-gradient(
+    180deg,
+    rgba(200, 196, 224, 0.22),
+    rgba(120, 116, 150, 0.16)
+  );
+  box-shadow: inset 0 0 0 1px rgba(190, 184, 220, 0.28);
+  animation: uep-visland-flick 9s ease-in-out infinite;
+}
+
+.uep-visland__frame img {
+  opacity: 0.85;
+}
+
+/* 空畫框：畫框留著，但收得比投影中小——空的時候不該佔滿版面 */
+.uep-visland__frame.is-empty {
+  display: grid;
+  place-items: center;
+  height: auto;
+  min-height: 118px;
+}
+
+/* 投影中的畫框也收一階（208 → 168），島整體格局跟著小一圈 */
+.uep-visland__frame {
+  height: 168px;
+}
+
+.uep-visland__ghost {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-serif-tc);
+  font-size: 11.5px;
+  font-style: italic;
+  line-height: 1.8;
+  color: rgba(226, 222, 244, 0.6);
+}
+
+.uep-visland__ghost b {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: 0.3em;
+  color: rgba(180, 170, 230, 0.7);
+  margin-bottom: 6px;
+}
+
+.uep-visland__caption-text.is-empty {
+  opacity: 0.55;
+}
+
+/* 空的縮圖格——留著格子，島才還是一台裝置 */
+.uep-visland__thumb.is-ghost {
+  background: rgba(120, 116, 150, 0.28);
+  border-color: rgba(190, 184, 220, 0.22);
+  cursor: default;
+}
+
+.uep-visland__thumb {
+  background: rgba(120, 116, 150, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(190, 184, 220, 0.22);
+}
+
+/* ── 離場：往四面八方拆解後散去（艾斯維爾 2026-07-25 指定） ──
+ * 幻影不是被關掉的，是失去凝聚力散開的：每一層各自往不同方向脫離，
+ * 島身同時淡出，最後什麼都不剩。 */
+.uep-island--visuals.uep-island--leaving,
+.uep-island--visuals.uep-island--entering {
+  animation: uep-visland-dissolve 0.46s var(--ease) forwards;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland > *,
+.uep-island--visuals.uep-island--entering .uep-visland > * {
+  animation-duration: 0.46s;
+  animation-timing-function: var(--ease);
+  animation-fill-mode: forwards;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland__cone,
+.uep-island--visuals.uep-island--entering .uep-visland__cone {
+  animation-name: uep-visland-scatter-up;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland__haze,
+.uep-island--visuals.uep-island--entering .uep-visland__haze {
+  animation-name: uep-visland-scatter-down;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland__header,
+.uep-island--visuals.uep-island--entering .uep-visland__header {
+  animation-name: uep-visland-scatter-left;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland__caption,
+.uep-island--visuals.uep-island--leaving .uep-visland__strip,
+.uep-island--visuals.uep-island--entering .uep-visland__caption,
+.uep-island--visuals.uep-island--entering .uep-visland__strip {
+  animation-name: uep-visland-scatter-right;
+}
+
+.uep-island--visuals.uep-island--leaving .uep-visland__stage,
+.uep-island--visuals.uep-island--entering .uep-visland__stage {
+  animation-name: uep-visland-scatter-burst;
+}
+
+/* 進場：整組拆解逆行——碎片從四面八方回收，重新聚成一個幻影。
+   根節點用了 animation shorthand（會重設 direction），所以這條必須在後面；
+   子元素只設了 name/duration，不受 shorthand 影響。 */
+.uep-island--visuals.uep-island--entering,
+.uep-island--visuals.uep-island--entering .uep-visland > * {
+  animation-direction: reverse;
+}
+
+@keyframes uep-visland-dissolve {
+  0% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  40% {
+    opacity: 0.85;
+    filter: brightness(1.45);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(1.9) blur(3px);
+  }
+}
+
+@keyframes uep-visland-scatter-up {
+  to {
+    transform: translateY(-46px) scale(0.7);
+    opacity: 0;
+  }
+}
+
+@keyframes uep-visland-scatter-down {
+  to {
+    transform: translateY(46px) scale(0.7);
+    opacity: 0;
+  }
+}
+
+@keyframes uep-visland-scatter-left {
+  to {
+    transform: translate(-52px, -14px) rotate(-6deg);
+    opacity: 0;
+  }
+}
+
+@keyframes uep-visland-scatter-right {
+  to {
+    transform: translate(52px, 18px) rotate(5deg);
+    opacity: 0;
+  }
+}
+
+@keyframes uep-visland-scatter-burst {
+  to {
+    transform: scale(1.24);
+    opacity: 0;
+  }
+}
+
+/* ── 換片：投射整個換掉時的一次性動畫 ──
+   幻燈片換片是「打上另一張片子」，不是內容瞬間被抽換。映照、嵌入、
+   clue 插播與 clue 復原快照全走同一條 key，共用同一個過場。 */
+.uep-visland__swap {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(207, 199, 245, 0.3),
+    rgba(94, 84, 142, 0.14)
+  );
+  animation: uep-visland-swap 0.5s ease-out both;
+}
+
+/* 只淡入不縮放：is-partial 的 scale(1.06) 是遮模糊邊緣用的，
+   動畫若碰 transform 會在 fill 後把它壓掉 */
+.uep-visland__frame img {
+  animation: uep-visland-plate-in 0.44s ease-out both;
+}
+
+.uep-visland__ghost {
+  animation: uep-visland-ghost-in 0.44s ease-out both;
+}
+
+@keyframes uep-visland-swap {
+  0% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes uep-visland-plate-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes uep-visland-ghost-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-visland__cone,
+  .uep-visland__frame,
+  .uep-visland__swap,
+  .uep-visland__frame img,
+  .uep-visland__ghost,
+  .uep-island--visuals.uep-island--leaving,
+  .uep-island--visuals.uep-island--leaving .uep-visland > *,
+  .uep-island--visuals.uep-island--entering,
+  .uep-island--visuals.uep-island--entering .uep-visland > * {
+    animation: none;
+  }
+
+  /* 動畫關掉後 fill 的最終值也一併失效，補回靜態外觀 */
+  .uep-visland__swap {
+    display: none;
+  }
+
+  .uep-visland__frame img {
+    opacity: 0.85;
+  }
+}

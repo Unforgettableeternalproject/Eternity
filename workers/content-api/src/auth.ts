@@ -1,4 +1,4 @@
-import type { JwtPayload } from './types';
+import type { Env, JwtPayload } from './types';
 
 // ===== Base64url 編解碼 =====
 
@@ -78,6 +78,79 @@ export async function verifyJwt(
   } catch {
     return null;
   }
+}
+
+/**
+ * JWT 驗證 — 用於需要登入的 Admin 保護路由，回傳 payload 或 null。
+ * index.ts 與 uep-auth.ts 共用，role 邊界規則只在此處定義一份。
+ */
+export async function requireJwt(
+  request: Request,
+  env: Env
+): Promise<JwtPayload | null> {
+  const auth = request.headers.get('Authorization');
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
+
+  if (!env.JWT_SECRET) {
+    // 正式與 test worker 都必須設定 JWT_SECRET 做本地驗證，缺了就是部署錯誤，
+    // fail closed。
+    // ⚠️ 不可改回「向正式 worker fetch /api/auth/me 遠端驗證」——兩者同屬
+    // 一個 Cloudflare 帳號，worker-to-worker 的 HTTP fetch 會被擋成 error 1042，
+    // 遠端驗證在真實環境永遠失敗。
+    // ⚠️ 判斷依據是 ETERNITY_DEV 白名單，不是「非 test 即開發」：正式 worker
+    // 也沒有 test 旗標，用排除法會讓正式環境缺 secret 時直接發一張 super_admin。
+    if (env.ETERNITY_DEV !== 'true') return null;
+    // 僅本機 wrangler dev 保留無 secret bypass。
+    return {
+      sub: 'dev',
+      role: 'super_admin',
+      display_name: 'Dev',
+      iat: 0,
+      exp: 0,
+      jti: '',
+    };
+  }
+  if (!token) return null;
+  const payload = await verifyJwt(token, env.JWT_SECRET);
+  // 安全邊界：讀者 token（role='reader'）與 admin token 共用 JWT_SECRET，
+  // 僅靠 role 區分權限——admin 保護路由一律拒絕 reader token
+  if (payload && payload.role === 'reader') return null;
+  return payload;
+}
+
+/**
+ * CLI 授權閘：`API_TOKEN` 或 admin JWT。
+ *
+ * 存在的理由：`isAuthorized`（內容端點用）一直都認 API_TOKEN，但
+ * `/api/root/*` 與 `/api/assets/*` 只認 admin JWT——同一個 token 打得進
+ * 前者、打不進後者。CLI 設了 API_TOKEN 之後，sync 讀遠端清單會拿到 401，
+ * 而那些清單函式把讀取失敗**靜默當成「遠端是空的」**，於是本地每一筆都
+ * 被算成「要推送」（2026-08-10 實際踩到，差點對正式站送出整批覆蓋）。
+ *
+ * API_TOKEN 的語意本來就是「CLI 的完整寫入授權」，能打內容端點卻打不進
+ * 資產端點是不一致，不是刻意的權限分級。
+ *
+ * ⚠️ 回傳的 payload 是合成的，只為了讓既有 `if (!jwtUser) 401` 這種純
+ * 授權閘沿用同一個形狀。**不要拿它的 sub 當真實使用者記錄**——需要知道
+ * 「誰做的」的地方應該另外要求真正的 admin JWT。
+ */
+export async function requireJwtOrApiToken(
+  request: Request,
+  env: Env
+): Promise<JwtPayload | null> {
+  const auth = request.headers.get('Authorization');
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : auth;
+  if (env.API_TOKEN && token === env.API_TOKEN) {
+    return {
+      sub: 'cli',
+      role: 'super_admin',
+      display_name: 'CLI (API_TOKEN)',
+      iat: 0,
+      exp: 0,
+      jti: 'api-token',
+    };
+  }
+  return requireJwt(request, env);
 }
 
 // ===== 密碼雜湊 (PBKDF2-SHA256) =====

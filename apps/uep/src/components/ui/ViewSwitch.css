@@ -1,0 +1,200 @@
+/* ── 觀測者協議（儀式警告） ── */
+
+.uep-viewgate {
+  position: fixed;
+  inset: 0;
+  z-index: 4000; /* 高於 UepDialog，儀式期間覆蓋一切 */
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.uep-viewgate__veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 6, 4, 0.88);
+  backdrop-filter: blur(6px);
+  animation: uep-viewgate-veil 0.6s ease both;
+}
+
+@keyframes uep-viewgate-veil {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.uep-viewgate__panel {
+  position: relative;
+  max-width: 520px;
+  width: 100%;
+  padding: 40px 36px 32px;
+  background: var(--bg, #16120d);
+  border: 1px solid var(--uep-gold, #d5b618);
+  border-radius: 4px;
+  text-align: center;
+  box-shadow:
+    0 0 0 1px rgba(213, 182, 24, 0.12),
+    0 0 60px rgba(213, 182, 24, 0.08),
+    0 24px 64px rgba(0, 0, 0, 0.55);
+  animation: uep-viewgate-panel 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+}
+
+@keyframes uep-viewgate-panel {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.uep-viewgate__aperture {
+  font-size: 34px;
+  line-height: 1;
+  color: var(--uep-gold, #d5b618);
+  animation: uep-viewgate-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes uep-viewgate-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    text-shadow: 0 0 8px rgba(213, 182, 24, 0.25);
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 22px rgba(213, 182, 24, 0.55);
+  }
+}
+
+.uep-viewgate__kicker {
+  margin-top: 14px;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.34em;
+  color: var(--ink-mute, #9b8f7d);
+}
+
+.uep-viewgate__title {
+  margin: 8px 0 22px;
+  font-family: var(--font-display, serif);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-title, #f3ead9);
+}
+
+.uep-viewgate__lines {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.uep-viewgate__line {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--ink, #cfc4b0);
+  opacity: 0;
+  animation: uep-viewgate-line 0.8s ease both;
+}
+
+/* 最後一行——純潔者限定的暗示，用金色強調 */
+.uep-viewgate__line:last-child {
+  color: var(--uep-gold, #d5b618);
+  font-style: italic;
+}
+
+@keyframes uep-viewgate-line {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.uep-viewgate__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.uep-viewgate__btn {
+  padding: 10px 22px;
+  font-family: var(--font-sans, sans-serif);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  border-radius: 3px;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.uep-viewgate__btn--stay {
+  background: var(--uep-gold, #d5b618);
+  border: 1px solid var(--uep-gold, #d5b618);
+  color: #16120d;
+  font-weight: 600;
+}
+
+.uep-viewgate__btn--stay:hover {
+  filter: brightness(1.08);
+}
+
+.uep-viewgate__btn--become {
+  background: transparent;
+  border: 1px solid var(--hairline, rgba(213, 182, 24, 0.3));
+  color: var(--ink-mute, #9b8f7d);
+}
+
+.uep-viewgate__btn--become:not(:disabled):hover {
+  border-color: var(--uep-gold, #d5b618);
+  color: var(--uep-gold, #d5b618);
+}
+
+.uep-viewgate__btn--become:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ── Reduced motion：關閉所有動畫，文字直接全顯 ── */
+@media (prefers-reduced-motion: reduce) {
+  .uep-viewgate__veil,
+  .uep-viewgate__panel,
+  .uep-viewgate__line {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .uep-viewgate__aperture {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ── 手機版 ── */
+@media (max-width: 560px) {
+  .uep-viewgate__panel {
+    padding: 30px 22px 24px;
+  }
+  .uep-viewgate__title {
+    font-size: 20px;
+  }
+  .uep-viewgate__line {
+    font-size: 13px;
+  }
+  .uep-viewgate__actions {
+    flex-direction: column;
+  }
+}

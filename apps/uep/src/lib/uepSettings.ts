@@ -1,0 +1,160 @@
+/**
+ * 站台行為設定的前台讀取（S10-3b T-B4）
+ *
+ * `/admin/settings` 站台分頁調整的參數（uep_settings 表）在前台的
+ * 消費入口。DesignLayout 掛載時呼叫 `initUepSettings()`：
+ *
+ *   sessionStorage 有快取 → 同步寫入 window.__uepSettings（同一 session
+ *   不重取，之後每頁都是零延遲）；沒有 → 匿名 fetch /api/settings/public
+ *   一次並落快取。
+ *
+ * 消費點一律走 `getSetting(key, fallback)`：settings 未載入（首訪第一頁、
+ * fetch 失敗、worker 掛掉）都退回程式碼常數——uep 是 MPA，每頁重新
+ * mount，沒有 fallback 的話相關功能會用 undefined 算數。也因此設定值的
+ * 生效時機是「下一次頁面載入」，不保證首訪第一頁。
+ *
+ * 需要「確定拿到真值」的消費端（activityWatch）改為 await `initUepSettings()`
+ * 本身——它是去重的，重複呼叫不會多打一次 fetch。
+ *
+ * ⚠️ 只放「一次性讀取」的參數。需要在 scroll／IO 回呼裡讀的參數不該進
+ * uep_settings（D-2 定案），維持編譯期常數。
+ */
+
+import { getApiBase, isTestMode } from './apiBase';
+
+type SettingsMap = Record<string, string | number>;
+
+declare global {
+  interface Window {
+    __uepSettings?: SettingsMap;
+  }
+}
+
+/**
+ * 快取 key 依環境隔離（2026-08-12 Ariel 驗收修正）：test 模式帶 `:test`
+ * 後綴，比照 READER_SESSION_KEY。少了它的實際事故——在正式模式逛過一頁
+ * 之後切 TEST MODE，同一分頁整個 session 都吃著正式環境的快取，admin 在
+ * test 環境改的參數看起來永遠不生效，而「清除網頁快取」清不到
+ * sessionStorage，症狀像壞掉。mode 切換必伴隨 reload，模組載入時算一次即可。
+ */
+const STORAGE_KEY = isTestMode() ? 'uep-settings-v1:test' : 'uep-settings-v1';
+
+/**
+ * 快取壽命。契約是「下一次頁面載入生效」，但 sessionStorage 是 per-tab 的
+ * ——admin 在 A 分頁儲存並清快取，B 分頁（讀者視角）的快取沒人清，
+ * 沒有 TTL 的話要關掉分頁才會過期。5 分鐘是「幾乎每頁零延遲」與
+ * 「調整後很快能驗證」的折衷。
+ */
+const CACHE_TTL_MS = 5 * 60_000;
+
+/**
+ * 讀一項設定，型別不符（含未載入）即退回 fallback。
+ * 以 fallback 的型別當契約——worker 端驗證過型別，這裡再擋一次是防
+ * sessionStorage 被手動改壞。
+ */
+export function getSetting<T extends string | number>(
+  key: string,
+  fallback: T
+): T {
+  if (typeof window === 'undefined') return fallback;
+  const value = window.__uepSettings?.[key];
+  return typeof value === typeof fallback ? (value as T) : fallback;
+}
+
+/** 快取項：設定本體 + 寫入時刻（TTL 判定用） */
+interface CacheEntry {
+  at: number;
+  settings: SettingsMap;
+}
+
+/** 快取寫入失敗（隱私模式等）不致命——下一頁會再 fetch 一次 */
+function readCache(): SettingsMap | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CacheEntry> | null;
+    // 舊格式（純 map，無 at 欄位）視為過期——重抓一次就落新格式
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      typeof parsed.at !== 'number' ||
+      !parsed.settings ||
+      typeof parsed.settings !== 'object' ||
+      Array.isArray(parsed.settings)
+    ) {
+      return null;
+    }
+    if (Date.now() - parsed.at > CACHE_TTL_MS) return null;
+    return parsed.settings as SettingsMap;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(settings: SettingsMap): void {
+  try {
+    sessionStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ at: Date.now(), settings } satisfies CacheEntry)
+    );
+  } catch {
+    // 寫不進就每頁重抓，行為仍正確
+  }
+}
+
+/**
+ * 供 admin／DevTools 在調整設定後讓當前 session 立刻重抓
+ * （否則要關閉分頁才會過期）。
+ */
+export function clearUepSettingsCache(): void {
+  // 同時丟掉 in-flight Promise，否則同一頁清完快取後再呼叫 initUepSettings()
+  // 會拿到舊的已 resolve Promise，「立刻重抓」變成不抓
+  inFlight = null;
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // 清不掉就等 session 結束
+  }
+}
+
+/**
+ * 模組級 in-flight Promise。DesignLayout 掛載時不 await 地呼叫一次，
+ * 需要確定值的消費端（activityWatch）之後再 await 同一個 Promise——
+ * 兩邊各自 fetch 一次的話，首訪會打兩發 /api/settings/public，而且
+ * 「誰先回來誰決定 window.__uepSettings」是不必要的競態。
+ */
+let inFlight: Promise<void> | null = null;
+
+/**
+ * 可重入且去重。**永遠 resolve**——fetch 失敗時消費端退回程式碼常數即可，
+ * 讓它 reject 會使 await 它的功能（AFK 探測）因為設定 API 掛掉而整個不啟動。
+ */
+export function initUepSettings(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve();
+  if (inFlight) return inFlight;
+
+  const cached = readCache();
+  if (cached) {
+    window.__uepSettings = cached;
+    inFlight = Promise.resolve();
+    return inFlight;
+  }
+
+  inFlight = (async () => {
+    try {
+      const res = await fetch(`${getApiBase()}/api/settings/public`);
+      const json = (await res.json()) as {
+        ok?: boolean;
+        data?: { settings?: SettingsMap };
+      };
+      if (json?.ok && json.data?.settings) {
+        window.__uepSettings = json.data.settings;
+        writeCache(json.data.settings);
+      }
+    } catch {
+      // fetch 失敗 → 消費點全數退回常數，這一頁維持預設行為
+    }
+  })();
+
+  return inFlight;
+}

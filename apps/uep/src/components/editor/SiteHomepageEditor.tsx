@@ -30,12 +30,9 @@ import {
 } from '../../data/homepage-types';
 
 import './SiteHomepageEditor.css';
-
 // ── API 設定 ──────────────────────────────────────────────────────────────────
 
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = '';
 
 /** 從 localStorage 取得 JWT token */
 function getToken(): string | null {

@@ -1,0 +1,714 @@
+/*
+ * UEP 浮島系統 — 視窗外殼 + dock 樣式
+ *
+ * 外殼走中性語彙（跟站內卡片一致），各島的內容視覺在自己的 CSS 內疊加。
+ * z-index 由 runtime 動態指定（2000-2999），不在這裡寫死。
+ */
+
+/* ── 區域入場動畫期間隱藏浮動 UI ──
+ * IntroOverlay / PortalTransition / zone boot 播放時由 zoneEntryLock
+ * 掛上 body class（ref-count，沿用 OnboardingGate 前例）。
+ *
+ * S9-D.2 起浮島本體與 dock、S10-0 起 Minimap **不在這條規則裡**：它們改由
+ * 元件訂閱 zoneEntryLock，先播各自的離場動畫再讓位（見 useZoneEntryActive）。
+ * 這裡留下的都是沒有專屬離場語彙、硬切也不突兀的浮動件。
+ *
+ * ⚠️ OnboardingGate.css 另有一條 `body.uep-onboarding-active .uep-minimap`
+ * 的硬切規則，那是儀式期間自己掛的 body class，與 zoneEntryLock 無關，
+ * 兩套機制互不相通——改這裡時不要順手把那條一起清掉。 */
+body.uep-zone-entry-active .uep-pinned-note,
+body.uep-zone-entry-active .uep-stoland__note-ghost {
+  display: none !important;
+}
+
+/* ── 浮動視窗（桌面） ── */
+.uep-island {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  font-family: var(--font-sans);
+  color: var(--ink);
+  user-select: none;
+  transition:
+    box-shadow 0.25s var(--ease),
+    opacity 0.2s var(--ease);
+}
+
+.uep-island--dragging {
+  transition: none;
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.26);
+}
+
+/* ── bare 外殼（S9-C.1）──
+ * 島本身就是一件物品（紙／水／投影／便條），外殼不能再套一層白框，
+ * 否則材質在邊緣被切斷。背景、邊框、陰影全部歸零，交給各島 CSS。 */
+.uep-island--bare {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.uep-island--bare.uep-island--dragging {
+  box-shadow: none;
+}
+
+/* 島自畫的拖曳把手。用 data 屬性而非 class：把手長在各島自己的元素上
+   （書名列／水面／膠帶），className 傳遞需要島端手動合併字串，漏掉
+   就是「拖不動」這種無聲失效。 */
+.uep-island [data-island-grip] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.uep-island--dragging [data-island-grip] {
+  cursor: grabbing;
+}
+
+/* ── 島頭共用規格（S9-C.9）──
+ *
+ * bare 之後每座島各畫各的，結果是島名字級 19/17/無/無、收合鈕落點
+ * top 22/22/14/4、字級 10.5/10.5/8.5/15 全都不一樣——材質該各異，但
+ * 「島叫什麼、怎麼關」的落點不該讓眼睛每換一座島重找一次
+ * （艾斯維爾 2026-07-25 回饋）。
+ *
+ * 所以位置與字級收進共用 class，島端只覆寫顏色與字體（紙上的書名該是
+ * 明體、終端的該是等寬）。收合鈕一律用**該島語彙的短詞**而非符號——
+ * 符號在材質上永遠像是異物（× 在水面上的下場見 S9-C.6）。
+ */
+/* 15px：18px 在一座 300~380 寬的島上會壓過內容（艾斯維爾 2026-07-25 二驗
+   「這麼大有點嚇人」）。島名要能一眼看到，但它不是島的主角。 */
+.uep-island-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0.05em;
+}
+
+.uep-island-close {
+  all: unset;
+  position: absolute;
+  /* 兩者都由各島覆寫：收合鈕要與該島島名同一行，而各島的島頭內距不同
+     （紙有天頭、槽緣與機殼標頭較窄），所以對齊的是島名而非絕對座標。
+     公式：島頭 padding-top + 3。right 則是讓開緞帶／光錐用。 */
+  top: var(--island-close-top, 19px);
+  right: var(--island-close-right, 20px);
+  z-index: 6;
+  cursor: pointer;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    color 0.18s var(--ease),
+    opacity 0.18s var(--ease);
+}
+
+.uep-island-close:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+/* ── 收合離場（S6-3）：縮往右下（dock 方向）淡出 ──
+ * 純 CSS 版：固定右下方向縮小，不精算 dock chip 座標。
+ * 播完由 DraggableIsland 的 animationend（+ 保底計時器）真正 close。 */
+.uep-island--leaving,
+.uep-island--entering {
+  transform-origin: bottom right;
+  animation: uep-island-leave 0.26s var(--ease) forwards;
+}
+
+.uep-island--leaving {
+  pointer-events: none;
+}
+
+/* ── 進場（S9-D.1）：同一條離場動畫逆行 ──
+ * 島出現的路徑有三條（解鎖後首次浮現、從 dock 展開、轉場結束回來），
+ * 三條都該用該島自己的語彙——書攤開、水位漲回、幻影重新聚攏。逆行播放
+ * 讓「怎麼消失的就怎麼回來」自動成立，不必為每座島再寫一組關鍵影格。
+ *
+ * 這條 animation-direction 必須寫在共用 animation shorthand 之後：
+ * shorthand 會把 direction 重設回 normal。各島覆寫同理。 */
+.uep-island--entering {
+  animation-direction: reverse;
+}
+
+@keyframes uep-island-leave {
+  from {
+    transform: scale(1) translate(0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.4) translate(48px, 48px);
+    opacity: 0;
+  }
+}
+
+/* ── header（拖曳把手） ── */
+.uep-island__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--hairline);
+  cursor: grab;
+  touch-action: none;
+}
+
+.uep-island--dragging .uep-island__header {
+  cursor: grabbing;
+}
+
+.uep-island__icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.uep-island__title {
+  flex: 1;
+  font-family: var(--font-serif-tc);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-title);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uep-island__collapse {
+  all: unset;
+  cursor: pointer;
+  padding: 0 5px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--ink-mute);
+}
+
+.uep-island__collapse:hover {
+  color: var(--ink-title);
+}
+
+.uep-island__collapse:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+/* ── body ── */
+.uep-island__body {
+  user-select: text;
+  overflow-y: auto;
+  max-height: min(420px, 60vh);
+}
+
+/* bare 模式的捲動由島自理——外層若限高並捲動，會把紙的撕邊、卷軸木軸、
+   水面波浪這些長在容器邊緣的材質切掉。 */
+.uep-island__body--bare {
+  max-height: none;
+  overflow: visible;
+}
+
+/* ── Island Dock（收合島的停靠列） ── */
+.uep-island-dock {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1999; /* 浮島層帶（2000+）之下、Minimap（300）之上 */
+}
+
+/* 轉場讓位（S9-D.2）：整列往右下退開淡出。回來時不需要對應的進場
+   動畫——dock 重新掛載，每顆 chip 自己的 uep-dock-chip-in 會重播。 */
+.uep-island-dock.is-hiding {
+  pointer-events: none;
+  animation: uep-dock-out 0.22s var(--ease) forwards;
+}
+
+@keyframes uep-dock-out {
+  to {
+    transform: translate(10px, 14px) scale(0.92);
+    opacity: 0;
+  }
+}
+
+.uep-island-dock__chip {
+  all: unset;
+  box-sizing: border-box;
+  position: relative; /* badge 定位基準（S7 驗收 #10） */
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  /* 圖示是 currentColor 線稿（IslandIcon），chip 的狀態配色直接吃進去 */
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  transition:
+    transform 0.18s var(--ease),
+    box-shadow 0.18s var(--ease),
+    border-color 0.18s var(--ease),
+    color 0.18s var(--ease);
+  /* 進場淡入（S6-3）：島收合後 chip 出現時不要瞬間跳出 */
+  animation: uep-dock-chip-in 0.22s var(--ease);
+}
+
+/* 未讀更新 badge：收合期間累積的更動通知數（S7 驗收 #10） */
+.uep-island-dock__badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  background: var(--uep-gold);
+  color: var(--bg, #14120e);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 6px rgba(201, 168, 76, 0.55);
+  animation: uep-dock-badge-in 0.22s var(--ease);
+}
+
+@keyframes uep-dock-badge-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes uep-dock-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.uep-island-dock__chip:hover {
+  transform: translateY(-2px);
+  border-color: var(--uep-gold);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+}
+
+.uep-island-dock__chip:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+/* ── chip 注意力（S9-D.5）──
+ *
+ * 收合的島要告訴使用者「這裡有東西」，先前一島一條線各自寫 class
+ * （is-clue-waiting／is-echo-waiting），第三個來源開始就撐不住了。
+ * 現在只有兩種語意，配色靠 data-island 帶各 zone 的語彙色：
+ * - `is-attn-waiting` 持續呼吸，條件消失才停（線索在區間內／提示未讀）
+ * - `is-attn-pulse` 閃三下就停（進度剛推進／便條剛回到島裡）
+ *
+ * --chip-attn 是唯一的顏色接口，rgb 三元組寫法讓兩支動畫能各自調透明度。 */
+.uep-island-dock__chip {
+  --chip-attn: 148, 140, 130;
+}
+
+.uep-island-dock__chip[data-island='history'] {
+  /* 棕（--history-main #6b3f2a）而非主題金：金跟便條紙的黃在兩顆相鄰的
+     chip 上幾乎分不出來，改用 History 自己的色相才有辨識度 */
+  --chip-attn: 122, 72, 48;
+}
+
+.uep-island-dock__chip[data-island='concepts'] {
+  /* 終端主色 #1f4d39 在小尺寸光暈上會糊成一團黑，用它的亮色階 #2d6a4f */
+  --chip-attn: 45, 106, 79;
+}
+
+.uep-island-dock__chip[data-island='echoes'] {
+  --chip-attn: 91, 127, 179; /* 回聲藍 */
+}
+
+.uep-island-dock__chip[data-island='visuals'] {
+  --chip-attn: 94, 84, 142; /* 幻影紫 */
+}
+
+.uep-island-dock__chip[data-island='storage'] {
+  --chip-attn: 196, 160, 14; /* --storage-main */
+}
+
+/* 深色底上棕與深綠會沉進背景，各往亮處提一階（對位兩 zone 的 dark token） */
+[data-theme='dark'] .uep-island-dock__chip[data-island='history'] {
+  --chip-attn: 196, 130, 76;
+}
+
+[data-theme='dark'] .uep-island-dock__chip[data-island='concepts'] {
+  --chip-attn: 82, 168, 122;
+}
+
+/* 光暈畫在偽元素上，不動 chip 自己的 animation。
+   ⚠️ 直接把 animation 掛在 chip 上會有一個不明顯但很煩的副作用：class
+   移除的瞬間 animation-name 變回 uep-dock-chip-in，那條進場動畫就重播
+   一次，看起來就是「chip 跳了一下」。clue 進出區間最頻繁，所以只有
+   visuals 明顯（艾斯維爾 2026-07-26）。
+
+   兩層各司其職：::after 是貼著邊框的閃爍光圈，::before 是往外盪開的
+   波紋。只有光圈時，它在畫面角落看起來就像 hover 殘影，眼睛會直接
+   略過——會擴散出去的東西才抓得住餘光（艾斯維爾 2026-07-26 二驗）。 */
+.uep-island-dock__chip::before,
+.uep-island-dock__chip::after {
+  content: '';
+  position: absolute;
+  inset: -1px; /* 蓋住 border，光圈才從邊框外緣起算 */
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.uep-island-dock__chip::before {
+  border: 1.5px solid rgb(var(--chip-attn));
+}
+
+/* 提示中的 chip 連圖示一起染色——線稿是 currentColor，這是整個 chip
+   最大面積的一塊，比任何邊框變化都容易被注意到。 */
+.uep-island-dock__chip.is-attn-waiting {
+  border-color: rgb(var(--chip-attn));
+  color: rgb(var(--chip-attn));
+}
+
+.uep-island-dock__chip.is-attn-waiting::after {
+  animation: uep-chip-flash 1.1s ease-in-out infinite;
+}
+
+.uep-island-dock__chip.is-attn-waiting::before {
+  animation: uep-chip-ripple 1.8s ease-out infinite;
+}
+
+/* 閃爍：明暗對比拉滿。柔和的呼吸在餘光裡讀不出來（谷底 0.5 與峰值的
+   差太小），改成幾乎全暗到全亮。 */
+@keyframes uep-chip-flash {
+  0%,
+  100% {
+    opacity: 0.12;
+    box-shadow: 0 0 0 1px rgb(var(--chip-attn) / 0.3);
+  }
+  50% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 3px rgb(var(--chip-attn) / 0.95),
+      0 0 20px rgb(var(--chip-attn) / 0.85),
+      0 0 40px rgb(var(--chip-attn) / 0.5);
+  }
+}
+
+/* 波紋：一圈從邊框盪出去然後散掉。後半段停在全透明，讓兩次擴散之間
+   有一段留白——連續不斷的波會變成背景噪音。 */
+@keyframes uep-chip-ripple {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  55%,
+  100% {
+    opacity: 0;
+    transform: scale(1.75);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 降為靜態光圈：閃爍與波紋都拿掉，但提示本身不能消失——它是
+     「還沒處理完」的唯一視覺訊號。 */
+  .uep-island-dock__chip.is-attn-waiting::after {
+    animation: none;
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgb(var(--chip-attn) / 0.7);
+  }
+
+  .uep-island-dock__chip.is-attn-waiting::before {
+    animation: none;
+  }
+}
+
+/* ── 浮島設定視窗（識別證齒輪開啟） ── */
+.uep-island-settings {
+  position: fixed;
+  inset: 0;
+  z-index: 10001; /* 與 UepDialog 同層（都是 modal） */
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.42);
+  animation: uep-settings-fade 0.2s var(--ease);
+}
+
+.uep-island-settings__panel {
+  width: min(360px, calc(100vw - 32px));
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  padding: 18px 20px 16px;
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.uep-island-settings__title {
+  font-family: var(--font-serif-tc);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-title);
+  margin-bottom: 2px;
+}
+
+.uep-island-settings__subtitle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: 14px;
+}
+
+.uep-island-settings__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uep-island-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 3px;
+}
+
+.uep-island-settings__row:hover {
+  background: rgba(128, 128, 128, 0.06);
+}
+
+/* 鎖定列的黯淡不掛在整列上——提示氣泡是它的子元素，opacity 會把整棵
+   子樹一起合成，氣泡永遠是半透明的。改逐項壓暗名稱與狀態 */
+.uep-island-settings__row--locked .uep-island-settings__row-name,
+.uep-island-settings__row--locked .uep-island-settings__row-state {
+  opacity: 0.55;
+}
+
+/* 問號＝解鎖提示的入口（hover／鍵盤聚焦浮出氣泡）。
+   字用半形 ?——全形 ？ 的墨跡不在字框正中，金圈會看起來歪掉。
+   ⚠️ 黯淡只能用文字色，絕不可有 opacity：氣泡是這顆按鈕的子元素，
+   opacity 讓按鈕成為 stacking context、整棵子樹（含氣泡）一起半透明
+   合成，透出底下列的文字。也因此 JSX 端不掛 __row-icon class——
+   它的 opacity 0.72 在樣式表較後面，同特異度會把這裡蓋掉 */
+.uep-island-settings__hint-btn {
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  color: var(--ink-mute);
+  font-size: 12px;
+  line-height: 1;
+  cursor: help;
+  transition:
+    color 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+
+.uep-island-settings__hint-btn:hover,
+.uep-island-settings__hint-btn:focus-visible {
+  color: var(--ink);
+  border-color: var(--uep-gold);
+}
+
+/* 解鎖提示氣泡（漸進解碼）：預設收起，hover／focus 才浮現。
+   掛在問號下方——上方是面板邊緣，第一列的氣泡會探出視窗外 */
+.uep-island-settings__hint {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -8px;
+  z-index: 1;
+  width: 252px;
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+  font-family: var(--font-serif-tc);
+  font-size: 11px;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  text-align: left;
+  color: var(--ink-soft);
+  /* 即顯即隱，刻意不做淡入——opacity 過渡期間整個氣泡半透明，
+     會有幾幀透出底下列的文字（艾斯維爾 2026-08-12 驗收回報） */
+  visibility: hidden;
+  pointer-events: none; /* 純展示，別擋到底下列的 hover */
+}
+
+.uep-island-settings__hint-btn:hover .uep-island-settings__hint,
+.uep-island-settings__hint-btn:focus-visible .uep-island-settings__hint {
+  visibility: visible;
+}
+
+/* 識別證不是浮島，用一條分隔線與島列表分開 */
+.uep-island-settings__row--ident {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--hairline);
+}
+
+.uep-island-settings__row-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  color: var(--ink);
+  opacity: 0.72;
+}
+
+.uep-island-settings__row-name {
+  flex: 1;
+  font-family: var(--font-serif-tc);
+  font-size: 13px;
+}
+
+.uep-island-settings__row-state {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--ink-mute);
+}
+
+/* 開關（沿站內簡約語彙的小 toggle） */
+/* 回顧鈕（S10-4）：低調的問號，放在開關左側 */
+.uep-island-settings__guide {
+  all: unset;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink-mute);
+  font-size: 10px;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0.55;
+  transition:
+    opacity 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+
+.uep-island-settings__guide:hover,
+.uep-island-settings__guide:focus-visible {
+  opacity: 1;
+  border-color: var(--uep-gold);
+}
+
+.uep-island-settings__toggle {
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--bg);
+  cursor: pointer;
+  transition:
+    background 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+
+.uep-island-settings__toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ink-mute);
+  transition:
+    transform 0.2s var(--ease),
+    background 0.2s var(--ease);
+}
+
+.uep-island-settings__toggle[aria-checked='true'] {
+  background: rgba(212, 175, 55, 0.18);
+  border-color: var(--uep-gold);
+}
+
+.uep-island-settings__toggle[aria-checked='true']::after {
+  transform: translateX(16px);
+  background: var(--uep-gold);
+}
+
+.uep-island-settings__toggle:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+.uep-island-settings__close {
+  all: unset;
+  display: block;
+  margin: 14px auto 0;
+  padding: 6px 22px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 3px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+
+.uep-island-settings__close:hover {
+  border-color: var(--uep-gold);
+  color: var(--ink-title);
+}
+
+.uep-island-settings__close:focus-visible {
+  outline: 1px solid var(--uep-gold);
+  outline-offset: 2px;
+}
+
+@keyframes uep-settings-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 動畫偏好：全部關閉 */
+@media (prefers-reduced-motion: reduce) {
+  .uep-island,
+  .uep-island-dock,
+  .uep-island-dock__chip,
+  .uep-island-settings {
+    transition: none;
+    animation: none;
+  }
+}

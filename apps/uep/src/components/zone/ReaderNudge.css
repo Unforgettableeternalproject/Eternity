@@ -1,0 +1,250 @@
+/* ──────────────────────────────────────────────────────────────
+   ReaderNudge — 休息提醒（U.E.P 從右側探出來的小卡）
+
+   2026-08-04 從置中的 modal 改成側邊卡：休息提醒是善意的提議，不是攔阻，
+   沒有理由遮住正在讀的內容。閒置提示則整個移出這一層，改由 IdleVeil 承擔。
+
+   金色語彙沿用 08/03 那版：頂端金線、內襯細框、夾線 eyebrow、金色按鈕。
+   ────────────────────────────────────────────────────────────── */
+
+.rnudge {
+  position: fixed;
+  right: 0;
+  bottom: 96px;
+  z-index: 2400;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  /* 卡片自己放行，其餘一律不擋——提醒不該讓右側的內容按不到 */
+  pointer-events: none;
+  animation: rnudge-slide-in 620ms var(--ease-out) both;
+}
+
+.rnudge--leaving {
+  animation: rnudge-slide-out 460ms var(--ease) both;
+}
+
+/* 卡片與立繪共用同一個寬度：她要橫躺在整條上緣上，兩者寬度一旦不同就
+   會露出對不齊的邊 */
+.rnudge {
+  --rnudge-w: min(320px, calc(100vw - 32px));
+}
+
+/* U.E.P 橫躺在卡片上緣，整條邊都被她佔滿 */
+.rnudge-art {
+  position: relative;
+  /* 疊在卡片之上。她是趴在卡片上，不是被卡片擋在後面——沉得越深就越
+     需要這一條，不然身體會整段消失在卡片裡 */
+  z-index: 1;
+  width: var(--rnudge-w);
+  height: auto;
+  /* 沉進卡片而不是站在卡片上。素材的下緣只有腳尖與髮梢碰得到那條線，
+     身體中段本來就離地——壓得太淺的話最低點勉強貼著、整個人卻是懸空的，
+     看起來像浮在卡片上方。壓到她的頭也碰得到卡片邊緣才是趴在上面。 */
+  margin-bottom: -34px;
+  filter: drop-shadow(0 8px 16px rgb(0 0 0 / 20%));
+  animation: rnudge-bob 3.8s ease-in-out infinite;
+}
+
+.rnudge-card {
+  position: relative;
+  width: var(--rnudge-w);
+  padding: 22px 24px 20px;
+  /* 貼著右緣，右邊不留圓角也不留邊——它是從畫面外滑進來的 */
+  background:
+    radial-gradient(
+      120% 90% at 50% -10%,
+      rgb(213 182 24 / 14%),
+      transparent 62%
+    ),
+    var(--bg-card);
+  border: 1px solid rgb(213 182 24 / 38%);
+  border-right: none;
+  box-shadow:
+    -14px 18px 48px rgb(0 0 0 / 22%),
+    0 0 50px -22px var(--uep-gold-glow);
+  font-family: var(--font-serif-tc);
+  pointer-events: auto;
+}
+
+.rnudge-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--uep-gold) 20%,
+    var(--uep-gold-soft) 50%,
+    var(--uep-gold) 80%,
+    transparent
+  );
+}
+
+.rnudge-card::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgb(213 182 24 / 16%);
+  border-right: none;
+  pointer-events: none;
+}
+
+.rnudge-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--uep-gold);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.rnudge-eyebrow::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgb(213 182 24 / 55%), transparent);
+}
+
+.rnudge-title {
+  /* 亮色主題下純金字在白卡上讀不清，用深金；暗色才放亮 */
+  color: var(--accent-ink);
+  font-family: var(--font-display);
+  font-size: 21px;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+[data-theme='dark'] .rnudge-title {
+  color: var(--uep-gold-soft);
+  text-shadow: 0 0 20px rgb(213 182 24 / 26%);
+}
+
+.rnudge-body {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 1.8;
+}
+
+/* 邀茶時會有第二顆鈕。卡片只有 320px 寬，兩顆並排在窄視窗會擠成兩行字，
+   所以讓它們自然換行而不是硬塞同一列 */
+.rnudge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.rnudge-action {
+  padding: 7px 22px;
+  border: 1px solid rgb(213 182 24 / 55%);
+  background: transparent;
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition:
+    background 0.28s var(--ease),
+    color 0.28s var(--ease),
+    box-shadow 0.28s var(--ease);
+}
+
+[data-theme='dark'] .rnudge-action {
+  color: var(--uep-gold-soft);
+}
+
+.rnudge-action:hover,
+.rnudge-action:focus-visible {
+  background: var(--uep-gold);
+  color: #241f08;
+  box-shadow: 0 0 24px -6px var(--uep-gold-glow);
+  outline: none;
+}
+
+.rnudge-action:focus-visible {
+  outline: 1px solid var(--uep-gold-soft);
+  outline-offset: 3px;
+}
+
+/* 邀請鈕預先填上金色：她已經開口邀了，那顆才是這張卡在講的事，
+   「知道了」退成旁邊那個總是在的選項 */
+.rnudge-action--primary {
+  background: var(--uep-gold);
+  border-color: var(--uep-gold);
+  color: #241f08;
+  box-shadow: 0 0 22px -8px var(--uep-gold-glow);
+}
+
+[data-theme='dark'] .rnudge-action--primary {
+  color: #241f08;
+}
+
+.rnudge-action--primary:hover,
+.rnudge-action--primary:focus-visible {
+  background: var(--uep-gold-soft);
+  box-shadow: 0 0 30px -6px var(--uep-gold-glow);
+}
+
+@keyframes rnudge-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(105%);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes rnudge-slide-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(105%);
+  }
+}
+
+/* 趴著的呼吸幅度要比站著小——起伏太大會變成「在卡片上彈跳」，而且
+   一浮起來就離開了剛壓進去的那條接觸線 */
+@keyframes rnudge-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@media (width <= 480px) {
+  .rnudge {
+    bottom: 76px;
+  }
+
+  .rnudge-card {
+    padding: 18px 18px 16px;
+  }
+
+  .rnudge-title {
+    font-size: 19px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rnudge,
+  .rnudge--leaving,
+  .rnudge-art {
+    animation: none;
+  }
+}

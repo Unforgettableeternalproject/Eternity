@@ -1,0 +1,332 @@
+/**
+ * PinnedNoteLayer — 釘選便條樣式
+ *
+ * 沿用 StorageIsland 的便條紙語彙（暖黃色系、傾斜、紙質陰影），
+ * 但釘在頁面上的便條稍微更「實體」——陰影深、有膠帶感、可拆除鈕更明顯。
+ *
+ * z-index 落在浮島層帶下面（Minimap:300 之上、島:2000 之下 → 500-999）——
+ * 內容捲動時便條要跟著內容走，不搶浮島互動；使用者要編輯就上前一層。
+ */
+
+/* 便條拖出島以後仍然是同一張紙——兩套色跟著 StorageIsland 走，
+   否則同一張便條在深色模式下會從島內的暗黃跳成頁面上的亮黃。 */
+.uep-pinned-note {
+  --pn-slip: #fff1ba;
+  --pn-slip-edit: #fff8d4;
+  --pn-slip-target: #fff0a8;
+  --pn-slip-warn: #ffd8a8;
+  --pn-tape: rgba(231, 220, 178, 0.9);
+  --pn-ink: #3a2f08;
+  --pn-ink-rgb: 58 47 8;
+  --pn-glow-rgb: 180 130 40;
+  --pn-warn-rgb: 160 40 16;
+  /* 編輯中的 textarea 底色：亮紙上打白光，暗紙上只能微亮，
+     否則整塊反白蓋過壓暗過的紙面 */
+  --pn-field-focus: rgba(255, 255, 255, 0.35);
+
+  position: absolute;
+  width: 200px;
+  min-height: 44px;
+  background: var(--pn-slip);
+  color: var(--pn-ink);
+  padding: 10px 30px 10px 12px;
+  /* 中文無空格 word-wrap 斷不了字（07/24 二次驗收：長串一行硬撐出邊界）
+   * → 用 overflow-wrap: anywhere 強制任意位置斷行；box-sizing 讓 width
+   * 含 padding，落點/rect 計算才對齊視覺 */
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  z-index: 500;
+  transition:
+    box-shadow 180ms ease,
+    z-index 0s ease 180ms;
+  cursor: default;
+  /* 便條本身是可拖曳元素——不讓瀏覽器把 pointer 手勢解讀成捲動/縮放而
+   * 中途搶走（觸控螢幕筆電上會直接讓拖曳斷掉）。手機一律不掛，桌面
+   * 觸控裝置想捲頁在便條外操作即可。 */
+  touch-action: none;
+}
+
+[data-theme='dark'] .uep-pinned-note {
+  --pn-slip: #4d4524;
+  --pn-slip-edit: #665a2c;
+  --pn-slip-target: #6b5f2b;
+  --pn-slip-warn: #5e4324;
+  --pn-tape: rgba(120, 112, 82, 0.85);
+  --pn-ink: #e8dcae;
+  --pn-ink-rgb: 232 220 174;
+  --pn-glow-rgb: 226 190 96;
+  --pn-warn-rgb: 255 140 108;
+  --pn-field-focus: rgba(255, 255, 255, 0.07);
+}
+
+/* 上緣膠帶條——強化「貼在頁面上」的實體感 */
+.uep-pinned-note::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  width: 60px;
+  height: 10px;
+  background: var(--pn-tape);
+  border-left: 1px dashed rgba(0, 0, 0, 0.1);
+  border-right: 1px dashed rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+}
+
+.uep-pinned-note:hover {
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  z-index: 900; /* hover 提前層堆到浮島下方頂端 */
+  transition:
+    box-shadow 120ms ease,
+    z-index 0s;
+}
+
+/* 內容文字（按鈕包起來，點擊進編輯） */
+.uep-pinned-note__text {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+  /* overflow-wrap: anywhere 才能斷中文；white-space: pre-wrap 保留原生換行 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.uep-pinned-note__text:focus-visible {
+  outline: 1px dashed rgb(var(--pn-ink-rgb) / 0.5);
+  outline-offset: 2px;
+}
+
+/* 地點／時間小標——與島內 `.uep-stoland__note-meta` 同一份快照的另一個
+   呈現位置，字級與間距刻意一致，只有調色換成釘選便條自己的 --pn-* */
+.uep-pinned-note__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: rgb(var(--pn-ink-rgb) / 0.5);
+}
+
+.uep-pinned-note__meta-item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* 拆除鈕（右上角） */
+.uep-pinned-note__unpin {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: rgb(var(--pn-ink-rgb) / 0.5);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 0;
+  transition: color 120ms ease;
+}
+
+.uep-pinned-note__unpin:hover {
+  color: rgb(var(--pn-ink-rgb) / 0.95);
+}
+
+/* 拖曳中（reposition）：跟指標走、穿透 hit-test 讓落點解析看到內容。
+ * pointer capture 讓事件持續送到卡片，pointer-events:none 不影響拖曳。 */
+.uep-pinned-note.is-dragging {
+  pointer-events: none;
+  opacity: 0.85;
+  cursor: grabbing;
+  /* 浮島層帶是 2000-2999（runtime 動態指定）——拖曳中的便條必須在它們
+   * **之上**，否則拖到便條島上方時整張卡被島蓋住，「即將拆除」的樣式
+   * 看不見，使用者只會覺得便條莫名消失。 */
+  z-index: 3000;
+  transition: none;
+}
+
+/* ── 拖回便條島 = 解除釘選（艾斯維爾 07/25 UX）──
+ * 懸在展開的便條島上方時，便條淡出並縮小，像被吸回島裡；
+ * 島本身的高亮由 body class 驅動（見下方）。 */
+.uep-pinned-note.is-unpin-pending {
+  opacity: 0.45;
+  filter: grayscale(0.5);
+  transform: scale(0.88) rotate(0deg) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* 島的「可接收」高亮。掛在 body 而非島本身——島的 className 由
+ * DraggableIsland 每次 render 用模板字串重算，直接加 class 會被覆蓋。 */
+body.uep-pin-unpin-hover .uep-island--storage {
+  outline: 2px dashed rgba(213, 182, 24, 0.85);
+  outline-offset: 3px;
+  box-shadow: 0 0 26px rgba(213, 182, 24, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-pinned-note.is-unpin-pending {
+    /* 動態縮放拿掉，只保留辨識度足夠的透明度與去色 */
+    transform: rotate(0deg) !important;
+  }
+}
+
+/* 便條是「貼上去的實體」，內文不開放選取（編輯走 textarea）——
+ * 同時避免拖曳跟原生文字選取互搶 */
+.uep-pinned-note {
+  user-select: none;
+}
+
+/* 編輯態：打直 + 適應 textarea 內容（min-height 撐開），padding 收緊
+ * 讓 textarea 塞得進來（07/24 二次驗收：textarea 超出便條紙外框） */
+.uep-pinned-note.is-editing {
+  transform: rotate(0deg) !important; /* 打直方便輸入 */
+  background: var(--pn-slip-edit);
+  z-index: 1500;
+  min-height: 92px;
+  padding: 8px 30px 8px 10px;
+  user-select: text; /* 還回選取權——textarea 要能選字 */
+}
+
+.uep-pinned-note__textarea {
+  /* box-sizing 讓 width:100% 含 border/padding；resize:none 禁止使用者
+   * 手動拖大 textarea 超出便條紙——高度由 min-height + 文字自然撐開 */
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 68px;
+  border: 1px dashed rgb(var(--pn-ink-rgb) / 0.4);
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+  resize: none;
+  padding: 4px 6px;
+  cursor: text;
+  /* 深紅 caret——暖黃紙面上的深棕 caret 幾乎看不見（07/24 驗收回饋）。
+     跟著 --pn-warn-rgb 走，暗紙上會換成亮橘紅，否則同樣沒入紙面 */
+  caret-color: rgb(var(--pn-warn-rgb));
+}
+
+.uep-pinned-note__textarea:focus {
+  border-color: rgb(var(--pn-warn-rgb) / 0.6);
+  background: var(--pn-field-focus);
+}
+
+/* 錨點失效提示 */
+.uep-pinned-note.is-stale {
+  background: var(--pn-slip-warn);
+}
+
+.uep-pinned-note__stale {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+  color: rgb(var(--pn-warn-rgb) / 0.9);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* nearest 命中——輕微色差提示「大致位置」 */
+.uep-pinned-note.is-nearest {
+  background: var(--pn-slip-target);
+}
+
+/* jump-to 高亮：導向剛捲到這張時的短暫脈動 */
+.uep-pinned-note.is-jump-target {
+  animation: uep-pinned-jump 1.4s ease-out;
+  z-index: 1200;
+}
+
+@keyframes uep-pinned-jump {
+  0% {
+    box-shadow:
+      0 0 0 4px rgb(var(--pn-glow-rgb) / 0.9),
+      0 12px 30px rgba(0, 0, 0, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px rgb(var(--pn-glow-rgb) / 0.5),
+      0 12px 30px rgba(0, 0, 0, 0.28);
+  }
+  100% {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-pinned-note.is-jump-target {
+    animation: none;
+    outline: 3px solid rgb(var(--pn-glow-rgb) / 0.7);
+    outline-offset: 4px;
+  }
+}
+
+/* ── 首頁（07/25 四驗）──
+ * 首頁的區塊轉場靠兩層 fixed 全螢幕覆蓋：`.home-fade-overlay`（wheel delta
+ * 累積時漸暗，z-index 199）與 `.home-global-veil`（切換瞬間的黑幕，200）。
+ * 便條預設 z-index 500 會浮在兩者**上面**，轉場時整張便條懸在黑幕上很突兀
+ * ——壓到覆蓋層之下，便條就會跟著頁面一起淡出。
+ * 首頁內容本身 z-index 為 1（`HomePage.css:233/1301`），所以 190 仍在內容之上。
+ *
+ * 編輯態與拖曳態**不降**：那是使用者主動操作的當下，本來就該在最上層，
+ * 且該狀態下不會觸發區塊轉場。
+ * ⚠️ 必須寫 `:not(.is-dragging):not(.is-editing)`——這條規則位置在
+ * `.is-dragging` / `.is-editing`（皆 z-index 1500）**之後**，若只寫
+ * `.uep-pinned-note.is-home` 會是同特異性後定義者勝，把那兩態一起壓低。 */
+.uep-pinned-note.is-home:not(.is-dragging):not(.is-editing) {
+  z-index: 190;
+}
+
+.uep-pinned-note.is-home:not(.is-dragging):not(.is-editing):hover {
+  z-index: 195;
+}
+
+/* page 級（互動頁降級）與 fixed（錨點失效退路）——viewport 固定角落 */
+.uep-pinned-note--page,
+.uep-pinned-note--fixed {
+  /* 已在 style 裡設 position:fixed，這裡只做視覺提示 */
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-pinned-note {
+    transition: none;
+  }
+}
+
+/* 手機一律不掛（外部守門），但保底：即使誤 render，用 media query 隱藏 */
+@media (max-width: 760px) {
+  .uep-pinned-note {
+    display: none !important;
+  }
+}

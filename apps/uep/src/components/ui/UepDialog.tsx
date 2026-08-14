@@ -4,6 +4,12 @@ import './UepDialog.css';
 /* ── 型別 ── */
 type DialogKind = 'alert' | 'confirm' | 'prompt';
 
+/**
+ * 視覺變體。`terminal` 是 Concepts 區域的終端機語彙（等寬字、直角線框、
+ * 掃描線），供該 zone 的儀式/互動使用；其餘一律 `default`。
+ */
+export type DialogVariant = 'default' | 'terminal';
+
 interface DialogRequest {
   id: number;
   kind: DialogKind;
@@ -13,6 +19,7 @@ interface DialogRequest {
   cancelText?: string;
   placeholder?: string;
   defaultValue?: string;
+  variant?: DialogVariant;
   resolve: (ok: boolean) => void;
   resolvePrompt?: (value: string | null) => void;
 }
@@ -36,7 +43,7 @@ export const uepDialog = {
   /** 顯示 alert 對話框（只有「確定」按鈕） */
   alert(
     message: string,
-    opts?: { title?: string; confirmText?: string }
+    opts?: { title?: string; confirmText?: string; variant?: DialogVariant }
   ): Promise<void> {
     return new Promise((resolve) => {
       currentReq = {
@@ -45,6 +52,7 @@ export const uepDialog = {
         message,
         title: opts?.title,
         confirmText: opts?.confirmText,
+        variant: opts?.variant,
         resolve: () => resolve(),
       };
       notifyAll();
@@ -54,7 +62,12 @@ export const uepDialog = {
   /** 顯示 confirm 對話框，返回使用者是否點了確認 */
   confirm(
     message: string,
-    opts?: { title?: string; confirmText?: string; cancelText?: string }
+    opts?: {
+      title?: string;
+      confirmText?: string;
+      cancelText?: string;
+      variant?: DialogVariant;
+    }
   ): Promise<boolean> {
     return new Promise((resolve) => {
       currentReq = {
@@ -64,6 +77,7 @@ export const uepDialog = {
         title: opts?.title,
         confirmText: opts?.confirmText,
         cancelText: opts?.cancelText,
+        variant: opts?.variant,
         resolve,
       };
       notifyAll();
@@ -79,6 +93,7 @@ export const uepDialog = {
       cancelText?: string;
       placeholder?: string;
       defaultValue?: string;
+      variant?: DialogVariant;
     }
   ): Promise<string | null> {
     return new Promise((resolve) => {
@@ -91,6 +106,7 @@ export const uepDialog = {
         cancelText: opts?.cancelText,
         placeholder: opts?.placeholder,
         defaultValue: opts?.defaultValue,
+        variant: opts?.variant,
         resolve: () => {},
         resolvePrompt: resolve,
       };
@@ -183,14 +199,17 @@ export default function UepDialogContainer() {
 
   const isPrompt = req.kind === 'prompt';
   const showCancel = req.kind === 'confirm' || isPrompt;
+  const variant = req.variant && req.variant !== 'default' ? req.variant : null;
+  const variantClass = variant ? ` uep-dialog--${variant}` : '';
+  const overlayVariantClass = variant ? ` uep-dialog-overlay--${variant}` : '';
 
   return (
     <div
-      className={`uep-dialog-overlay${closing ? ' uep-dialog-overlay--closing' : ''}`}
+      className={`uep-dialog-overlay${overlayVariantClass}${closing ? ' uep-dialog-overlay--closing' : ''}`}
       onClick={() => close(false)}
     >
       <div
-        className={`uep-dialog${closing ? ' uep-dialog--closing' : ''}`}
+        className={`uep-dialog${variantClass}${closing ? ' uep-dialog--closing' : ''}`}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="uep-dialog-title"

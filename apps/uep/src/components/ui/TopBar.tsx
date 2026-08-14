@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
 
+import GuideRunner from '../../islands/guide/GuideRunner';
+import IslandHost from '../../islands/IslandHost';
+
+import IdentCard from './IdentCard';
+import OnboardingGate from './OnboardingGate';
+import RecordPanel from './RecordPanel';
+
 interface TopBarProps {
   onOpenMap?: () => void;
   onGoHome?: () => void;
@@ -32,6 +39,10 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
         fontFamily: 'var(--font-sans)',
         position: 'sticky',
         top: 0,
+        /* ⚠️ 不要為了讓識別證浮到浮島之上而抬高這個數字。
+           `position: sticky` 讓 TopBar 成為堆疊上下文，整個子樹都畫在這一層，
+           所以抬高它等於把整條頂欄一起抬到浮島之上——浮島往上捲就會被
+           頂欄裁掉一截。識別證的解法是 portal 出去自己站一層，見 IdentCard。 */
         zIndex: 100,
         background: 'var(--bg)',
       }}
@@ -118,6 +129,8 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
             ✦ 大地圖
           </button>
         )}
+        {/* 記錄面板：登入/註冊入口，視角切換也藏在裡面（S5 起撤出 TopBar） */}
+        <RecordPanel />
         <span
           className="uep-topbar-divider"
           style={{
@@ -136,6 +149,19 @@ export default function TopBar({ onOpenMap, onGoHome, dark }: TopBarProps) {
           {theme === 'dark' ? '☀ 白晝' : '☾ 夜間'}
         </button>
       </div>
+
+      {/* 入站儀式：TopBar 出現在所有非 admin 頁面，藉此覆蓋全站 */}
+      <OnboardingGate />
+
+      {/* 身分證吊掛面板：登入後出現的固定識別證 */}
+      <IdentCard />
+
+      {/* 浮島系統：portal 到 body，逃出 TopBar 的 sticky 堆疊上下文 */}
+      <IslandHost />
+
+      {/* 教學播放層：掛在這裡而不是 IslandHost 內——後者在一座島都沒解鎖時
+          整個 return null，而識別證教學的對象正是還沒有任何島的新使用者 */}
+      <GuideRunner />
     </div>
   );
 }

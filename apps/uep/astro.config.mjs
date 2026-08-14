@@ -1,4 +1,3 @@
-import mdx from '@astrojs/mdx';
 import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
@@ -16,7 +15,13 @@ export default defineConfig({
   output: 'hybrid',
   adapter: isDev ? node({ mode: 'standalone' }) : cloudflare(),
   integrations: [
-    mdx(),
+    // 這裡刻意不掛 @astrojs/mdx：全站沒有任何 .mdx，內容一律走 D1 API。
+    // 掛著的代價是它會註冊 astro:jsx renderer，而 Astro 4 選 renderer 的方式
+    // 是逐一呼叫每個 renderer 的 check——astro:jsx 的 check 直接把元件當普通
+    // 函式呼叫（astro/dist/jsx/server.js），React 元件被這樣呼叫時 hook 取不到
+    // dispatcher，於是每個 island 每次 SSR 都噴一次 "Invalid hook call"。
+    // 錯誤被 catch 吞掉後才輪到 React renderer 正確渲染，功能無損但很吵。
+    // 真要重新引入 MDX 的話，這個副作用會一起回來。
     react(),
     sitemap({
       filter: (page) => !page.includes('/admin'),

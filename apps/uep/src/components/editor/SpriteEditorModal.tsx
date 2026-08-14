@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImageItem, SpriteAnimations } from './VisualsEditorBody';
 import { API_BASE, getToast } from './editorHelpers';
+import { UploadSpinner } from './UploadSpinner';
 
 type Phase = 'select-method' | 'configure' | 'define-anims';
 type Method = 'multi' | 'grid';
@@ -858,7 +859,7 @@ export default function SpriteEditorModal({
                 else uploadGrid();
               }}
             >
-              {uploading ? '處理中...' : '下一步'}
+              {uploading ? <UploadSpinner label="處理中" /> : '下一步'}
             </button>
           </div>
         </div>

@@ -1,0 +1,164 @@
+/* ──────────────────────────────────────────────────────────────
+   IslandGuideOverlay — 浮島教學的聚光燈
+
+   遮罩用一個元素的 box-shadow 向外擴散，不切四塊 div：resize 或島被
+   拖曳時只要改一次幾何，接縫也不會有次像素裂縫。
+   ────────────────────────────────────────────────────────────── */
+
+.iguide {
+  position: fixed;
+  inset: 0;
+  /* 壓在浮島層帶（2000–2999）之上，但低於轉場 */
+  z-index: 3200;
+}
+
+/* 教學目標抬升（overlay 掛載期間由 IslandGuideOverlay 設定屬性）：
+   高於釘選便條（3000），低於聚光燈（3200）——洞裡永遠是目標本體。
+   !important 是必要的：島的 z-index 由 runtime 以 inline style 指定。 */
+[data-uep-guide-lift] {
+  z-index: 3150 !important;
+}
+
+.iguide-spot {
+  position: fixed;
+  border-radius: 4px;
+  border: 1px solid rgb(255 255 255 / 22%);
+  box-shadow:
+    0 0 0 9999px rgb(8 8 12 / 62%),
+    0 0 22px rgb(255 255 255 / 10%) inset;
+  transition:
+    top 220ms ease,
+    left 220ms ease,
+    width 220ms ease,
+    height 220ms ease;
+  pointer-events: none;
+}
+
+/* 量不到 anchor 時的整片遮罩——同一個顏色，只是沒有洞 */
+.iguide-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(8 8 12 / 62%);
+}
+
+.iguide-card {
+  position: fixed;
+  width: 260px;
+  padding: 16px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 20px 52px rgb(0 0 0 / 34%);
+  font-family: var(--font-serif-tc);
+  animation: iguide-card-in 260ms ease-out both;
+}
+
+/* 置中版要自己的 keyframes：共用那組的 `transform: none` 會在動畫結束時
+   把置中用的 translate 一起抹掉，卡片會跳到右下角 */
+.iguide-card--center {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation-name: iguide-card-in-center;
+}
+
+.iguide-count {
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  margin-bottom: 8px;
+}
+
+.iguide-title {
+  color: var(--ink);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.iguide-body {
+  color: var(--ink-mute);
+  font-size: 12.5px;
+  line-height: 1.75;
+}
+
+.iguide-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.iguide-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.iguide-btn,
+.iguide-skip {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink);
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  transition: background 0.2s;
+}
+
+.iguide-skip {
+  border-color: transparent;
+  color: var(--ink-mute);
+  padding-left: 0;
+}
+
+.iguide-btn:hover,
+.iguide-skip:hover {
+  background: var(--line-strong);
+}
+
+.iguide-btn--primary {
+  background: var(--line-strong);
+}
+
+@keyframes iguide-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes iguide-card-in-center {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 4px));
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* 動畫停用時直接切換：不能依賴 animationend／transitionend，
+   那些事件在動畫被關掉時永遠不會來（同 content-protection 的既有處理） */
+@media (prefers-reduced-motion: reduce) {
+  .iguide-spot {
+    transition: none;
+  }
+
+  .iguide-card {
+    animation: none;
+  }
+
+  .iguide-card--center {
+    transform: translate(-50%, -50%);
+  }
+}

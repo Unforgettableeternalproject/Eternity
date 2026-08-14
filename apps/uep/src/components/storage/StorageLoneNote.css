@@ -1,0 +1,227 @@
+/**
+ * 一張孤零零的紙條（S9-B 解鎖儀式）
+ *
+ * 視覺語彙沿用 PinnedNoteLayer 的便條（暖黃紙、膠帶條、傾斜、紙質陰影），
+ * 但起點是塵封的灰——紙色/字色由 JS 依抖落進度插值後灌進 CSS 變數，
+ * 這裡只負責把變數畫出來。
+ *
+ * position: fixed 是刻意的：boxes 頁的內容欄是 920px 置中且祖先有
+ * overflow-x: hidden，掛在裡面往右擺會被裁掉。
+ *
+ * ⚠️ 拖曳位移一律走 --sto-lone-dx/dy 兩顆變數，**不要改成 left/top**：
+ * .sto-page-transition 帶 will-change: transform，會建立 containing block，
+ * 裡面的 fixed 元素不是相對 viewport 定位，設絕對座標會讓便條飛出畫面。
+ * 每一條動到 transform 的規則（含 keyframes）都要把這兩顆變數帶上，
+ * 漏掉的那條會在該狀態下把拖曳位置吃掉。
+ */
+
+.sto-lone-note {
+  /* 塵封 → 乾淨的兩端。深色模式下起點是白紙：頁面本身就是暗的，
+     灰紙條會直接沉進背景裡看不見（艾斯維爾 2026-07-25） */
+  --lone-dusty: #b0aea5;
+  --lone-clean: #fff1ba;
+  --lone-ink-dusty: #7a7669;
+  --lone-ink-clean: #3a2f08;
+  --lone-tape: rgba(214, 210, 194, 0.85);
+  --lone-mote: rgba(168, 163, 148, 0.85);
+  --lone-grime-rgb: 132 128 116;
+
+  position: fixed;
+  right: 7%;
+  top: 46%;
+  width: 190px;
+  min-height: 52px;
+  padding: 12px 14px;
+  box-sizing: border-box;
+
+  /* 兩端顏色在 CSS 決定，JS 只給「回暖了幾成」（--sto-lone-mix） */
+  background: color-mix(
+    in srgb,
+    var(--lone-clean) var(--sto-lone-mix, 0%),
+    var(--lone-dusty)
+  );
+  color: color-mix(
+    in srgb,
+    var(--lone-ink-clean) var(--sto-lone-mix, 0%),
+    var(--lone-ink-dusty)
+  );
+  font-family: var(--font-serif-tc, serif);
+  font-size: 13px;
+  line-height: 1.6;
+  /* 中文無空格斷不了字（S9-A 07/24 驗收的同一個坑） */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+
+  transform: translate(var(--sto-lone-dx, 0px), var(--sto-lone-dy, 0px))
+    rotate(-2.5deg);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  cursor: pointer;
+  user-select: none;
+  /* 便條是可拖曳元素——不讓瀏覽器把 pointer 手勢解讀成捲動而中途搶走 */
+  touch-action: none;
+  z-index: 1850; /* 解鎖小物件(1900)之下、內容之上 */
+  transition:
+    background 420ms ease,
+    color 420ms ease,
+    box-shadow 200ms ease;
+}
+
+.sto-lone-note:hover {
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.sto-lone-note:focus-visible {
+  outline: 2px solid var(--storage-soft, #d5b618);
+  outline-offset: 3px;
+}
+
+.sto-lone-note.is-dragging {
+  cursor: grabbing;
+  transform: translate(var(--sto-lone-dx, 0px), var(--sto-lone-dy, 0px))
+    rotate(-1deg) scale(1.03);
+  transition: none;
+  z-index: 1899;
+}
+
+[data-theme='dark'] .sto-lone-note {
+  --lone-dusty: #dcd9d0;
+  --lone-ink-dusty: #6f6b60;
+  --lone-tape: rgba(176, 172, 158, 0.8);
+  --lone-mote: rgba(206, 202, 188, 0.85);
+  --lone-grime-rgb: 150 146 134;
+}
+
+/* 上緣膠帶條 */
+.sto-lone-note__tape {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  width: 58px;
+  height: 10px;
+  background: var(--lone-tape);
+  border-left: 1px dashed rgba(0, 0, 0, 0.12);
+  border-right: 1px dashed rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+
+.sto-lone-note__text {
+  position: relative;
+  z-index: 1;
+}
+
+/* 積在紙面上的灰——用 --sto-lone-dust（1 → 0）控制濃度 */
+.sto-lone-note__grime {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--sto-lone-dust, 1);
+  background:
+    radial-gradient(
+      circle at 22% 30%,
+      rgb(var(--lone-grime-rgb) / 0.5),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 74% 66%,
+      rgb(var(--lone-grime-rgb) / 0.42),
+      transparent 52%
+    ),
+    radial-gradient(
+      circle at 52% 12%,
+      rgb(var(--lone-grime-rgb) / 0.3),
+      transparent 46%
+    );
+  transition: opacity 420ms ease;
+}
+
+/* ── 抖落的灰塵 ── */
+.sto-lone-note__dust {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.sto-lone-dust-mote {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: var(--lone-mote);
+  animation-name: sto-lone-mote;
+  animation-timing-function: cubic-bezier(0.25, 0.6, 0.4, 1);
+  animation-fill-mode: forwards;
+}
+
+/* 往外飄 + 往下沉——灰塵不會直線飛，重力要看得出來 */
+@keyframes sto-lone-mote {
+  0% {
+    opacity: 0.9;
+    transform: rotate(var(--mote-angle, 0deg))
+      translateX(calc(var(--mote-dist, 40px) * 0.15)) rotate(0deg) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--mote-angle, 0deg))
+      translateX(var(--mote-dist, 40px))
+      rotate(calc(var(--mote-angle, 0deg) * -1)) translateY(26px);
+  }
+}
+
+/* 抖乾淨後的收束 */
+.sto-lone-note.is-settling {
+  cursor: default;
+  animation: sto-lone-settle 1.4s cubic-bezier(0.34, 1.4, 0.5, 1) forwards;
+}
+
+@keyframes sto-lone-settle {
+  0% {
+    transform: translate(var(--sto-lone-dx, 0px), var(--sto-lone-dy, 0px))
+      rotate(-2.5deg) scale(1);
+    box-shadow:
+      0 4px 14px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  }
+  45% {
+    transform: translate(var(--sto-lone-dx, 0px), var(--sto-lone-dy, 0px))
+      rotate(1.5deg) scale(1.09);
+    box-shadow:
+      0 12px 32px rgba(0, 0, 0, 0.24),
+      0 0 30px rgba(213, 182, 24, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+  100% {
+    transform: translate(var(--sto-lone-dx, 0px), var(--sto-lone-dy, 0px))
+      rotate(-1deg) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sto-lone-note,
+  .sto-lone-note.is-settling {
+    animation: none;
+    transition: none;
+  }
+  .sto-lone-note.is-settling {
+    opacity: 0;
+  }
+  /* 灰塵是「有沒有反應」的唯一回饋，不能整個關掉——縮短即可 */
+  .sto-lone-dust-mote {
+    animation-duration: 0.2s !important;
+  }
+}
+
+/* 手機不掛浮島，這張紙條也不該出現（掛載端已守門，這裡是保險） */
+@media (max-width: 760px) {
+  .sto-lone-note {
+    display: none;
+  }
+}

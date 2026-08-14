@@ -1,0 +1,893 @@
+/**
+ * Storage Island —「便條紙」視覺語彙
+ *
+ * S9-C.5（v2 設計稿提案 A「一整張紙」）：整座島＝一張貼在頁面上的紙。
+ * 頂端膠帶固定、底緣撕開的鋸齒、紙紋壓在最上層，白框 header 由 bare
+ * 外殼取消，標題直接寫在紙上並兼任拖曳把手。
+ *
+ * ⚠️ 設計稿的手寫體（Long Cang）不採用——艾斯維爾 2026-07-25 指定不要
+ * 特殊字體，全部走站內既有的 --font-serif-tc。
+ *
+ * 主色：var(--st-paper-a) 紙 / var(--st-slip) 便條 / var(--st-slip-latest) 最新 / var(--st-ink) 墨色
+ */
+
+.uep-island--storage .uep-island__body {
+  padding: 0;
+  /* 紙的材質改掛在 .uep-stoland 本體（bare 外殼不再有可依附的白框），
+   * 但撕邊要能超出邊界，這層不能裁切 */
+  overflow: visible;
+}
+
+/* ── 整座島＝一張紙（S9-C.7：兩套色） ──
+ * 材質色走區域變數 + 通道變數（rgb(x / a)），深色模式只重定義這一組。
+ * 深色不是把便條變黑，是暗處的暖黃紙：紙面壓暗、便條保留黃調、墨轉米色。 */
+.uep-stoland {
+  --st-paper-a: #fdf7e0;
+  --st-paper-b: #f6ecca;
+  --st-paper-c: #f2e6c0;
+  --st-slip: #fff1ba;
+  --st-slip-latest: #ffe98a;
+  --st-slip-hover: #ffeb9c;
+  --st-slip-pinned: #ede1a5;
+  --st-slip-edit: #fff8d4;
+  --st-tape-a: rgba(240, 232, 196, 0.85);
+  --st-tape-b: rgba(222, 212, 170, 0.8);
+  --st-ink: #3a2f08;
+  --st-title: #5b4a12;
+  --st-warn: #7a1d0a;
+  --st-ink-rgb: 58 47 8;
+  --st-cast-rgb: 50 36 6;
+  --st-grain-rgb: 140 110 40;
+  --st-warn-rgb: 180 60 40;
+  --st-grain-blend: multiply;
+
+  --island-close-top: 25px; /* = 紙的天頭 22 + 3 */
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 22px 20px 16px;
+  max-height: 80vh;
+  color: var(--st-ink);
+  font-family: var(--font-serif-tc, serif);
+  background: linear-gradient(
+    172deg,
+    var(--st-paper-a),
+    var(--st-paper-b) 70%,
+    var(--st-paper-c)
+  );
+  box-shadow:
+    0 16px 34px rgb(var(--st-cast-rgb) / 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 深色模式：暗處的便條紙——紙面壓暗、便條保留黃調（那是它的識別）、
+   墨轉米色。紙紋改 overlay：multiply 疊在暗紙上會整片糊掉。 */
+[data-theme='dark'] .uep-stoland {
+  --st-paper-a: #3a3423;
+  --st-paper-b: #332e1f;
+  --st-paper-c: #2d281a;
+  --st-slip: #4d4524;
+  --st-slip-latest: #5f5429;
+  --st-slip-hover: #574d26;
+  --st-slip-pinned: #3f3a22;
+  --st-slip-edit: #665a2c;
+  --st-tape-a: rgba(120, 112, 82, 0.8);
+  --st-tape-b: rgba(96, 90, 66, 0.78);
+  --st-ink: #e8dcae;
+  --st-title: #e2cf8c;
+  --st-warn: #ff9b7a;
+  --st-ink-rgb: 232 220 174;
+  --st-cast-rgb: 0 0 0;
+  --st-grain-rgb: 255 240 200;
+  --st-warn-rgb: 255 155 122;
+  --st-grain-blend: overlay;
+}
+
+/* 紙紋（壓在最上層——字是印在紙裡的） */
+.uep-stoland::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    96deg,
+    rgb(var(--st-grain-rgb) / 0.05) 0 2px,
+    transparent 2px 6px
+  );
+  pointer-events: none;
+  mix-blend-mode: var(--st-grain-blend);
+  z-index: 4;
+}
+
+/* 底緣：撕開的鋸齒 */
+.uep-stoland::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -9px;
+  height: 10px;
+  background: var(--st-paper-c);
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 42%,
+    96% 12%,
+    92% 58%,
+    88% 18%,
+    84% 66%,
+    79% 22%,
+    74% 60%,
+    69% 16%,
+    64% 62%,
+    59% 20%,
+    54% 58%,
+    49% 14%,
+    44% 64%,
+    39% 22%,
+    34% 56%,
+    29% 16%,
+    24% 62%,
+    19% 20%,
+    14% 58%,
+    9% 14%,
+    4% 60%,
+    0 20%
+  );
+  box-shadow: 0 4px 8px rgb(var(--st-cast-rgb) / 0.2);
+  pointer-events: none;
+}
+
+/* 貼住紙頭的膠帶 */
+.uep-stoland__tape {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  width: 74px;
+  height: 19px;
+  background: linear-gradient(180deg, var(--st-tape-a), var(--st-tape-b));
+  box-shadow: 0 1px 3px rgb(var(--st-cast-rgb) / 0.18);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.uep-stoland__tape::before,
+.uep-stoland__tape::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.08) 0 2px,
+    transparent 2px 4px
+  );
+}
+
+.uep-stoland__tape::before {
+  left: 0;
+}
+
+.uep-stoland__tape::after {
+  right: 0;
+}
+
+/* ── 紙上的標題（＝拖曳把手） ── */
+.uep-stoland__masthead {
+  position: relative;
+  z-index: 2;
+}
+
+/* 字級與字距走 .uep-island-title 共用規格 */
+.uep-stoland__hand {
+  font-family: var(--font-serif-tc, serif);
+  color: var(--st-title);
+}
+
+.uep-stoland__rule {
+  height: 1px;
+  background: rgb(var(--st-ink-rgb) / 0.22);
+  margin: 10px 0 8px;
+}
+
+/* ── 收起（位置與字級走 .uep-island-close） ── */
+.uep-stoland__close {
+  color: rgb(var(--st-ink-rgb) / 0.55);
+}
+
+.uep-stoland__close:hover {
+  color: var(--st-ink);
+}
+
+/* ── 當前位置條 ── */
+.uep-stoland__location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 6px;
+  border-bottom: 1px dashed rgb(var(--st-ink-rgb) / 0.2);
+  font-family: var(--font-display, sans-serif);
+  font-size: 11px;
+  color: rgb(var(--st-ink-rgb) / 0.8);
+  letter-spacing: 0.04em;
+}
+
+.uep-stoland__location-icon {
+  font-size: 10px;
+  color: rgb(var(--st-ink-rgb) / 0.5);
+}
+
+.uep-stoland__location-label {
+  font-weight: 500;
+}
+
+.uep-stoland__location-page {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(var(--st-ink-rgb) / 0.6);
+  font-size: 10.5px;
+}
+
+.uep-stoland__location-page::before {
+  content: '·';
+  margin: 0 6px;
+  opacity: 0.5;
+}
+
+/* ── 便條列表 ── */
+.uep-stoland__list {
+  padding: 12px 14px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 60px;
+}
+
+.uep-stoland__empty {
+  padding: 20px 8px;
+  text-align: center;
+  color: rgb(var(--st-ink-rgb) / 0.55);
+  font-style: italic;
+  font-size: 12.5px;
+}
+
+/* ── 單張便條 ── */
+.uep-stoland__note {
+  background: var(--st-slip);
+  color: var(--st-ink);
+  /* 拖曳與原生文字選取互搶會讓拖曳體感卡頓；便條內文不開放選取
+   *（編輯走 textarea） */
+  user-select: none;
+  padding: 8px 26px 8px 10px;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+  position: relative;
+  transition:
+    transform 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+/* 最新編輯放大——文字加粗、稍大、陰影加深 */
+.uep-stoland__note.is-latest {
+  background: var(--st-slip-latest);
+  font-size: 13.5px;
+  transform: scale(1.02) rotate(var(--tilt, 0deg));
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* hover / focus 提示可互動 */
+.uep-stoland__note:not(.is-confirming):not(.is-editing):hover {
+  background: var(--st-slip-hover);
+}
+
+/* 已釘：暗掉、標示「已在頁面上」，點擊 → 導向 */
+.uep-stoland__note.is-pinned {
+  opacity: 0.42;
+  background: var(--st-slip-pinned);
+  cursor: pointer;
+  position: relative;
+}
+
+.uep-stoland__note.is-pinned::after {
+  content: '↗';
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 12px;
+  color: rgb(var(--st-ink-rgb) / 0.5);
+  pointer-events: none;
+}
+
+.uep-stoland__note.is-pinned:hover {
+  opacity: 0.65;
+  background: var(--st-slip-pinned);
+}
+
+/* 拖曳中：略微淡出，游標變 grabbing */
+.uep-stoland__note.is-dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+/* 拖曳 ghost（跟隨 pointer）——portal 到 body，transform 定位（compositor
+ * 層，拖曳零卡頓）；translate + rotate 由 JS 直寫，這裡只給視覺 */
+.uep-stoland__note-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform;
+  background: var(--st-slip);
+  color: var(--st-ink);
+  padding: 6px 10px;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  max-width: 180px;
+  z-index: 2500;
+  border-left: 3px solid rgb(var(--st-grain-rgb) / 0.6);
+}
+
+/* 便條內容按鈕（點擊進編輯） */
+.uep-stoland__note-text {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.uep-stoland__note-text:focus-visible {
+  outline: 1px dashed rgb(var(--st-ink-rgb) / 0.5);
+  outline-offset: 2px;
+}
+
+/* 刪除鈕（右上角 ×） */
+.uep-stoland__note-delete {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: rgb(var(--st-ink-rgb) / 0.45);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 0;
+  transition: color 120ms ease;
+}
+
+.uep-stoland__note-delete:hover {
+  color: rgb(var(--st-ink-rgb) / 0.85);
+}
+
+/* ── 地點／時間小標快照（唯讀展示，S10-1） ── */
+.uep-stoland__note-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: rgb(var(--st-ink-rgb) / 0.5);
+}
+
+.uep-stoland__note-meta-item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ── 編輯態 textarea ── */
+.uep-stoland__note.is-editing {
+  padding: 6px 10px;
+  background: var(--st-slip-edit);
+  transform: rotate(0deg); /* 編輯時打直，方便輸入 */
+  user-select: text; /* 還回選取權——textarea 要能選字 */
+}
+
+.uep-stoland__note-textarea {
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  outline: 1px dashed rgb(var(--st-ink-rgb) / 0.4);
+  outline-offset: 2px;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+  resize: vertical;
+  padding: 2px;
+  cursor: text;
+  /* 深紅 caret——暖黃紙面上的深棕 caret 幾乎看不見（07/24 驗收回饋） */
+  caret-color: var(--st-warn);
+}
+
+.uep-stoland__note-textarea:focus {
+  outline: 1.5px solid rgb(var(--st-warn-rgb) / 0.55);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.uep-stoland__note-textarea::selection {
+  background: rgb(var(--st-warn-rgb) / 0.25);
+}
+
+/* ── 地點／時間逐張小標（S10-1，編輯態可勾選） ── */
+.uep-stoland__note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.uep-stoland__note-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: rgb(var(--st-ink-rgb) / 0.7);
+  cursor: pointer;
+}
+
+.uep-stoland__note-tag input[type='checkbox'] {
+  margin: 0;
+  accent-color: var(--st-warn);
+  cursor: pointer;
+}
+
+.uep-stoland__note-tag-value {
+  color: rgb(var(--st-ink-rgb) / 0.55);
+  font-style: italic;
+}
+
+/* 編輯中的操作提示（Esc 還原不明顯——07/24 驗收回饋） */
+.uep-stoland__edit-hint {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: rgb(var(--st-ink-rgb) / 0.5);
+}
+
+/* ── 島內局部刪除確認 ── */
+.uep-stoland__note.is-confirming {
+  background: var(--st-slip-edit);
+  padding: 8px 10px;
+  transform: rotate(0deg);
+}
+
+.uep-stoland__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.uep-stoland__confirm-msg {
+  font-size: 12px;
+  color: var(--st-warn);
+  font-weight: 500;
+}
+
+.uep-stoland__confirm-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.uep-stoland__confirm-yes,
+.uep-stoland__confirm-no {
+  flex: 1;
+  padding: 3px 10px;
+  border: 1px solid rgb(var(--st-ink-rgb) / 0.4);
+  background: transparent;
+  color: var(--st-ink);
+  cursor: pointer;
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.uep-stoland__confirm-yes {
+  background: rgb(var(--st-warn-rgb) / 0.15);
+  border-color: rgb(var(--st-warn-rgb) / 0.6);
+  color: var(--st-warn);
+}
+
+.uep-stoland__confirm-yes:hover {
+  background: rgb(var(--st-warn-rgb) / 0.35);
+}
+
+.uep-stoland__confirm-no:hover {
+  background: rgb(var(--st-ink-rgb) / 0.1);
+}
+
+/* ── 便條計數 + 錯誤 ── */
+.uep-stoland__meta {
+  padding: 4px 14px 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: rgb(var(--st-ink-rgb) / 0.55);
+  letter-spacing: 0.1em;
+}
+
+.uep-stoland__meta-error {
+  color: var(--st-warn);
+  font-weight: 500;
+}
+
+/* ── 輸入區 ── */
+.uep-stoland__form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px dashed rgb(var(--st-ink-rgb) / 0.2);
+  background: var(--st-paper-b);
+}
+
+.uep-stoland__prompt {
+  color: var(--st-title);
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+}
+
+.uep-stoland__input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--st-ink);
+  font-family: var(--font-serif-tc, serif);
+  font-size: 12.5px;
+  padding: 2px 0;
+}
+
+.uep-stoland__input::placeholder {
+  color: rgb(var(--st-ink-rgb) / 0.4);
+}
+
+.uep-stoland__input:disabled {
+  color: rgb(var(--st-ink-rgb) / 0.35);
+  cursor: not-allowed;
+}
+
+.uep-stoland__submit {
+  background: transparent;
+  border: 1px solid rgb(var(--st-ink-rgb) / 0.5);
+  color: var(--st-ink);
+  cursor: pointer;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  padding: 3px 10px;
+  letter-spacing: 0.16em;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.uep-stoland__submit:hover:not(:disabled) {
+  background: rgb(var(--st-ink-rgb) / 0.1);
+}
+
+.uep-stoland__submit:disabled {
+  border-color: rgb(var(--st-ink-rgb) / 0.2);
+  color: rgb(var(--st-ink-rgb) / 0.35);
+  cursor: not-allowed;
+}
+
+/* ── 暗色主題（DesignLayout data-theme="dark"）適配 ──
+ * 便條紙本質是實體物件，深色主題下降低亮度但保留暖黃質感，避免刺眼。
+ */
+[data-theme='dark'] .uep-island--storage .uep-island__body {
+  background: var(--st-slip-pinned);
+}
+
+[data-theme='dark'] .uep-island--storage .uep-island__body::before {
+  background: var(--st-tape-b);
+}
+
+[data-theme='dark'] .uep-stoland__note {
+  background: var(--st-slip-latest);
+}
+
+[data-theme='dark'] .uep-stoland__note.is-latest {
+  background: var(--st-slip-latest);
+}
+
+[data-theme='dark'] .uep-stoland__form {
+  background: var(--st-slip-pinned);
+}
+
+/* ── 手機 bottom sheet ── */
+.uep-island--sheet.uep-island--storage .uep-island__body {
+  max-height: 55vh;
+  overflow: hidden;
+}
+
+.uep-island--sheet.uep-island--storage .uep-stoland {
+  max-height: none;
+}
+
+/* ── prefers-reduced-motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .uep-stoland__note {
+    transition: none;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * S9-C.5 — 版面貼合紙面
+ * 內距統一交給 .uep-stoland 的紙緣，內部區塊不再各自留左右內距，
+ * 否則字會離撕邊太遠、看起來像紙裡又有一張紙。
+ * ════════════════════════════════════════════════════════════════ */
+
+.uep-stoland__location {
+  position: relative;
+  z-index: 2;
+  padding: 0 0 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  border-bottom: none;
+}
+
+.uep-stoland__list {
+  position: relative;
+  z-index: 2;
+  padding: 10px 0 6px;
+  /* 紙不能無限長：便條多了列表自捲，膠帶與撕邊維持在原位 */
+  max-height: 152px;
+}
+
+.uep-stoland__meta {
+  position: relative;
+  z-index: 2;
+  padding: 4px 0 0;
+}
+
+/* 輸入列＝紙上的一行，不是另一塊色塊 */
+.uep-stoland__form {
+  position: relative;
+  z-index: 2;
+  padding: 8px 0 0;
+  margin-top: 6px;
+  background: transparent;
+  border-top: 1px dashed rgb(var(--st-ink-rgb) / 0.32);
+}
+
+/* ── 離場：紙被撕離膠帶；進場為逆行（紙被貼回去） ── */
+.uep-island--storage.uep-island--leaving,
+.uep-island--storage.uep-island--entering {
+  transform-origin: top center;
+  animation: uep-stoland-tear 0.4s var(--ease) forwards;
+}
+
+.uep-island--storage.uep-island--entering {
+  animation-direction: reverse;
+}
+
+@keyframes uep-stoland-tear {
+  0% {
+    transform: rotate(0deg) translateY(0);
+    opacity: 1;
+  }
+  35% {
+    transform: rotate(-3deg) translateY(-4px);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(9deg) translateY(56px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-island--storage.uep-island--leaving,
+  .uep-island--storage.uep-island--entering {
+    animation: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+ * 對話解鎖通知 —— UEP 從島的角落斜斜探出來
+ *
+ * 定位在島外緣（負 offset）靠的是 `.uep-island--storage
+ * .uep-island__body { overflow: visible }`，改動那一行會讓整隻被裁掉。
+ * 容器不吃指標事件，只有氣泡與關閉鈕自己開——探頭圖蓋住的島面積不小，
+ * 擋住底下的便條會很煩。
+ * ═══════════════════════════════════════════════════════════ */
+
+.uep-stoland__peek {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  pointer-events: none;
+  animation: uep-stoland-peek-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.uep-stoland__peek > * {
+  pointer-events: auto;
+}
+
+.uep-stoland__peek-fence {
+  width: 92px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 4px 10px rgb(var(--st-cast-rgb) / 0.3));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* 四個角落——每次通知隨機挑一個。傾斜方向朝島心，看起來才像探進來
+   而不是要走掉。 */
+.uep-stoland__peek--tl {
+  top: -46px;
+  left: -26px;
+}
+.uep-stoland__peek--tl .uep-stoland__peek-fence {
+  transform: rotate(-13deg);
+}
+
+.uep-stoland__peek--tr {
+  top: -46px;
+  right: -26px;
+  flex-direction: row-reverse;
+}
+.uep-stoland__peek--tr .uep-stoland__peek-fence {
+  transform: rotate(13deg) scaleX(-1);
+}
+
+.uep-stoland__peek--bl {
+  bottom: -40px;
+  left: -26px;
+  align-items: flex-start;
+}
+.uep-stoland__peek--bl .uep-stoland__peek-fence {
+  transform: rotate(9deg);
+}
+
+.uep-stoland__peek--br {
+  bottom: -40px;
+  right: -26px;
+  flex-direction: row-reverse;
+  align-items: flex-start;
+}
+.uep-stoland__peek--br .uep-stoland__peek-fence {
+  transform: rotate(-9deg) scaleX(-1);
+}
+
+/* 對話框——沿用島的紙張色票，讓它看起來是同一張紙上的字條 */
+.uep-stoland__peek-bubble {
+  position: relative;
+  max-width: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  border: 1px solid rgb(var(--st-ink-rgb) / 0.22);
+  border-radius: 10px;
+  background: var(--st-slip-latest);
+  box-shadow: 0 4px 14px rgb(var(--st-cast-rgb) / 0.22);
+  color: var(--st-ink);
+  font-family: var(--font-serif-tc);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.uep-stoland__peek-bubble:hover {
+  transform: translateY(-2px);
+  background: var(--st-slip-hover);
+}
+
+.uep-stoland__peek-lead {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--st-title);
+}
+
+.uep-stoland__peek-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  /* 對話標題可能很長，兩行封頂——CJK 沒有空白可斷，要 anywhere */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.uep-stoland__peek-hint {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  opacity: 0.62;
+}
+
+.uep-stoland__peek-dismiss {
+  align-self: flex-start;
+  margin-bottom: 10px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--st-title);
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.uep-stoland__peek-dismiss:hover {
+  opacity: 1;
+}
+
+@keyframes uep-stoland-peek-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uep-stoland__peek {
+    animation: none;
+  }
+  .uep-stoland__peek-bubble:hover {
+    transform: none;
+  }
+}

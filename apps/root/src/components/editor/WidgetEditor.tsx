@@ -13,6 +13,7 @@ import {
   OutlineRow,
 } from './editorPrimitives';
 import RootMediaLibrary from './RootMediaLibrary';
+import { UploadSpinner } from './UploadSpinner';
 import type { RootCard } from '../../lib/api';
 
 // ── 型別 ─────────────────────────────────────────────────
@@ -314,6 +315,8 @@ function MusicEditor({
   const [showPicker, setShowPicker] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadIdx, setUploadIdx] = useState<number | null>(null);
+  /** 正在上傳的曲目 index——每首各自顯示 spinner */
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
 
   const updateTrack = (idx: number, field: string, value: string) => {
     const next = [...tracks];
@@ -337,6 +340,7 @@ function MusicEditor({
   const handleUpload = async (idx: number, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
+    setUploadingIdx(idx);
     try {
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -357,6 +361,8 @@ function MusicEditor({
       }
     } catch (err) {
       console.error('Audio upload error:', err);
+    } finally {
+      setUploadingIdx(null);
     }
   };
 
@@ -456,8 +462,14 @@ function MusicEditor({
                 setUploadIdx(i);
                 fileInputRef.current?.click();
               }}
+              disabled={uploadingIdx !== null}
+              aria-busy={uploadingIdx === i}
             >
-              ↑ 上傳音檔
+              {uploadingIdx === i ? (
+                <UploadSpinner label="上傳中" />
+              ) : (
+                '↑ 上傳音檔'
+              )}
             </button>
             <button
               className="qe-btn"

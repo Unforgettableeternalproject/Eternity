@@ -18,7 +18,10 @@ export default function WidgetPortal() {
   const handleExplore = () => {
     // 隨機選一個 zone
     const zone = zones[Math.floor(Math.random() * zones.length)];
-    window.open(`${UEP_URL}/${zone.id}`, '_blank');
+    // `from=portal` 是給文件站的記號：老朋友從這道門過來時會拿到
+    // `uep:from-far`（見 apps/uep 的 progress/uepFlags）。用參數而非
+    // referrer——主站有四個地方連到文件站，referrer 分不出是哪一個。
+    window.open(`${UEP_URL}/${zone.id}?from=portal`, '_blank');
   };
 
   return (

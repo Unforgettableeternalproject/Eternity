@@ -146,12 +146,23 @@
 }
 
 .history-reader {
+  /* 史學紅的「可讀墨色」：--history-main 是深棕，zone 主色沒有暗色版本
+     （tokens.css 的深色主題只覆寫 tint／stroke／atmo），直接落在暗底上
+     的文字與細標籤幾乎看不見。改 zone token 會波及整個史學區，所以在
+     reader 內另立一階，深色換成同色系的亮階。
+     互動式嵌入與「上次位置」標記共用這一條，避免各自長出一套。 */
+  --history-ink: var(--history-main);
+
   height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg);
   color: var(--ink);
   overflow: hidden;
+}
+
+[data-theme='dark'] .history-reader {
+  --history-ink: var(--history-soft);
 }
 
 .history-topbar {
@@ -515,12 +526,120 @@
   z-index: 1;
 }
 
-/* === 滾動軸「上次閱讀位置」標記 === */
+/* === 掃描線（Epic 2 進度系統）=== */
+/* 進度標記前台隱形——不能用 display:none，
+   IntersectionObserver 需要 layout box 才會觸發 */
+.history-prose [data-role='progress-marker'],
+.history-prose [data-role='echo-spot'],
+.history-prose [data-role='visual-clue-start'],
+.history-prose [data-role='visual-clue-end'] {
+  display: block;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  visibility: hidden;
+}
+
+/* 文末哨兵：通過即視為讀完整篇 */
+.history-scan-sentinel {
+  height: 1px;
+}
+
+/* === 互動式嵌入（Epic 2 S4）===
+   只有「已解鎖」的 entity 才有樣式與行為；
+   未解鎖的 entity span 不帶啟用屬性，就是普通文字。
+   墨色走 --history-ink（見 .history-reader）。 */
+.history-prose span[data-uep-entity-active] {
+  cursor: pointer;
+  color: var(--history-ink);
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition:
+    color 0.2s ease,
+    text-shadow 0.2s ease;
+}
+
+.history-prose span[data-uep-entity-active]:hover {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--history-ink) 45%, transparent);
+}
+
+.history-prose span[data-uep-entity-active]:focus-visible {
+  outline: 1px dotted var(--history-ink);
+  outline-offset: 2px;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--history-ink) 45%, transparent);
+}
+
+/* === 遺落的書籤 — 導航樹特殊條目（S6-2） === */
+.history-tree-item--bookmark {
+  position: relative;
+}
+
+.history-tree-bookmark {
+  font-family: var(--font-serif-tc);
+  font-style: italic;
+  color: var(--uep-gold);
+  animation: lostBookmarkEntryIn 0.8s var(--ease) both;
+}
+
+.history-tree-bookmark .history-tree-title {
+  background: linear-gradient(
+    100deg,
+    var(--uep-gold) 20%,
+    #fff2c4 50%,
+    var(--uep-gold) 80%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: lostBookmarkShimmer 3.2s linear infinite;
+}
+
+.history-tree-bookmark:hover .history-tree-title {
+  animation-duration: 1.4s;
+}
+
+@keyframes lostBookmarkEntryIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes lostBookmarkShimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* === 滾動軸「上次閱讀位置」標記 ===
+ * 掛在 .history-main（position: relative、不滾動）而非 .history-content
+ * 滾動容器內——top:% 對映可視高度，像滾動軸上的書籤，不隨內容捲動（S6-2）。
+ *
+ * 標籤本體內縮、連接線探向右緣（比照 Visual Clue 插卡的語彙）：貼齊右緣
+ * 時標籤會被浮島 dock 的 chip 直接蓋住（dock 是 right:14px + 44px chip，
+ * 佔住右緣 14~58px），而 dock 一直都在、標記的 top 又跟著閱讀位置跑，
+ * 撞上只是遲早。線寬起跳 72px 就是為了讓標籤整個落在 chip 帶之外。 */
 .history-scroll-marker {
   position: absolute;
   right: 0;
-  z-index: 20;
+  /* 高於 Visual Clue 插卡（21）：兩者現在共用右側留白，垂直撞上時
+     優先讓導航用的標記可見，插卡本來就是可 hover 展開的裝飾層 */
+  z-index: 22;
   display: flex;
+  /* DOM 是「線 → 標籤」，視覺要「標籤 ← 線」 */
+  flex-direction: row-reverse;
   align-items: center;
   gap: 0;
   padding: 0;
@@ -565,14 +684,29 @@
 }
 
 .history-scroll-marker-line {
+  position: relative;
   display: block;
-  width: 48px;
+  width: clamp(72px, 7vw, 104px);
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--history-main));
+  /* 靠標籤那端實色、探向右緣淡出，末端落一顆針腳（同 clue 連接線） */
+  background: linear-gradient(90deg, var(--history-ink), transparent);
   opacity: 0.7;
   transition:
     opacity 0.2s,
     width 0.2s;
+}
+
+.history-scroll-marker-line::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--history-ink);
+  opacity: 0.85;
+  transform: translate(50%, -50%);
 }
 
 .history-scroll-marker-label {
@@ -581,10 +715,10 @@
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.06em;
-  color: var(--history-main);
+  color: var(--history-ink);
   padding: 5px 12px;
-  background: color-mix(in srgb, var(--history-main) 10%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, var(--history-main) 30%, transparent);
+  background: color-mix(in srgb, var(--history-ink) 10%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--history-ink) 45%, transparent);
   opacity: 0.85;
   transition:
     opacity 0.2s,
@@ -594,13 +728,26 @@
 
 .history-scroll-marker:hover .history-scroll-marker-line {
   opacity: 1;
-  width: 64px;
+  width: clamp(88px, 8.5vw, 124px);
 }
 
 .history-scroll-marker:hover .history-scroll-marker-label {
   opacity: 1;
-  background: color-mix(in srgb, var(--history-main) 22%, var(--bg-card));
+  background: color-mix(in srgb, var(--history-ink) 22%, var(--bg-card));
   transform: translateX(-4px);
+}
+
+/* 手機沒有 dock（浮島整組不掛載），標記回到貼齊右緣，
+   內縮只會把標籤推進本來就窄的內文裡 */
+@media (max-width: 760px) {
+  .history-scroll-marker-line,
+  .history-scroll-marker:hover .history-scroll-marker-line {
+    width: 40px;
+  }
+
+  .history-scroll-marker-line::after {
+    display: none;
+  }
 }
 
 /* === 頁面轉場 — 卷軸展開 === */
@@ -658,9 +805,11 @@
   opacity: 0.7;
 }
 
+/* 首頁文字不另設 max-width——右邊界統一跟隨 landing 內容寬，
+   與 UEP 對話、拱門卡片對齊（Ariel 2026-08-12：右邊界太多）。
+   文章頁的副標（article-head）維持窄欄，不在此列。 */
 .history-landing p,
 .history-article-head p {
-  max-width: 620px;
   margin: 22px 0 0;
   font-family: var(--font-serif-tc);
   font-size: 16px;
@@ -669,8 +818,11 @@
   font-style: italic;
 }
 
+.history-article-head p {
+  max-width: 620px;
+}
+
 .history-landing-prose {
-  max-width: 680px;
   margin-top: 28px;
 }
 
@@ -1272,4 +1424,363 @@
 [data-ring-mask] .history-reading {
   background: var(--bg);
   position: relative;
+}
+
+/* ═══ 鎖定三態標題樣式（Epic 2 內容閘門）═══
+   progression（進度鎖）：輕度模糊，隱約可見——循序漸進的預告感
+   flag（旗標鎖）：完全遮蔽不透字，顯示為？？？ */
+.history-tree-title--blurred {
+  filter: blur(2.5px);
+  opacity: 0.7;
+  user-select: none;
+}
+.history-tree-title--veiled {
+  opacity: 0.5;
+  font-style: italic;
+  letter-spacing: 0.2em;
+  user-select: none;
+}
+
+/* blur 消散為 transition：解鎖時模糊淡出、視覺不會硬切 */
+.history-tree-title {
+  transition:
+    filter 0.7s ease-out,
+    opacity 0.7s ease-out;
+}
+
+/* ═══ 節點狀態轉換入場動畫（Epic 2 打磨輪 2026-07-03）═══
+   露出：hidden → visible，從左緩緩滑入 + 淡入（墨韻鋪展）。
+   解鎖：progression/flag → open，金色高光橫掃標題（豁然開朗）。
+   兩者同時觸發時併行播放。動畫結束後 class 由 React 於 900ms
+   內清除；使用 prefers-reduced-motion 時退回瞬時切換。 */
+@keyframes history-reveal-slide {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+    filter: blur(1px);
+  }
+  60% {
+    opacity: 0.9;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+.history-tree-item.is-revealed {
+  animation: history-reveal-slide 0.6s ease-out;
+}
+
+@keyframes history-unlock-shine {
+  0% {
+    background-position: -120% 0;
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    background-position: 220% 0;
+    opacity: 0;
+  }
+}
+
+.history-tree-item.is-unlocked .history-tree-link {
+  position: relative;
+  overflow: hidden;
+}
+
+.history-tree-item.is-unlocked .history-tree-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--history-soft, #c8a46a) 65%, transparent) 45%,
+    color-mix(in srgb, var(--history-soft, #c8a46a) 85%, transparent) 50%,
+    color-mix(in srgb, var(--history-soft, #c8a46a) 65%, transparent) 55%,
+    transparent 100%
+  );
+  background-size: 60% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: screen;
+  animation: history-unlock-shine 0.85s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .history-tree-item.is-revealed,
+  .history-tree-item.is-unlocked .history-tree-link::after {
+    animation: none;
+  }
+  .history-tree-title {
+    transition: none;
+  }
+}
+
+/* ═══ Chapter / Arc 頁自動時間軸目錄（D 步驟）═══
+   垂直時間軸，左節點右內容。狀態：completed/available/progression/flag/static。 */
+.history-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 2.5rem 0 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--history-main) 20%, transparent);
+  padding-top: 2rem;
+  position: relative;
+}
+
+.history-timeline-item {
+  position: relative;
+  padding: 0.35rem 0 0.35rem 0;
+}
+
+/* 縱向連線（畫在節點欄中央，穿透每個 item） */
+.history-timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 0.9rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--history-main) 30%, transparent);
+}
+.history-timeline-item:first-child::before {
+  top: 50%;
+}
+.history-timeline-item:last-child::before {
+  bottom: 50%;
+}
+
+.history-timeline-button {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  color: inherit;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+  position: relative;
+}
+.history-timeline-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--history-main) 6%, transparent);
+}
+.history-timeline-button:focus-visible {
+  outline: 2px solid var(--history-main);
+  outline-offset: 2px;
+}
+.history-timeline-button:disabled {
+  cursor: not-allowed;
+}
+
+.history-timeline-marker {
+  flex: 0 0 1.8rem;
+  display: flex;
+  justify-content: center;
+  padding-top: 0.15rem;
+}
+
+.history-timeline-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  line-height: 1;
+  background: var(--bg-card);
+  border: 1.5px solid var(--history-main);
+  color: var(--history-main);
+  position: relative;
+  z-index: 1;
+}
+
+/* 已完成：實心金點 */
+.history-timeline-dot.is-completed {
+  background: var(--history-main);
+  border-color: var(--history-main);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--history-main) 18%, transparent);
+}
+
+/* 可讀：空心（default） */
+.history-timeline-dot.is-available {
+  background: var(--bg-card);
+}
+
+/* 當前節點閃爍（僅在 available 時應用；locked 節點不高亮） */
+.history-timeline-dot.is-available.is-current {
+  background: var(--history-soft);
+  border-color: var(--history-main);
+  animation: historyTimelinePulse 1.8s ease-in-out infinite;
+}
+@keyframes historyTimelinePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--history-main) 50%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px
+      color-mix(in srgb, var(--history-main) 10%, transparent);
+  }
+}
+
+/* 進度鎖：虛化實心點 */
+.history-timeline-dot.is-progression {
+  background: color-mix(in srgb, var(--history-main) 35%, transparent);
+  border-color: color-mix(in srgb, var(--history-main) 40%, transparent);
+  opacity: 0.55;
+}
+
+/* 旗標鎖：❖ 符號 */
+.history-timeline-dot.is-flag {
+  background: transparent;
+  border-style: dashed;
+  color: color-mix(in srgb, var(--history-main) 55%, transparent);
+  font-size: 0.75rem;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* 靜態鎖：🔒 emoji */
+.history-timeline-dot.is-static {
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+  opacity: 0.55;
+}
+
+.history-timeline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.history-timeline-title {
+  font-family: 'Cinzel', 'Noto Serif TC', serif;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--history-main);
+  line-height: 1.35;
+}
+
+.history-timeline-desc {
+  font-size: 0.85rem;
+  color: color-mix(in srgb, var(--history-main) 68%, var(--text-body));
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
+.history-timeline-item.is-static .history-timeline-button,
+.history-timeline-item.is-progression .history-timeline-button {
+  opacity: 0.6;
+}
+.history-timeline-item.is-flag .history-timeline-button {
+  opacity: 0.5;
+}
+
+/* ── rush prevention 刻印顯影（S10-2 視覺 v2）──────────────
+ * 「霧遮住字」改為「字尚未寫上」：刻印線以下的區塊以淡墨痕呈現
+ * （.history-unwritten），刻印線掃過時播顯影動畫（.history-inscribing）
+ * ——切合 History 的書卷主題。class 由 useInscription 掛在內容區塊上。
+ *
+ * .history-fog 保留為透明事件盾＋刻印線本體，掛在 .history-content 內
+ * 隨內容捲動——它遮的是「內容從這裡開始還沒解鎖」，不是「畫面下半部」。
+ *
+ * reduced-motion 目前刻意不覆寫（艾斯維爾：先保留動畫，看情況再修），
+ * 這是暫時決策，不是漏做的無障礙需求。
+ */
+.history-fog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  /*
+   * 吃掉滑鼠事件——視覺遮蔽不等於「事件視為不存在」。底下的 entity 嵌入
+   * 與內部連結若還能點，防護就只是一層裝飾。鍵盤焦點另由 HistoryReader
+   * 的 focusin 攔截處理（CSS 管不到 Tab）。
+   */
+  pointer-events: auto;
+  /*
+   * 刻印線推進是量化級距的離散跳步（FOG_RATIO_WRITE_STEP），不補間的話
+   * 細線會一格一格瞬移。補間讓它滑過去；事件盾跟著慢半拍只會多遮不會
+   * 漏遮（線只往下走）。
+   */
+  transition:
+    top 700ms cubic-bezier(0.3, 0.7, 0.2, 1),
+    height 700ms cubic-bezier(0.3, 0.7, 0.2, 1);
+  /* 刻印微光：跟著 History 的琥珀色走 */
+  --inscribe-glow: rgba(212, 168, 100, 0.5);
+}
+
+/* 刻印線：邊界上唯一的可見元素——一條琥珀微光細線 */
+.history-fog::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 6%;
+  right: 6%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--inscribe-glow) 85%, transparent) 22%,
+    color-mix(in srgb, var(--inscribe-glow) 85%, transparent) 78%,
+    transparent
+  );
+  box-shadow: 0 0 14px var(--inscribe-glow);
+  opacity: 0.5;
+}
+
+/*
+ * 未刻印：淡墨痕——認得出有內容、讀不出字。rush 超過刻印線看到的
+ * 就是這個，不是空白（空白會被誤會成頁面壞掉）。
+ * pointer-events:none 是事件盾之外的第二層保險。
+ */
+.history-unwritten {
+  opacity: 0.3;
+  filter: blur(5px) saturate(0.35);
+  user-select: none;
+  pointer-events: none;
+}
+
+/*
+ * 刻印中：顯影＋琥珀微光。多個區塊同時掃過時由 useInscription 以
+ * animation-delay 錯開，依序浮現才有書寫的節奏。
+ * 動畫結束即移除 class 回到常態樣式，不留殘值。
+ */
+.history-inscribing {
+  animation: history-inscribe 950ms cubic-bezier(0.25, 0.7, 0.3, 1) both;
+}
+
+@keyframes history-inscribe {
+  0% {
+    opacity: 0.3;
+    filter: blur(5px) saturate(0.35);
+    text-shadow: 0 0 0 transparent;
+  }
+  55% {
+    opacity: 1;
+    filter: blur(0.5px) saturate(1);
+    text-shadow:
+      0 0 16px rgba(212, 168, 100, 0.5),
+      0 0 36px rgba(212, 168, 100, 0.22);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0) saturate(1);
+    text-shadow: 0 0 0 transparent;
+  }
 }

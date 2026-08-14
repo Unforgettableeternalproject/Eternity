@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { isSamePagePath } from '../../lib/pagePath';
 import { getDialog, getToast } from './editorHelpers';
 import {
   TYPE_LETTERS,
@@ -27,6 +28,12 @@ interface EditorPageTreeProps {
   currentSlug: string;
   accent: string;
   refreshKey?: number;
+  /**
+   * 樹狀導航前的守衛。回傳 false → 取消導航（例如使用者在 UepDialog 選了留下）；
+   * 未提供時樹點擊照舊直接跳頁。呼叫端負責清除 dirty 狀態以避免 beforeunload
+   * 二次攔截。
+   */
+  beforeNavigate?: (targetPageId: string) => Promise<boolean>;
 }
 
 const NO_EDIT_TYPES = new Set<string>(); // page 類型已移至首頁編輯器
@@ -62,6 +69,7 @@ export default function EditorPageTree({
   currentSlug,
   accent,
   refreshKey,
+  beforeNavigate,
 }: EditorPageTreeProps) {
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -377,7 +385,7 @@ export default function EditorPageTree({
       });
       const json = await res.json();
       if (json.ok) {
-        if (node.id === `${area}/${currentSlug}`) {
+        if (isSamePagePath(node.id, [area, currentSlug].join('/'))) {
           window.location.href = '/admin';
         } else {
           fetchTree();
@@ -507,7 +515,7 @@ export default function EditorPageTree({
     }
     if (TREE_HIDDEN_TYPES[area]?.has(node.pageType)) return null;
 
-    const isActive = node.id === `${area}/${currentSlug}`;
+    const isActive = isSamePagePath(node.id, [area, currentSlug].join('/'));
     const hiddenSet = TREE_HIDDEN_TYPES[area];
     const visibleChildren = hiddenSet
       ? (node.children || []).filter(
@@ -571,8 +579,15 @@ export default function EditorPageTree({
             <a
               href={`/admin/edit/${node.id}`}
               className="ned-tree-label"
-              onClick={(e) => {
-                if (isActive) e.preventDefault();
+              onClick={async (e) => {
+                if (isActive) {
+                  e.preventDefault();
+                  return;
+                }
+                if (!beforeNavigate) return; // 未提供守衛 → 原生跳轉
+                e.preventDefault();
+                const ok = await beforeNavigate(node.id);
+                if (ok) window.location.href = `/admin/edit/${node.id}`;
               }}
             >
               {node.title || node.slug}

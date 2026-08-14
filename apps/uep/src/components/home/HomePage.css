@@ -1424,9 +1424,10 @@
     min-height: unset;
   }
 
-  .home-hero-right {
-    display: none;
-  }
+  /* .home-hero-right 的 display 由 JSX 的 inline style 決定（grid），
+     這裡曾有一條 display:none——inline style 優先權更高，那條規則從來
+     沒生效過。手機版一樣要有主視覺，所以是移除死規則而不是改用
+     !important 讓它「終於生效」。 */
 
   .home-hero-h1 {
     font-size: 44px !important;
@@ -1473,5 +1474,66 @@
     white-space: normal;
     text-align: center;
     line-height: 1.6;
+  }
+}
+
+/* === 手機「回到導覽」浮動鈕 ===
+ * 右側導航欄在 760px 以下隱藏，這是手機唯一的回入口捷徑。
+ * 固定右下，避開 iOS 底部工具列與 home indicator。 */
+.journey-back-fab {
+  position: fixed;
+  right: 14px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  z-index: 320; /* Minimap(300) 之上、大地圖(400) 之下 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--uep-gold) 55%, transparent);
+  border-radius: 50%;
+  background: rgba(18, 15, 12, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--uep-gold);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  animation: journey-back-fab-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.journey-back-fab__glyph {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.journey-back-fab__label {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  line-height: 1;
+}
+
+.journey-back-fab:active {
+  background: rgba(28, 23, 18, 0.92);
+  border-color: var(--uep-gold);
+}
+
+@keyframes journey-back-fab-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journey-back-fab {
+    animation: none;
   }
 }

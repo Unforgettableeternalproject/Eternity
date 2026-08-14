@@ -1,6 +1,8 @@
 /* eslint-disable no-undef */
 import { defineMiddleware } from 'astro:middleware';
 
+import { isTestModeOverrideValue, TEST_MODE_COOKIE_NAME } from './lib/apiBase';
+
 const JWT_COOKIE = 'uep-admin-jwt';
 const ACTIVE_COOKIE = 'uep-admin-active';
 
@@ -76,6 +78,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // 開發模式直接放行，僅正式環境驗證 JWT
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
     if (import.meta.env.DEV) {
+      // Test Mode 下 SSR proxy 需轉發真 JWT（test worker 會驗簽章、無 dev bypass），
+      // 無 JWT cookie 時導去真登入；非 Test Mode 維持 dev 免登入
+      const isTestModeDev = isTestModeOverrideValue(
+        context.cookies.get(TEST_MODE_COOKIE_NAME)?.value
+      );
+      if (isTestModeDev && !context.cookies.get(JWT_COOKIE)?.value) {
+        const redirect = encodeURIComponent(pathname);
+        return context.redirect(`/admin/login?redirect=${redirect}`);
+      }
       // 開發模式：注入預設使用者，不需登入
       context.locals.user = {
         username: 'dev',
@@ -99,8 +110,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
       }
 
       const payload = await verifyJwt(jwtCookie.value, jwtSecret);
-      if (!payload) {
-        // JWT 無效或過期 — 清除 cookie
+      // 安全邊界：讀者 token（role='reader'）與 admin token 共用 JWT_SECRET，
+      // 僅靠 role 區分權限——admin 頁面一律拒絕 reader token（與 Worker requireJwt 一致）
+      if (!payload || payload.role === 'reader') {
+        // JWT 無效、過期或非 admin — 清除 cookie
         context.cookies.delete(JWT_COOKIE, { path: '/' });
         context.cookies.delete(ACTIVE_COOKIE, { path: '/' });
         const redirect = encodeURIComponent(pathname);

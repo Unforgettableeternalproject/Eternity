@@ -27,10 +27,30 @@ import type {
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
 import { useScrollMemory } from '../zone/useScrollMemory';
+import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
 import { isHidden, isLocked } from '../zone/contentVisibility';
+import { useEntityDragSource } from '../../islands';
+import {
+  loadEntityIndex,
+  type TerminalIndexEntry,
+} from '../../islands/concepts/terminalCore';
+import BrowserDetailButton from './BrowserDetailButton';
+import ConceptsTerminalBadge from './ConceptsTerminalBadge';
+import InterlinkTriggerButton from './InterlinkTriggerButton';
+import { useProgress } from '../../progress/useProgress';
+import { evaluateGate, parseGateCondition } from '../../progress/gating';
+import { resolveEffectiveViewForPage } from './revision';
+import { subcatValueColumns, subcatValueLabels } from './diffTable';
+import {
+  getCachedEffectiveView,
+  invalidatePageCache,
+  clearAllRevisionCache,
+} from './revisionCache';
 import './ConceptsReader.css';
+import { getApiBase } from '../../lib/apiBase';
+import { canonicalizePagePath } from '../../lib/pagePath';
 
 // ──────────────────────────────────────────────────────────────────
 // 型別
@@ -59,9 +79,7 @@ interface Page {
 // ──────────────────────────────────────────────────────────────────
 // 常數
 // ──────────────────────────────────────────────────────────────────
-const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.PUBLIC_CONTENT_API_URL || 'http://localhost:8788';
+const API_BASE = getApiBase();
 
 function resolveAssetUrl(ref: string): string {
   if (ref.startsWith('/api/assets/')) {
@@ -199,10 +217,60 @@ function normalizeDossierVariants(data: unknown): DossierVariant[] {
 // 子元件：ReaderDossier（records stack）
 // 接收已選定 variant 的 subcategories；variant 切換由父層控制
 // ──────────────────────────────────────────────────────────────────
-function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
+function ReaderDossier({
+  subcategories,
+  onOpenBrowserDetail,
+}: {
+  subcategories: DossierSubcat[];
+  /** 導向某 entity 的 browser 檔案（「詳細」按鈕用） */
+  onOpenBrowserDetail: (pageId: string, entityKey: string) => void;
+}) {
   const [activeTab, setActiveTab] = useState(0);
   const [activeGroup, setActiveGroup] = useState(0);
-  const subcat = subcategories[activeTab];
+  /*
+   * dossier 條目是 canonical entity 的所在地，也是唯一可以被拖進便條島的
+   * 條目型態（艾斯維爾 2026-07-27 定案）——browser／chrono／diff 的同名
+   * 條目是引用，不是命名來源，因此那三個 Reader 不掛拖曳來源。
+   */
+  const entityDrag = useEntityDragSource();
+
+  /*
+   * Concepts entity 索引：決定每個條目要不要長出「詳細」按鈕
+   * （守門是「browser 查得到已解鎖條目才出現」）。
+   * 「相關」按鈕自己載 Echoes／Visuals 兩份索引——它也掛在 browser
+   * profile 上，從這裡穿 props 反而要多繞一層。
+   */
+  const [entityIndex, setEntityIndex] = useState<TerminalIndexEntry[] | null>(
+    null
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void loadEntityIndex()
+      .then((entries) => {
+        if (!cancelled) setEntityIndex(entries);
+      })
+      .catch(() => {
+        /* 失敗維持 null——安全預設是不長按鈕 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // effective view 過濾後可能留下空群組/空分類（條目全部未解鎖）——
+  // 一律不渲染（含預設「未分類」群組），整頁無可見條目時走 empty fallback
+  const visibleSubcats = useMemo(
+    () =>
+      subcategories
+        .map((sc) => ({
+          ...sc,
+          groups: sc.groups.filter((g) => g.entries.length > 0),
+        }))
+        .filter((sc) => sc.groups.length > 0),
+    [subcategories]
+  );
+
+  const subcat = visibleSubcats[activeTab];
   const groups = subcat?.groups || [];
   const currentGroup = groups[activeGroup];
 
@@ -211,22 +279,37 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
     setActiveGroup(0);
   }, [activeTab]);
 
-  // 若 activeTab 超出範圍（variant 切換後 subcats 變少），重置
+  // 若 activeTab 超出範圍（variant 切換 / 解鎖狀態變化後 subcats 變少），重置
   useEffect(() => {
-    if (activeTab >= subcategories.length) setActiveTab(0);
-  }, [subcategories.length, activeTab]);
+    if (activeTab >= visibleSubcats.length) setActiveTab(0);
+  }, [visibleSubcats.length, activeTab]);
+
+  // 整頁沒有任何可見條目：終端風格 empty fallback
+  if (visibleSubcats.length === 0) {
+    return (
+      <div className="conc-dossier-empty-page">
+        <div className="conc-dossier-list-bar">
+          <span>$ ls ./records/</span>
+          <span>0 records</span>
+        </div>
+        <div className="conc-dossier-empty-msg">
+          目前沒有可讀取的記錄——隨著閱讀進度推進，這裡會逐漸浮現內容。
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       {/* Subcat 選擇器 — 終端路徑風格 */}
-      {subcategories.length > 1 && (
+      {visibleSubcats.length > 1 && (
         <div className="conc-subcat-selector">
           <div className="conc-subcat-prompt">
             <span className="conc-subcat-prompt-symbol">$</span>
             <span className="conc-subcat-prompt-text">cd ~/records/</span>
           </div>
           <div className="conc-subcat-options">
-            {subcategories.map((sc, i) => (
+            {visibleSubcats.map((sc, i) => (
               <button
                 key={i}
                 className={`conc-subcat-option ${i === activeTab ? 'active' : ''}`}
@@ -282,9 +365,16 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
                   {currentGroup.entries.length} records
                 </span>
               </div>
-              <div className="conc-dossier-entries-body">
+              <div
+                className="conc-dossier-entries-body"
+                {...entityDrag.handlers}
+              >
                 {currentGroup.entries.map((entry, i) => (
-                  <div key={i} className="conc-dossier-entry-card">
+                  <div
+                    key={i}
+                    className="conc-dossier-entry-card"
+                    data-entity-key={entry.entityKey}
+                  >
                     <div className="conc-dossier-entry-header">
                       <span className="conc-dossier-entry-idx">
                         {String(i + 1).padStart(2, '0')}
@@ -292,6 +382,16 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
                       <span className="conc-dossier-entry-name">
                         {entry.name}
                       </span>
+                      <InterlinkTriggerButton
+                        entityKey={entry.entityKey}
+                        label={entry.name}
+                      />
+                      <BrowserDetailButton
+                        entityKey={entry.entityKey}
+                        label={entry.name}
+                        index={entityIndex}
+                        onNavigate={onOpenBrowserDetail}
+                      />
                     </div>
                     {entry.content_html && (
                       <>
@@ -310,6 +410,7 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
             <div className="conc-dossier-detail-empty">選擇一個分類</div>
           )}
         </div>
+        {entityDrag.ghost}
       </div>
     </div>
   );
@@ -318,9 +419,30 @@ function ReaderDossier({ subcategories }: { subcategories: DossierSubcat[] }) {
 // ──────────────────────────────────────────────────────────────────
 // 子元件：ReaderBrowserTabs（browser stack）— wiki 瀏覽器式導航
 // ──────────────────────────────────────────────────────────────────
-function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
+function ReaderBrowserTabs({
+  data,
+  focusEntityKey,
+}: {
+  data: BrowserContent;
+  /** 從 dossier「詳細」按鈕過來時要直接展開的 entity（S10-1） */
+  focusEntityKey?: string;
+}) {
   const [navPath, setNavPath] = useState<string[]>([]);
-  const [viewingIdx, setViewingIdx] = useState<number | null>(null);
+  /*
+   * 從「詳細」按鈕過來時直接展開對應的 profile。
+   *
+   * 用 lazy initializer 而非 useEffect 同步：`renderReading()` 外層的
+   * `<div key={transitionKey}>` 在每次換頁都 bump，整個子樹強制 remount
+   * ——初始值每次都會重算，不需要額外的同步邏輯。
+   *
+   * ⚠️ findIndex 找不到會回 -1，一定要轉成 null；直接塞 -1 會被
+   * `viewingIdx !== null` 判為「有選中」而展開錯誤的第一筆。
+   */
+  const [viewingIdx, setViewingIdx] = useState<number | null>(() => {
+    if (!focusEntityKey) return null;
+    const idx = data.profiles.findIndex((p) => p.entityKey === focusEntityKey);
+    return idx >= 0 ? idx : null;
+  });
 
   // 過濾掉佔位 profile（名稱為空或括號包裹的臨時名稱）
   const validProfiles = useMemo(
@@ -470,6 +592,10 @@ function ReaderBrowserTabs({ data }: { data: BrowserContent }) {
                       )}
                       <h3 className="conc-enc-profile-name">
                         {activeProfile.name}
+                        <InterlinkTriggerButton
+                          entityKey={activeProfile.entityKey}
+                          label={activeProfile.name}
+                        />
                       </h3>
                     </div>
                   </div>
@@ -953,15 +1079,77 @@ function ReaderChronograph({ data: rawData }: { data: ChronoContent }) {
 /** 無意義的 group label 清單 */
 const MEANINGLESS_LABELS = ['', '未被歸類', '未分類', 'uncategorized'];
 
+/** 對照表列的 grid 欄數（詞條欄 + N 個值欄）交給 CSS 變數 */
+function diffGridStyle(columns: number): React.CSSProperties {
+  return {
+    '--diff-cols': String(Math.max(columns, 1)),
+  } as React.CSSProperties;
+}
+
+/** 欄位標籤表頭；未定義標籤時不渲染（維持既有無表頭外觀） */
+function DiffValueHead({
+  labels,
+  columns,
+}: {
+  labels: string[];
+  columns: number;
+}) {
+  if (!labels.length) return null;
+  return (
+    <div
+      className="conc-diff-row conc-diff-head"
+      style={diffGridStyle(columns)}
+    >
+      <span className="conc-diff-term">詞條</span>
+      {Array.from({ length: columns }, (_, i) => (
+        <span key={i} className="conc-diff-val">
+          {labels[i] ?? '—'}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** 對照表單列——值依欄數補齊，讓各列欄位對齊 */
+function DiffRow({
+  entry,
+  alt,
+  columns,
+}: {
+  entry: { term: string; values: string[] };
+  alt: boolean;
+  columns: number;
+}) {
+  return (
+    <div
+      className={`conc-diff-row ${alt ? 'alt' : ''}`}
+      style={diffGridStyle(columns)}
+    >
+      <span className="conc-diff-term">{entry.term}</span>
+      {Array.from({ length: columns }, (_, vi) => (
+        <span key={vi} className="conc-diff-val">
+          {entry.values[vi] || '—'}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function ReaderDiff({ data }: { data: DiffContent }) {
   const [activeTab, setActiveTab] = useState(0);
   const [filter, setFilter] = useState('');
   const subcat = data.subcategories[activeTab];
 
-  // 判斷是多欄對照（有多 values）還是術語定義（values 長度 1 或 0）
-  const isTable = subcat?.sections?.some((s) =>
-    s.entries.some((e) => e.values.length > 1)
+  // 判斷是多欄對照（有多 values 或已定義欄位標籤）還是術語定義
+  const isTable = subcat?.sections?.some(
+    (s) =>
+      (s.valueLabels?.length ?? 0) > 1 ||
+      s.entries.some((e) => e.values.length > 1)
   );
+
+  // 欄位標籤與欄數（規則與編輯器共用，見 diffTable.ts）
+  const fallbackLabels = useMemo(() => subcatValueLabels(subcat), [subcat]);
+  const valueColumns = useMemo(() => subcatValueColumns(subcat), [subcat]);
 
   // 展平並過濾所有條目
   const allEntries = useMemo(() => {
@@ -1070,41 +1258,36 @@ function ReaderDiff({ data }: { data: DiffContent }) {
                           {section.label}
                         </div>
                       )}
+                      <DiffValueHead
+                        labels={section.valueLabels ?? fallbackLabels}
+                        columns={valueColumns}
+                      />
                       {sectionEntries.map((entry, ei) => (
-                        <div
+                        <DiffRow
                           key={ei}
-                          className={`conc-diff-row ${ei % 2 ? 'alt' : ''}`}
-                        >
-                          <span className="conc-diff-term">{entry.term}</span>
-                          {entry.values.map((v, vi) => (
-                            <span
-                              key={vi}
-                              className={`conc-diff-val ${vi === 0 ? 'en' : 'jp'}`}
-                            >
-                              {v || '—'}
-                            </span>
-                          ))}
-                        </div>
+                          entry={entry}
+                          alt={ei % 2 === 1}
+                          columns={valueColumns}
+                        />
                       ))}
                     </div>
                   );
                 })
-              : filtered.map((entry, ei) => (
-                  <div
-                    key={ei}
-                    className={`conc-diff-row ${ei % 2 ? 'alt' : ''}`}
-                  >
-                    <span className="conc-diff-term">{entry.term}</span>
-                    {entry.values.map((v, vi) => (
-                      <span
-                        key={vi}
-                        className={`conc-diff-val ${vi === 0 ? 'en' : 'jp'}`}
-                      >
-                        {v || '—'}
-                      </span>
-                    ))}
-                  </div>
-                ))}
+              : [
+                  <DiffValueHead
+                    key="head"
+                    labels={fallbackLabels}
+                    columns={valueColumns}
+                  />,
+                  ...filtered.map((entry, ei) => (
+                    <DiffRow
+                      key={ei}
+                      entry={entry}
+                      alt={ei % 2 === 1}
+                      columns={valueColumns}
+                    />
+                  )),
+                ]}
           </div>
         ) : (
           /* 術語定義列表 */
@@ -1176,6 +1359,13 @@ function ReaderDiff({ data }: { data: DiffContent }) {
 // 主元件
 // ──────────────────────────────────────────────────────────────────
 export default function ConceptsReader() {
+  // === 進度狀態（Epic 2 S7：條目級進度閘） ===
+  // 訂閱全域 ProgressState——旗標/視角變化時重渲，effective view 隨之重算。
+  // SSR 時回傳初始狀態（base 內容），hydrate 後才呈現個人化狀態（設計文件 2-4）。
+  const progress = useProgress();
+  // Reader 卸載時清空 revision 快取（頁面間記憶體不殘留）
+  useEffect(() => () => clearAllRevisionCache(), []);
+
   // === 內容狀態 ===
   const [tree, setTree] = useState<PageTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
@@ -1196,6 +1386,12 @@ export default function ConceptsReader() {
   const [readingPage, setReadingPage] = useState<Page | null>(null);
   // 轉場 key — 資料載入完成時才遞增，讓動畫在內容就緒後才播放
   const [transitionKey, setTransitionKey] = useState(0);
+  /**
+   * 從 dossier「詳細」按鈕導過來時，要在 browser 頁直接展開的 entity。
+   * 每次 navigateToPage 都會重設（含設回 undefined），所以不會殘留到
+   * 下一次用其他方式進入的 browser 頁。
+   */
+  const [browserFocusKey, setBrowserFocusKey] = useState<string | undefined>();
   // dossier 的 variant 切換索引（每次切換 readingPage 時重置）
   const [dossierVariantIdx, setDossierVariantIdx] = useState(0);
   useEffect(() => {
@@ -1350,9 +1546,11 @@ export default function ConceptsReader() {
 
   function navigateToStack(stackSlug: string, push = true) {
     saveScroll(currentScrollKey());
-    const fullId = stackSlug.startsWith('concepts/')
-      ? stackSlug
-      : `concepts/${stackSlug}`;
+    const fullId = canonicalizePagePath(
+      stackSlug.startsWith('concepts/')
+        ? stackSlug
+        : ['concepts', stackSlug].join('/')
+    );
     const slug = fullId.replace('concepts/', '');
     setActiveStackId(fullId);
     setActivePageId(null);
@@ -1367,17 +1565,34 @@ export default function ConceptsReader() {
     });
   }
 
-  function navigateToPage(pageSlug: string, push = true) {
+  /**
+   * @param focusEntityKey 到頁後要直接展開的 entity（dossier「詳細」按鈕
+   *   用）。只對 browser stack 有意義，其餘 stack 忽略。刻意**不進 URL**
+   *   ——這顆按鈕是「順手跳過去看」，不是需要分享或用上一頁還原的狀態；
+   *   要 deep-link 化的話得在既有的 `page` route handler 內自己讀
+   *   `?entity=`，不能另加一條 useZoneRouter route（它只認第一個命中的
+   *   param，新 route 永遠不會觸發）。
+   */
+  function navigateToPage(
+    pageSlug: string,
+    push = true,
+    focusEntityKey?: string
+  ) {
     saveScroll(currentScrollKey());
-    const fullId = pageSlug.startsWith('concepts/')
-      ? pageSlug
-      : `concepts/${pageSlug}`;
+    const fullId = canonicalizePagePath(
+      pageSlug.startsWith('concepts/')
+        ? pageSlug
+        : ['concepts', pageSlug].join('/')
+    );
     const slug = fullId.replace('concepts/', '');
+    setBrowserFocusKey(focusEntityKey);
     setActivePageId(fullId);
     if (push) pushUrl({ page: slug });
     const stackDef = STACKS.find((s) => slug.startsWith(s.slug));
     if (stackDef) setActiveStackId(`concepts/${stackDef.slug}`);
     fetchPageData(slug).then((p) => {
+      // 新載入的頁面資料使快取失效（admin 編輯後重訪不吃到舊 view）
+      if (p) invalidatePageCache(p.id);
       setReadingPage(p);
       setView('reading');
       setTransitionKey((k) => k + 1);
@@ -1400,9 +1615,7 @@ export default function ConceptsReader() {
             <h1 className="conc-landing-title">
               {hpHeader?.title || '概念調整房'}
             </h1>
-            <span className="conc-terminal-badge">
-              $ root@uep:~ · CONNECTED
-            </span>
+            <ConceptsTerminalBadge />
           </div>
           {(hpHeader?.subtitle || '') && (
             <p className="conc-landing-subtitle">{hpHeader?.subtitle}</p>
@@ -1470,6 +1683,13 @@ export default function ConceptsReader() {
     const stackNode = stackNodes.find((n) => n.id === activeStackId);
     if (!stackDef || !stackNode) return null;
     const children = stackNode.children || [];
+    // 頁面層進度閘（Epic 2 S7）：gate 未通過的子頁完全隱藏
+    // （不顯示 LOCK 佔位，設計文件 3-3）；靜態 locked 仍顯示 sealed
+    const visibleChildren = children.filter(
+      (child) =>
+        !isHidden(child) &&
+        evaluateGate(progress, parseGateCondition(child.metadata))
+    );
 
     // 從 D1 載入的 stackPage 取得動態內容
     const stackTitle = stackPage?.title || stackDef.label;
@@ -1495,7 +1715,7 @@ export default function ConceptsReader() {
           <h1 className="conc-stack-title">{stackTitle}</h1>
           <div className="conc-stack-sync-badge">
             <span className="conc-mod-dot sync" />
-            {children.filter((c) => !isHidden(c)).length} types · sync ok
+            {visibleChildren.length} types · sync ok
           </div>
         </div>
         <div className="conc-stack-path">
@@ -1533,7 +1753,7 @@ export default function ConceptsReader() {
         <div className="conc-dir-listing">
           <div className="conc-dir-bar">
             <span>$ ls ./{stackDef.slug.split('/').pop()} --long</span>
-            <span>{children.filter((c) => !isHidden(c)).length} entries</span>
+            <span>{visibleChildren.length} entries</span>
           </div>
           <div className="conc-dir-header-row">
             <span>#</span>
@@ -1542,44 +1762,40 @@ export default function ConceptsReader() {
             <span>state</span>
             <span />
           </div>
-          {children
-            .filter((child) => !isHidden(child))
-            .map((child, i) => {
-              const locked = isLocked(child);
-              return (
-                <button
-                  key={child.id}
-                  className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${locked ? 'locked' : ''}`}
-                  onClick={() => !locked && navigateToPage(child.slug)}
-                >
-                  <span className="conc-dir-num">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <div className="conc-dir-name-cell">
-                    <div className="conc-dir-name">{child.title}</div>
-                    <div className="conc-dir-hint">
-                      {locked
-                        ? ''
-                        : typeof child.metadata?.description === 'string'
-                          ? (child.metadata.description as string).slice(0, 50)
-                          : ''}
-                    </div>
+          {visibleChildren.map((child, i) => {
+            const locked = isLocked(child);
+            return (
+              <button
+                key={child.id}
+                className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${locked ? 'locked' : ''}`}
+                onClick={() => !locked && navigateToPage(child.slug)}
+              >
+                <span className="conc-dir-num">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <div className="conc-dir-name-cell">
+                  <div className="conc-dir-name">{child.title}</div>
+                  <div className="conc-dir-hint">
+                    {locked
+                      ? ''
+                      : typeof child.metadata?.description === 'string'
+                        ? (child.metadata.description as string).slice(0, 50)
+                        : ''}
                   </div>
-                  <span className="conc-dir-en">
-                    {locked ? '—' : child.slug.split('/').pop()}
-                  </span>
-                  <span
-                    className={`conc-dir-state ${locked ? 'sealed' : 'sync'}`}
-                  >
-                    <span className="conc-mod-dot" />
-                    {locked ? 'sealed' : 'sync'}
-                  </span>
-                  <span className="conc-dir-arrow">
-                    {locked ? 'LOCK' : '›'}
-                  </span>
-                </button>
-              );
-            })}
+                </div>
+                <span className="conc-dir-en">
+                  {locked ? '—' : child.slug.split('/').pop()}
+                </span>
+                <span
+                  className={`conc-dir-state ${locked ? 'sealed' : 'sync'}`}
+                >
+                  <span className="conc-mod-dot" />
+                  {locked ? 'sealed' : 'sync'}
+                </span>
+                <span className="conc-dir-arrow">{locked ? 'LOCK' : '›'}</span>
+              </button>
+            );
+          })}
           <div className="conc-dir-tip">
             <span className="conc-dir-tip-prompt">$</span>
             <span>
@@ -1604,6 +1820,12 @@ export default function ConceptsReader() {
   // ══════════════════════════════════════════════════════════════
   function renderReading() {
     if (!readingPage) return <ZoneStateDisplay kind="not-found" large />;
+
+    // 頁面層進度閘（deep link 守門）：gate 未通過視同不存在——
+    // 「未解鎖 = 隱藏」語意，不顯示鎖定佔位（設計文件 3-3）
+    if (!evaluateGate(progress, parseGateCondition(readingPage.metadata))) {
+      return <ZoneStateDisplay kind="not-found" large />;
+    }
 
     const meta = readingPage.metadata as Partial<ConceptsVariationMeta>;
     const locked = isLocked(readingPage);
@@ -1631,6 +1853,16 @@ export default function ConceptsReader() {
       } catch {
         /* 靜默 */
       }
+    }
+
+    // 條目級進度閘（Epic 2 S7）：套用 revision effective view——
+    // 未解鎖條目過濾、已解鎖條目按旗標疊加 patch。快取以
+    // (pageId, 進度指紋) 為 key，同頁重渲不重跑疊加。
+    if (parsed) {
+      const source = parsed;
+      parsed = getCachedEffectiveView(readingPage.id, progress, () =>
+        resolveEffectiveViewForPage(source, progress)
+      );
     }
 
     // dossier 的 variant 處理
@@ -1722,9 +1954,15 @@ export default function ConceptsReader() {
               <ReaderDossier
                 key={currentDossierVariant.id + ':' + dossierIdx}
                 subcategories={currentDossierVariant.subcategories}
+                onOpenBrowserDetail={(pageId, entityKey) =>
+                  navigateToPage(pageId, true, entityKey)
+                }
               />
             ) : style === 'browser' ? (
-              <ReaderBrowserTabs data={parsed as BrowserContent} />
+              <ReaderBrowserTabs
+                data={parsed as BrowserContent}
+                focusEntityKey={browserFocusKey}
+              />
             ) : style === 'chrono' ? (
               <ReaderChronograph data={parsed as ChronoContent} />
             ) : style === 'diff' ? (
@@ -1782,6 +2020,7 @@ export default function ConceptsReader() {
             <span className="conc-boot-cursor" />
           </div>
         </div>
+        <ZoneBootArt zoneId="concepts" />
       </div>
 
       <div className="conc-main">

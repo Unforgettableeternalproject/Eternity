@@ -138,13 +138,22 @@
 }
 
 /* 中央終端文字 */
+/* 開機文字與入場的 U.E.P 一左一右**貼著中線**分開（見 ZoneBootArt.css）。
+   原本是置中——兩者都在中央會疊成一團；但改用百分比靠邊的話，寬螢幕上
+   兩人會被推到畫面兩端，所以座標從中心算起。
+
+   ⚠️ 偏移與字級都要能收斂：268px 是照 13px 字下的文字寬（約 275）配的，
+   手機上這一組會把文字整段推到畫面左邊之外。`min()` 讓寬螢幕維持原本的
+   絕對值、窄螢幕改吃 vw——**字級一起縮**才有意義，只縮偏移的話文字寬度
+   不變，照樣出界。43.6vw／3vw／立繪那邊的 33.75vw 是同一組算出來的
+   （文字寬 + 間隙 + 立繪寬 ≈ 96vw，兩側各留 2vw），改任一個都要重算。 */
 .conc-boot-center {
   position: absolute;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  left: calc(50% - min(268px, 43.6vw));
+  transform: translateY(-50%);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: min(13px, 3vw);
   color: #74c69d;
   text-shadow: 0 0 6px rgba(116, 198, 157, 0.6);
   letter-spacing: 0.04em;
@@ -445,12 +454,65 @@
   padding: 4px 10px;
   border: 1px solid var(--concepts-main);
 }
+
+/* ── 解鎖儀式：斷線的終端（S9-B）── */
+
+/* 未連線＝可解鎖。用區域內變數而非 token——站上沒有共用的紅色 design
+   token，這是唯一使用處，不值得為它開一顆全域變數。 */
+.conc-terminal-badge.is-disconnected {
+  --conc-offline: #c0524a;
+  color: var(--conc-offline);
+  border-color: var(--conc-offline);
+  background: transparent;
+  cursor: pointer;
+  animation: concTerminalOffline 2.4s ease-in-out infinite;
+  transition:
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.conc-terminal-badge.is-disconnected:hover {
+  background: rgba(192, 82, 74, 0.1);
+  box-shadow: 0 0 14px rgba(192, 82, 74, 0.22);
+}
+.conc-terminal-badge.is-disconnected:focus-visible {
+  outline: 2px solid var(--conc-offline);
+  outline-offset: 2px;
+}
+
+/* 訊號不穩的呼吸——比恆亮更像「等著被接上的節點」 */
+@keyframes concTerminalOffline {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0.55;
+  }
+}
+
+.conc-terminal-badge.is-connecting {
+  color: var(--concepts-soft);
+  border-color: var(--concepts-soft);
+  animation: concTerminalOffline 0.9s ease-in-out infinite;
+}
+
+/* 無資格：只剩提示符，不透露有東西可解鎖 */
+.conc-terminal-badge.is-idle {
+  opacity: 0.72;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conc-terminal-badge.is-disconnected,
+  .conc-terminal-badge.is-connecting {
+    animation: none;
+  }
+}
+/* 首頁文字右邊界統一跟隨 landing 內容寬（Ariel 2026-08-12） */
 .conc-landing-subtitle {
   font-family: var(--font-serif-tc);
   font-size: 16px;
   line-height: 1.85;
   color: var(--ink-sub);
-  max-width: 600px;
   margin-top: 24px;
   font-style: italic;
 }
@@ -1236,6 +1298,21 @@
   color: var(--ink-mute);
   font-family: var(--font-mono);
   font-size: 12px;
+}
+
+/* 整頁無可見條目的 empty fallback（條目全部未解鎖時） */
+.conc-dossier-empty-page {
+  border: 1px solid var(--hairline);
+  background: var(--bg-card);
+}
+
+.conc-dossier-empty-msg {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
 }
 
 .conc-dossier-entry-card {
@@ -2333,10 +2410,10 @@
   background: color-mix(in srgb, var(--concepts-main) 3%, transparent);
 }
 
-/* 對照表行 */
+/* 對照表行——欄數由 --diff-cols 決定（詞條欄 + N 個值欄） */
 .conc-diff-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr repeat(var(--diff-cols, 2), 1fr);
   padding: 12px 16px;
   border-bottom: 1px solid
     color-mix(in srgb, var(--concepts-main) 12%, transparent);
@@ -2363,15 +2440,35 @@
   padding-left: 14px;
   border-left: 1px dashed
     color-mix(in srgb, var(--concepts-main) 18%, transparent);
+  color: var(--ink-sub);
+  font-size: 12.5px;
 }
-.conc-diff-val.en {
+/* 首個值欄（多為原文／英譯）沿用等寬字視覺；term 是第 1 個 child */
+.conc-diff-val:nth-child(2) {
   color: var(--concepts-soft);
   font-family: var(--font-mono);
   font-size: 12px;
 }
-.conc-diff-val.jp {
-  color: var(--ink-sub);
-  font-size: 12.5px;
+
+/* 欄位標籤表頭 */
+.conc-diff-row.conc-diff-head {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background: color-mix(in srgb, var(--concepts-main) 5%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--concepts-main) 24%, transparent);
+}
+.conc-diff-head:hover {
+  background: color-mix(in srgb, var(--concepts-main) 5%, transparent);
+}
+.conc-diff-head .conc-diff-term,
+.conc-diff-head .conc-diff-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--concepts-main);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 /* 底部狀態列 */
@@ -2705,5 +2802,72 @@
     min-width: 0;
     overflow-wrap: anywhere;
     line-height: 1.7;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   互聯觸發按鈕（S10-1 T-G3）— 條目旁的「查相關段落」
+   四種 stack 共用同一顆，各自的版面靠 inline-flex 自然對齊。
+   預設半透明退到背景，hover／focus 才亮起——條目本身才是主角，
+   這顆是隨手可用的附屬入口，不該跟條目名稱搶注意力。
+   ────────────────────────────────────────────────────────────────── */
+.conc-interlink-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  padding: 1px 6px;
+  vertical-align: middle;
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--concepts-main) 26%, transparent);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  line-height: 1.6;
+  color: var(--concepts-soft);
+  opacity: 0.55;
+  cursor: pointer;
+  transition:
+    opacity 0.15s,
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.conc-interlink-btn:hover:not(:disabled),
+.conc-interlink-btn:focus-visible {
+  opacity: 1;
+  background: color-mix(in srgb, var(--concepts-main) 10%, transparent);
+  border-color: color-mix(in srgb, var(--concepts-main) 52%, transparent);
+  color: var(--concepts-main);
+}
+
+.conc-interlink-btn:disabled {
+  cursor: progress;
+}
+
+.conc-interlink-btn.is-busy {
+  opacity: 0.35;
+}
+
+.conc-interlink-btn__glyph {
+  font-size: 10px;
+}
+
+/* 「詳細」：與「相關」並排時要看得出是不同動作——前者離開本頁（導向
+   browser 檔案），後者留在原地（浮島出卡片）。用實心底標示「會跳走」。 */
+.conc-detail-btn {
+  background: color-mix(in srgb, var(--concepts-main) 8%, transparent);
+  opacity: 0.7;
+}
+
+.conc-detail-btn:hover:not(:disabled),
+.conc-detail-btn:focus-visible {
+  background: color-mix(in srgb, var(--concepts-main) 18%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conc-interlink-btn {
+    transition: none;
   }
 }

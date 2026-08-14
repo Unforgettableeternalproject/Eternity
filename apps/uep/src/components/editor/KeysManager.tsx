@@ -1,0 +1,1873 @@
+/**
+ * Key 與旗標管理（Admin 後台）
+ *
+ * 三欄：清單（左）／詳細（中）／用在哪（右）。管理兩套彼此獨立的識別碼：
+ * - 互聯 key（`interlink_keys`）：entity／story 的標題與說明
+ * - 自訂旗標（`uep_flags`）：註冊表 + 全站巡查結果
+ *
+ * 全部走同源 SSR proxy（`/api/interlink/*`、`/api/flags/*`）——這些端點都掛
+ * `isAuthorized`，而 admin JWT 存在 httpOnly cookie 裡，瀏覽器端讀不到，
+ * 必須由 proxy 在 server 端補上 Bearer header（同 UserManager／MediaLibrary）。
+ */
+import type { ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { validateFlagName } from '../../progress/markers';
+import { apiFetch, getDialog, getToast } from './editorHelpers';
+import ProgressOverview from './ProgressOverview';
+import SiteSettingsPanel from './SiteSettingsPanel';
+import './KeysManager.css';
+
+// ===== 型別（與 worker 端的回應形狀對齊）=====
+
+interface InterlinkKeyRow {
+  keyType: 'entity' | 'story';
+  keyValue: string;
+  title: string | null;
+  description: string | null;
+  updatedAt: string | null;
+  /** entity 的權威顯示名稱，來源是 Concepts dossier 條目 */
+  derivedName?: string;
+  definitionCount: number;
+  anchorCount: number;
+}
+
+interface FlagReference {
+  pageId: string;
+  pageTitle: string;
+  area: string;
+}
+
+/** 使用狀態的四態；判定在 worker 的 `auditFlags`，前端只顯示 */
+type FlagUsage = 'used' | 'no-demand' | 'no-grant' | 'orphan' | null;
+
+interface FlagAuditRow {
+  name: string;
+  source: 'registered' | 'derived' | 'unregistered';
+  label: string | null;
+  grantedBy: FlagReference[];
+  requiredBy: FlagReference[];
+  /** `null` = 規則生成，不參與這個維度 */
+  usage: FlagUsage;
+}
+
+interface FlagRow {
+  name: string;
+  label: string | null;
+  description: string | null;
+  category: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface InterlinkDefinition {
+  area: 'concepts' | 'echoes' | 'visuals';
+  pageId: string;
+  pageTitle: string;
+  scope: string;
+}
+
+interface InterlinkAnchor {
+  pageId: string;
+  pageTitle: string;
+  anchorKind: string;
+  anchorId: string | null;
+  label: string | null;
+}
+
+interface UsageData {
+  definitions: InterlinkDefinition[];
+  anchors: InterlinkAnchor[];
+}
+
+/** 改名的 dryRun 預覽（與實際寫入是同一份計算） */
+interface RenamePreview {
+  from: string;
+  to: string;
+  dryRun: boolean;
+  totalHits: number;
+  pages: {
+    pageId: string;
+    area: string;
+    title: string;
+    contentHits: number;
+    metadataHits: number;
+  }[];
+}
+
+type Selection =
+  | { kind: 'key'; keyType: 'entity' | 'story'; keyValue: string }
+  | { kind: 'flag'; name: string };
+
+// ===== API 工具 =====
+
+/** key 的路徑片段（key 值可能含 `:`、空白等需編碼的字元） */
+function keyPath(keyType: string, keyValue: string): string {
+  return `${keyType}/${encodeURIComponent(keyValue)}`;
+}
+
+/**
+ * derived 旗標衍生自什麼。
+ *
+ * derived 旗標沒有可編輯的欄位（名稱是 key 或 pageId 的函數），所以面板不放
+ * 空的輸入框——那看起來像「還沒填」而不是「不能填」。改為把它衍生自的東西
+ * 解析出來唯讀顯示，說明仍只存在來源那一份上。
+ */
+type DerivedSource =
+  | { kind: 'page'; role: string; pageId: string }
+  | { kind: 'image'; role: string; pageId: string; imageId: string }
+  | { kind: 'key'; role: string; keyValue: string }
+  | { kind: 'retired'; role: string; note: string }
+  | { kind: 'unknown'; role: string };
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * 解析 derived 旗標的來源。
+ *
+ * ⚠️ 判定順序必須與 worker 的 `classifyFlag` 一致（前綴優先於尾碼），否則
+ * `gallery:{pageId}` 會先被 `:gallery` 尾碼吃掉。這裡是**解析器不是分類器**
+ * ——是不是 derived 由 worker 回的 `source` 決定，解析失敗只會退回
+ * `unknown`，不影響任何權限或註冊判定。
+ *
+ * 形狀的權威來源是 apps/uep 各產生端函式的 return，不是任何文件的摘要表。
+ */
+function parseDerivedSource(name: string): DerivedSource {
+  const flag = name.trim();
+
+  if (flag.startsWith('completed:')) {
+    return {
+      kind: 'page',
+      role: '頁面完成標記',
+      pageId: flag.slice('completed:'.length),
+    };
+  }
+  if (flag.startsWith('zone:visited:')) {
+    return {
+      kind: 'retired',
+      role: '區域足跡',
+      note: '2026-07-26 起不再授予。既有讀者進度裡仍留著這些旗標，刻意不清理，所以巡查清單還會看到它。',
+    };
+  }
+  if (flag.startsWith('met:')) {
+    return {
+      kind: 'retired',
+      role: 'entity 認識標記',
+      note: 'S7-C 起在嵌入判定線退役——嵌入全可點，內容由 Concepts revision 卡控。entityKey 只用來對應資料，與解鎖條件無關。僅舊格式 fallback 仍消費，停增不刪。',
+    };
+  }
+  // deriveImageUnlockFlag 對兩段 id 都做了 encodeURIComponent，所以段內不會
+  // 有裸冒號，切兩段是安全的
+  if (flag.startsWith('image:')) {
+    const parts = flag.slice('image:'.length).split(':');
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      return {
+        kind: 'image',
+        role: '單張圖片解鎖',
+        pageId: safeDecode(parts[0]),
+        imageId: safeDecode(parts[1]),
+      };
+    }
+    return { kind: 'unknown', role: '單張圖片解鎖' };
+  }
+  if (flag.startsWith('gallery:')) {
+    return {
+      kind: 'page',
+      role: '展廊解鎖（該展廊沒有 entityKey）',
+      pageId: flag.slice('gallery:'.length),
+    };
+  }
+  if (flag.endsWith(':song')) {
+    return {
+      kind: 'key',
+      role: '曲目解鎖',
+      keyValue: flag.slice(0, -':song'.length),
+    };
+  }
+  if (flag.endsWith(':gallery')) {
+    return {
+      kind: 'key',
+      role: '展廊解鎖',
+      keyValue: flag.slice(0, -':gallery'.length),
+    };
+  }
+  return { kind: 'unknown', role: '規則生成' };
+}
+
+const KEY_TYPE_FILTERS = [
+  { id: 'all', label: '全部' },
+  { id: 'entity', label: 'entity' },
+  { id: 'story', label: 'story' },
+] as const;
+
+/**
+ * key 巡查 chip：三種狀態各自可單獨篩，點已選中的取消（回到全部）。
+ * 只有「孤兒錨點」是真的壞了（互聯連到不存在的定義端）；另兩種是
+ * 待補資訊，中性呈現。
+ */
+const KEY_ISSUE_FILTERS = [
+  {
+    id: 'no-desc',
+    label: '無說明',
+    title: '標題與說明皆空——story 沒有標題時島卡只能顯示來源頁名',
+  },
+  {
+    id: 'orphan-anchor',
+    label: '孤兒錨點',
+    title: 'History 有錨點但查無定義端——來源頁被刪或 key 被改名',
+  },
+  {
+    id: 'unreferenced',
+    label: '未被引用',
+    title: '有定義但 History 零錨點——中性資訊，不是錯誤',
+  },
+] as const;
+
+type KeyIssueFilter = (typeof KEY_ISSUE_FILTERS)[number]['id'];
+
+function keyHasIssue(row: InterlinkKeyRow, issue: KeyIssueFilter): boolean {
+  switch (issue) {
+    case 'no-desc':
+      return !row.title && !row.description;
+    case 'orphan-anchor':
+      return row.definitionCount === 0 && row.anchorCount > 0;
+    case 'unreferenced':
+      return row.definitionCount > 0 && row.anchorCount === 0;
+  }
+}
+
+/** 總覽層：三者互斥且涵蓋全部自訂旗標 */
+const FLAG_USE_FILTERS = [
+  { id: 'all', label: '全部' },
+  { id: 'used', label: '已使用' },
+  { id: 'unused', label: '未使用' },
+] as const;
+
+/** 細分層：「未使用」的三種成因，各自可單獨篩 */
+const FLAG_USAGE_FILTERS = [
+  { id: 'no-grant', label: '無授予' },
+  { id: 'no-demand', label: '無引用' },
+  { id: 'orphan', label: '孤兒' },
+] as const;
+
+type FlagUseFilter = (typeof FLAG_USE_FILTERS)[number]['id'];
+type FlagCauseFilter = (typeof FLAG_USAGE_FILTERS)[number]['id'];
+
+/**
+ * 未使用的三種狀態各自的標示。只有 `no-grant` 會造成故障（需求端等一個
+ * 再也不會被授予的旗標，沒有錯誤訊息，那一頁就是永遠打不開），所以只有
+ * 它用警示色；另兩種是「沒作用」不是「壞了」。
+ */
+const USAGE_BADGES: Record<
+  'no-demand' | 'no-grant' | 'orphan',
+  { label: string; tone: 'warn' | 'mute'; title: string }
+> = {
+  'no-grant': {
+    label: '無授予',
+    tone: 'warn',
+    title: '有人要求它，但沒有任何地方授予——要求它的那幾頁會永久打不開',
+  },
+  'no-demand': {
+    label: '無引用',
+    tone: 'mute',
+    title: '有地方授予，但沒有任何 gate 要求它',
+  },
+  orphan: {
+    label: '孤兒',
+    tone: 'mute',
+    title: '兩端都沒有引用，只剩註冊表這一列',
+  },
+};
+
+// ===== 元件 =====
+
+export default function KeysManager() {
+  const [tab, setTab] = useState<'keys' | 'flags' | 'progress' | 'site'>(
+    'keys'
+  );
+  const [keys, setKeys] = useState<InterlinkKeyRow[]>([]);
+  const [audit, setAudit] = useState<FlagAuditRow[]>([]);
+  const [registry, setRegistry] = useState<FlagRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  /** key 分頁的類型篩選：entity 動輒數十筆，混在一起會把 story 淹掉 */
+  const [keyTypeFilter, setKeyTypeFilter] = useState<
+    'all' | 'entity' | 'story'
+  >('all');
+  /** key 分頁的巡查篩選（單選可取消） */
+  const [keyIssueFilter, setKeyIssueFilter] = useState<KeyIssueFilter | null>(
+    null
+  );
+  /** 劇情歌漏綁 storyKey 的頁（不進 keys 清單，警示條另列） */
+  const [storySongIssues, setStorySongIssues] = useState<
+    { pageId: string; title: string }[]
+  >([]);
+  const [storySongsOpen, setStorySongsOpen] = useState(false);
+  /** flag 分頁的使用狀態篩選 */
+  const [flagUseFilter, setFlagUseFilter] = useState<FlagUseFilter>('all');
+  /**
+   * 未使用的成因細分。第二層只在第一層選了「未使用」時才出現，離開就清掉
+   * ——不可見的篩選還生效的話，回到「未使用」會莫名只剩一兩筆。
+   */
+  const [flagCauseFilter, setFlagCauseFilter] =
+    useState<FlagCauseFilter | null>(null);
+  /** derived 那一組預設收合：它筆數最多又動不了，展開著會一直搶注意力 */
+  const [derivedOpen, setDerivedOpen] = useState(false);
+
+  const selectUseFilter = (next: FlagUseFilter) => {
+    setFlagUseFilter(next);
+    if (next !== 'unused') setFlagCauseFilter(null);
+  };
+  const [selected, setSelected] = useState<Selection | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  /* 中欄草稿 */
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftDescription, setDraftDescription] = useState('');
+  const [draftLabel, setDraftLabel] = useState('');
+  const [draftCategory, setDraftCategory] = useState('');
+
+  /* 右欄反查（key 專用；flag 的反查資料 audit 已經有了） */
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+  /** 反查請求的世代序號：切換選取時舊回應後到會蓋掉新結果 */
+  const usageGen = useRef(0);
+
+  /* 就地新建（兩個分頁共用一組 state，切分頁時關掉） */
+  /**
+   * 從註冊表直接建 key／flag，不必先在內容裡用過一次。
+   *
+   * 建出來的是孤兒（兩端引用都是 0）——這是刻意的：先把命名與說明定下來，
+   * 之後編輯內容時 FlagPicker／EntityKeyField 的清單裡就有它可選，
+   * 不必邊寫內容邊想名字。孤兒本來就是巡查認得的四態之一，不是壞狀態。
+   */
+  const [creating, setCreating] = useState(false);
+  const [newKeyType, setNewKeyType] = useState<'entity' | 'story'>('story');
+  const [newName, setNewName] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  /* 改名（三段式） */
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameTo, setRenameTo] = useState('');
+  const [renamePreview, setRenamePreview] = useState<RenamePreview | null>(
+    null
+  );
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+
+  /** derived 旗標衍生來源頁的標題（旗標名裡只有 pageId，標題要現查） */
+  const [derivedPage, setDerivedPage] = useState<{
+    pageId: string;
+    title: string | null;
+    missing: boolean;
+  } | null>(null);
+  const derivedGen = useRef(0);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    const [keysRes, auditRes, registryRes] = await Promise.all([
+      apiFetch<{
+        keys: InterlinkKeyRow[];
+        storySongsWithoutKey?: { pageId: string; title: string }[];
+      }>('/api/interlink/keys'),
+      apiFetch<{ flags: FlagAuditRow[] }>('/api/flags/audit'),
+      apiFetch<{ flags: FlagRow[] }>('/api/flags'),
+    ]);
+    if (keysRes.ok && keysRes.data) {
+      setKeys(keysRes.data.keys);
+      setStorySongIssues(keysRes.data.storySongsWithoutKey ?? []);
+    } else
+      getToast().error(`載入 key 清單失敗：${keysRes.error || '未知錯誤'}`);
+    if (auditRes.ok && auditRes.data) setAudit(auditRes.data.flags);
+    else getToast().error(`載入旗標巡查失敗：${auditRes.error || '未知錯誤'}`);
+    if (registryRes.ok && registryRes.data) setRegistry(registryRes.data.flags);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
+
+  /** 註冊表以 name 索引：audit 只帶 label，說明與類別要從註冊表取 */
+  const registryByName = useMemo(
+    () => new Map(registry.map((flag) => [flag.name, flag])),
+    [registry]
+  );
+
+  /**
+   * progress marker 的逐頁計數，給進度分頁的標記欄。
+   * marker 不進 history_interlink_index，唯一的來源是 audit 的 grantedBy
+   * （一標記一旗標，每筆授予引用即一個 marker）。
+   */
+  const markerCountByPage = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const flag of audit) {
+      for (const ref of flag.grantedBy) {
+        counts.set(ref.pageId, (counts.get(ref.pageId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [audit]);
+
+  const selectedKey = useMemo(() => {
+    if (selected?.kind !== 'key') return null;
+    return (
+      keys.find(
+        (row) =>
+          row.keyType === selected.keyType && row.keyValue === selected.keyValue
+      ) ?? null
+    );
+  }, [selected, keys]);
+
+  const selectedFlag = useMemo(() => {
+    if (selected?.kind !== 'flag') return null;
+    return audit.find((row) => row.name === selected.name) ?? null;
+  }, [selected, audit]);
+
+  /* ── 選取 ── */
+
+  /**
+   * 切分頁時一併清掉選取。
+   *
+   * 兩個分頁的清單不相交，留著選取會出現「中欄顯示的項目在左欄看不到」的
+   * 狀態，右欄的反查也跟著對不上。
+   */
+  const switchTab = (next: 'keys' | 'flags' | 'progress' | 'site') => {
+    if (next === tab) return;
+    setTab(next);
+    setSelected(null);
+    closeCreate();
+    clearLookups();
+  };
+
+  const openCreate = () => {
+    setNewKeyType('story');
+    setNewName('');
+    setNewTitle('');
+    setNewDescription('');
+    setNewLabel('');
+    setNewCategory('');
+    setCreateError(null);
+    setCreating(true);
+  };
+
+  const closeCreate = () => {
+    setCreating(false);
+    setCreateError(null);
+  };
+
+  /** 建 key：PUT 本身就是 upsert，殼列不存在會一併建立 */
+  const createKey = async () => {
+    const keyValue = newName.trim();
+    if (!keyValue) return;
+    if (keys.some((k) => k.keyType === newKeyType && k.keyValue === keyValue)) {
+      setCreateError('這個 key 已經存在');
+      return;
+    }
+    setSaving(true);
+    setCreateError(null);
+    const res = await apiFetch(
+      `/api/interlink/keys/${keyPath(newKeyType, keyValue)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          // entity 的標題在 Concepts dossier，資料層也會擋，這裡不送
+          title: newKeyType === 'story' ? newTitle : null,
+          description: newDescription,
+        }),
+      }
+    );
+    setSaving(false);
+    if (!res.ok) {
+      setCreateError(res.error || '建立失敗');
+      return;
+    }
+    getToast().success(`已建立 ${newKeyType} key「${keyValue}」`);
+    closeCreate();
+    await loadAll();
+    selectKey({
+      keyType: newKeyType,
+      keyValue,
+      title: newKeyType === 'story' ? newTitle.trim() || null : null,
+      description: newDescription.trim() || null,
+    } as InterlinkKeyRow);
+  };
+
+  const createFlag = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    // worker 擋同一份規則，這裡先擋是為了省一次往返並就地指出問題
+    const invalid = validateFlagName(name);
+    if (invalid) {
+      setCreateError(invalid);
+      return;
+    }
+    setSaving(true);
+    setCreateError(null);
+    const res = await apiFetch('/api/flags', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        label: newLabel,
+        category: newCategory,
+        description: newDescription,
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setCreateError(res.error || '註冊失敗');
+      return;
+    }
+    getToast().success(`已註冊旗標「${name}」`);
+    closeCreate();
+    await loadAll();
+    setSelected({ kind: 'flag', name });
+    setDraftLabel(newLabel.trim());
+    setDraftCategory(newCategory.trim());
+    setDraftDescription(newDescription.trim());
+  };
+
+  /**
+   * 丟掉右欄與衍生來源的既有結果，並讓進行中的請求失效。
+   *
+   * 一併關掉改名面板：面板裡的預覽是綁在某個特定旗標上的，選別的項目還開著
+   * 就會出現「拿 A 的預覽確認 B 的改名」。
+   */
+  const clearLookups = () => {
+    usageGen.current += 1;
+    derivedGen.current += 1;
+    setUsage(null);
+    setUsageLoading(false);
+    setDerivedPage(null);
+    closeRename();
+  };
+
+  const selectKey = (row: InterlinkKeyRow) => {
+    setSelected({
+      kind: 'key',
+      keyType: row.keyType,
+      keyValue: row.keyValue,
+    });
+    setDraftTitle(row.title || '');
+    setDraftDescription(row.description || '');
+    setDerivedPage(null);
+    derivedGen.current += 1;
+    closeRename();
+    void loadUsage(row.keyType, row.keyValue);
+  };
+
+  const selectFlag = (row: FlagAuditRow) => {
+    setSelected({ kind: 'flag', name: row.name });
+    const reg = registryByName.get(row.name);
+    setDraftLabel(reg?.label || '');
+    setDraftDescription(reg?.description || '');
+    setDraftCategory(reg?.category || '');
+    // flag 的反查來自 audit，不需要另外請求；清掉上一個 key 的結果
+    clearLookups();
+    if (row.source === 'derived') {
+      const source = parseDerivedSource(row.name);
+      if (source.kind === 'page' || source.kind === 'image') {
+        void loadDerivedPage(source.pageId);
+      }
+    }
+  };
+
+  /**
+   * 查衍生來源頁的標題。
+   *
+   * 查不到（頁面已刪或 id 對不上）本身就是有用的資訊——那代表這個 derived
+   * 旗標的來源不見了，所以標成 missing 顯示出來，而不是靜默留白。
+   */
+  const loadDerivedPage = async (pageId: string) => {
+    const gen = ++derivedGen.current;
+    const res = await apiFetch<{ title?: string }>(`/api/content/${pageId}`);
+    if (gen !== derivedGen.current) return;
+    setDerivedPage({
+      pageId,
+      title: res.ok ? res.data?.title || null : null,
+      missing: !res.ok,
+    });
+  };
+
+  /** 從 derived 旗標的衍生來源跳到對應的 key */
+  const jumpToKey = (keyValue: string) => {
+    const row = keys.find((k) => k.keyValue === keyValue);
+    if (!row) return;
+    setTab('keys');
+    selectKey(row);
+  };
+
+  const loadUsage = async (keyType: string, keyValue: string) => {
+    const gen = ++usageGen.current;
+    setUsageLoading(true);
+    setUsage(null);
+    const res = await apiFetch<UsageData>(
+      `/api/interlink/usage?keyType=${encodeURIComponent(keyType)}&key=${encodeURIComponent(keyValue)}`
+    );
+    if (gen !== usageGen.current) return;
+    setUsage(res.ok && res.data ? res.data : { definitions: [], anchors: [] });
+    setUsageLoading(false);
+    if (!res.ok)
+      getToast().error(`載入使用位置失敗：${res.error || '未知錯誤'}`);
+  };
+
+  /* ── 儲存 ── */
+
+  const saveKey = async () => {
+    if (!selectedKey) return;
+    setSaving(true);
+    const res = await apiFetch(
+      `/api/interlink/keys/${keyPath(selectedKey.keyType, selectedKey.keyValue)}`,
+      {
+        method: 'PUT',
+        // PUT 是全覆蓋語意（未提供欄位視為清空），兩個欄位一律都送
+        body: JSON.stringify({
+          title: selectedKey.keyType === 'entity' ? null : draftTitle,
+          description: draftDescription,
+        }),
+      }
+    );
+    if (res.ok) {
+      getToast().success('已儲存');
+      await loadAll();
+    } else {
+      getToast().error(res.error || '儲存失敗');
+    }
+    setSaving(false);
+  };
+
+  const saveFlag = async () => {
+    if (!selectedFlag) return;
+    setSaving(true);
+    const res = await apiFetch(
+      `/api/flags/${encodeURIComponent(selectedFlag.name)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          label: draftLabel,
+          description: draftDescription,
+          category: draftCategory,
+        }),
+      }
+    );
+    if (res.ok) {
+      getToast().success('已儲存');
+      await loadAll();
+    } else {
+      getToast().error(res.error || '儲存失敗');
+    }
+    setSaving(false);
+  };
+
+  /** 把內容裡已在用但沒註冊的旗標補進註冊表 */
+  const registerFlag = async () => {
+    if (!selectedFlag) return;
+    setSaving(true);
+    const res = await apiFetch('/api/flags', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: selectedFlag.name,
+        label: draftLabel,
+        description: draftDescription,
+        category: draftCategory,
+      }),
+    });
+    if (res.ok) {
+      getToast().success('已註冊');
+      await loadAll();
+    } else {
+      getToast().error(res.error || '註冊失敗');
+    }
+    setSaving(false);
+  };
+
+  const deleteFlag = async () => {
+    if (!selectedFlag) return;
+    const name = selectedFlag.name;
+    const ok = await getDialog().confirm(`確定要刪除旗標「${name}」的註冊嗎？`);
+    if (!ok) return;
+    setSaving(true);
+    let res = await apiFetch<{ references?: unknown }>(
+      `/api/flags/${encodeURIComponent(name)}`,
+      { method: 'DELETE' }
+    );
+    // worker 預設擋有引用的旗標，並在 409 的 data 帶回引用清單。認 references
+    // 而不是比對錯誤訊息文字——訊息會隨文案調整，這個欄位是契約。
+    // 確認後才帶 force：刪掉註冊不會動內容，內容裡的旗標會變成未註冊，
+    // 下次存檔那一頁就會被擋。
+    if (!res.ok && res.data?.references) {
+      const forceOk = await getDialog().confirm(
+        `${res.error || '這個旗標仍有引用'}。強制刪除後，引用它的頁面下次存檔會被「旗標尚未註冊」擋住。仍要刪除嗎？`
+      );
+      if (!forceOk) {
+        setSaving(false);
+        return;
+      }
+      res = await apiFetch(
+        `/api/flags/${encodeURIComponent(name)}?force=true`,
+        { method: 'DELETE' }
+      );
+    }
+    if (res.ok) {
+      getToast().success('已刪除註冊');
+      setSelected(null);
+      await loadAll();
+    } else {
+      getToast().error(res.error || '刪除失敗');
+    }
+    setSaving(false);
+  };
+
+  /* ── 改名（三段式：輸入 → 預覽 → 寫入）── */
+
+  /**
+   * 改名一律先預覽。
+   *
+   * 漏改任何一處引用的症狀是靜默永久鎖死（需求端等一個再也不會被授予的旗標，
+   * 沒有錯誤訊息，那一頁就是永遠打不開），所以先讓人看到會動到哪幾頁再寫入。
+   */
+  const previewRename = async () => {
+    if (!selectedFlag) return;
+    setRenaming(true);
+    setRenameError(null);
+    const res = await apiFetch<RenamePreview>(
+      `/api/flags/${encodeURIComponent(selectedFlag.name)}/rename`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ to: renameTo, dryRun: true }),
+      }
+    );
+    if (res.ok && res.data) setRenamePreview(res.data);
+    else setRenameError(res.error || '預覽失敗');
+    setRenaming(false);
+  };
+
+  const commitRename = async () => {
+    if (!selectedFlag || !renamePreview) return;
+    const from = selectedFlag.name;
+    const to = renamePreview.to;
+    setRenaming(true);
+    setRenameError(null);
+    const res = await apiFetch<RenamePreview>(
+      `/api/flags/${encodeURIComponent(from)}/rename`,
+      { method: 'POST', body: JSON.stringify({ to }) }
+    );
+    if (res.ok) {
+      getToast().success(`已改名為 ${to}`);
+      closeRename();
+      // 選取跟著移到新名字上，否則中欄會停在一個已經不存在的旗標
+      setSelected({ kind: 'flag', name: to });
+      await loadAll();
+    } else {
+      setRenameError(res.error || '改名失敗');
+    }
+    setRenaming(false);
+  };
+
+  const closeRename = () => {
+    setRenameOpen(false);
+    setRenameTo('');
+    setRenamePreview(null);
+    setRenameError(null);
+  };
+
+  /* ── 左欄資料整理 ── */
+
+  const needle = search.trim().toLowerCase();
+
+  const matchKey = (row: InterlinkKeyRow) =>
+    !needle ||
+    row.keyValue.toLowerCase().includes(needle) ||
+    (row.title || '').toLowerCase().includes(needle) ||
+    (row.derivedName || '').toLowerCase().includes(needle);
+
+  /** 只套搜尋——使用狀態另外套，好讓每個 chip 都標得出筆數 */
+  const matchFlagBase = (row: FlagAuditRow) =>
+    !needle ||
+    row.name.toLowerCase().includes(needle) ||
+    (row.label || '').toLowerCase().includes(needle);
+
+  const searchedKeys = keys.filter(matchKey);
+  /** 巡查 chip 的筆數對「搜尋後、類型篩選前」的集合算，與 flags 慣例一致 */
+  const keyIssueCounts = {
+    'no-desc': searchedKeys.filter((k) => keyHasIssue(k, 'no-desc')).length,
+    'orphan-anchor': searchedKeys.filter((k) => keyHasIssue(k, 'orphan-anchor'))
+      .length,
+    unreferenced: searchedKeys.filter((k) => keyHasIssue(k, 'unreferenced'))
+      .length,
+  } satisfies Record<KeyIssueFilter, number>;
+
+  const matchKeyIssue = (row: InterlinkKeyRow) =>
+    !keyIssueFilter || keyHasIssue(row, keyIssueFilter);
+
+  const entityKeys = searchedKeys.filter(
+    (k) => k.keyType === 'entity' && matchKeyIssue(k)
+  );
+  const storyKeys = searchedKeys.filter(
+    (k) => k.keyType === 'story' && matchKeyIssue(k)
+  );
+  const searchedFlags = audit.filter(matchFlagBase);
+  /**
+   * 使用狀態只對自訂旗標有意義。規則生成的是唯讀參考，名稱由 key 推導、
+   * 授予端在程式裡，沒有「該不該用」的問題（艾斯維爾 2026-07-30），所以
+   * 不進篩選也不進 chip 計數——它那一組永遠完整顯示。
+   */
+  const customFlags = searchedFlags.filter((f) => f.source !== 'derived');
+  /** 各 chip 的筆數；`unused` 是後三者的聯集 */
+  const usageCounts = {
+    all: customFlags.length,
+    used: customFlags.filter((f) => f.usage === 'used').length,
+    unused: customFlags.filter((f) => f.usage !== 'used').length,
+    'no-grant': customFlags.filter((f) => f.usage === 'no-grant').length,
+    'no-demand': customFlags.filter((f) => f.usage === 'no-demand').length,
+    orphan: customFlags.filter((f) => f.usage === 'orphan').length,
+  } satisfies Record<FlagUseFilter | FlagCauseFilter, number>;
+
+  const filteredCustom = customFlags.filter((row) => {
+    if (flagUseFilter === 'used') return row.usage === 'used';
+    if (flagUseFilter === 'unused') {
+      if (row.usage === 'used') return false;
+      return !flagCauseFilter || row.usage === flagCauseFilter;
+    }
+    return true;
+  });
+
+  const unregisteredRows = filteredCustom.filter(
+    (f) => f.source === 'unregistered'
+  );
+  const flagGroups: Array<{
+    id: FlagAuditRow['source'];
+    label: string;
+    rows: FlagAuditRow[];
+    hint?: string;
+    hintTone?: 'warn';
+    collapsible?: boolean;
+  }> = [
+    // 未註冊在自動註冊（0.9.16.8）之後只剩兩條產生路徑：`?force=true` 強制
+    // 刪掉仍被引用的註冊，以及繞過 API 的直接 DB 寫入（seed／手動 SQL）。
+    // 常態是 0，所以空的時候整組不畫——它是不一致偵測器，不是常設分類
+    ...(unregisteredRows.length > 0
+      ? [
+          {
+            id: 'unregistered' as const,
+            label: '未註冊',
+            rows: unregisteredRows,
+            hint: '內容裡在用但註冊表沒有。正常存檔會自動註冊，所以會出現在這裡的只有兩種：強制刪除過註冊，或資料是繞過 API 直接寫進 DB 的。點進去補註冊即可。',
+            hintTone: 'warn' as const,
+          },
+        ]
+      : []),
+    {
+      id: 'registered',
+      label: '已註冊',
+      rows: filteredCustom.filter((f) => f.source === 'registered'),
+    },
+    {
+      id: 'derived',
+      // 標題就講清楚這一組的收錄條件。少了這句會讓人把筆數讀成「系統裡
+      // 只有這幾個」——每一頁都能產生 completed:*，這裡只列被引用的。
+      // 取 searchedFlags 而非篩選後的：這一組不參與使用狀態篩選
+      label: '規則生成（內容裡有引用）',
+      rows: searchedFlags.filter((f) => f.source === 'derived'),
+      hint: 'completed:* 只在被當成前置條件時出現，沒有任何頁面要求它的不會列在這裡。每一頁的進度狀態要看 /admin/behavior 的全樹總覽。這一份掃的是內容怎麼寫，與讀者進度無關。這一組是唯讀參考，不受上方使用狀態篩選影響，也不計入 chip 的筆數。',
+      collapsible: true,
+    },
+  ];
+
+  /* ── 渲染：左欄 ── */
+
+  const renderKeyRow = (row: InterlinkKeyRow) => {
+    const active =
+      selected?.kind === 'key' &&
+      selected.keyType === row.keyType &&
+      selected.keyValue === row.keyValue;
+    const display =
+      row.keyType === 'entity' ? row.derivedName : row.title || undefined;
+    return (
+      <button
+        key={`${row.keyType}/${row.keyValue}`}
+        className={`km-row ${active ? 'active' : ''}`}
+        onClick={() => selectKey(row)}
+      >
+        <div className="km-row-main">
+          <div className="km-row-name">{row.keyValue}</div>
+          <div className="km-row-sub">
+            {display || <span className="km-muted">（未命名）</span>}
+          </div>
+        </div>
+        <div className="km-row-counts">
+          <span title="定義端">{row.definitionCount}</span>
+          <span className="km-row-counts-sep">·</span>
+          <span title="錨點端">{row.anchorCount}</span>
+        </div>
+      </button>
+    );
+  };
+
+  const renderFlagRow = (row: FlagAuditRow) => {
+    const active = selected?.kind === 'flag' && selected.name === row.name;
+    return (
+      <button
+        key={row.name}
+        className={`km-row ${active ? 'active' : ''}`}
+        onClick={() => selectFlag(row)}
+      >
+        <div className="km-row-main">
+          <div className="km-row-name">{row.name}</div>
+          <div className="km-row-sub">
+            {row.label || <span className="km-muted">（無標籤）</span>}
+            {/* 判定在 worker（`row.usage`），前端只查表顯示——自己算會與
+                上方 chip 的計數漂移 */}
+            {row.usage && row.usage !== 'used' && (
+              <span
+                className={`km-badge km-badge--${USAGE_BADGES[row.usage].tone}`}
+                title={USAGE_BADGES[row.usage].title}
+              >
+                {USAGE_BADGES[row.usage].label}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="km-row-counts">
+          <span title="授予端">{row.grantedBy.length}</span>
+          <span className="km-row-counts-sep">·</span>
+          <span title="需求端">{row.requiredBy.length}</span>
+        </div>
+      </button>
+    );
+  };
+
+  interface GroupOptions {
+    hint?: string;
+    hintTone?: 'warn';
+    /** 給了才是可收合的；收合時標題以外全部不畫（含 hint） */
+    onToggle?: () => void;
+    collapsed?: boolean;
+  }
+
+  function renderGroup<T>(
+    label: string,
+    rows: T[],
+    render: (row: T) => ReactElement,
+    opts: GroupOptions = {}
+  ): ReactElement {
+    const { hint, hintTone, onToggle, collapsed } = opts;
+    const body = (
+      <>
+        {hint && (
+          <div
+            className={`km-group-hint ${hintTone === 'warn' ? 'km-group-hint--warn' : ''}`}
+          >
+            ⓘ {hint}
+          </div>
+        )}
+        {rows.length === 0 ? (
+          <div className="km-group-empty">（無）</div>
+        ) : (
+          rows.map(render)
+        )}
+      </>
+    );
+    return (
+      <div className="km-group" key={label}>
+        {onToggle ? (
+          <button
+            type="button"
+            className="km-group-title km-group-title--toggle"
+            aria-expanded={!collapsed}
+            onClick={onToggle}
+          >
+            <span className="km-group-caret" aria-hidden="true">
+              {collapsed ? '▸' : '▾'}
+            </span>
+            {label}
+            <span className="km-group-count">{rows.length}</span>
+          </button>
+        ) : (
+          <div className="km-group-title">
+            {label}
+            <span className="km-group-count">{rows.length}</span>
+          </div>
+        )}
+        {!collapsed && body}
+      </div>
+    );
+  }
+
+  /* ── 渲染：中欄 ── */
+
+  const renderKeyDetail = (row: InterlinkKeyRow) => {
+    const isEntity = row.keyType === 'entity';
+    const dirty =
+      (isEntity ? false : draftTitle !== (row.title || '')) ||
+      draftDescription !== (row.description || '');
+    return (
+      <>
+        <div className="km-detail-head">
+          <span className="km-kind-tag">{row.keyType}</span>
+          <span className="km-detail-key">{row.keyValue}</span>
+        </div>
+
+        <div className="km-field">
+          <label className="km-field-label" htmlFor="km-title">
+            標題
+          </label>
+          {isEntity ? (
+            <>
+              <input
+                id="km-title"
+                className="km-field-input"
+                value={row.derivedName || ''}
+                disabled
+                readOnly
+              />
+              <div className="km-field-hint">
+                來源：Concepts dossier 條目的名稱。entity 的權威名稱只有一份，
+                這裡不可編輯。
+              </div>
+            </>
+          ) : (
+            <input
+              id="km-title"
+              className="km-field-input"
+              value={draftTitle}
+              spellCheck={false}
+              placeholder="劇情點的顯示名稱"
+              onChange={(e) => setDraftTitle(e.target.value)}
+            />
+          )}
+        </div>
+
+        {/* entity 沒有說明欄：唯一的前台消費端（Concepts「相關」按鈕的
+            hover tooltip）已於 2026-08-02 移除——那顆按鈕就長在 dossier
+            裡面，把同一段敘述再講一次沒有意義。留著可寫但沒人讀的欄位，
+            就是製造第二個會漂移的敘述來源。 */}
+        {isEntity ? (
+          <div className="km-notice">
+            entity 的敘述在 Concepts dossier 條目上，這裡不另存一份。
+            這一列只是給 story 以外的 key 保留反查用的殼。
+          </div>
+        ) : (
+          <div className="km-field">
+            <label className="km-field-label" htmlFor="km-desc">
+              說明
+            </label>
+            <textarea
+              id="km-desc"
+              className="km-field-input km-field-input--area"
+              value={draftDescription}
+              rows={5}
+              onChange={(e) => setDraftDescription(e.target.value)}
+            />
+          </div>
+        )}
+
+        <div className="km-detail-actions">
+          {!isEntity && (
+            <button
+              type="button"
+              className="km-btn km-btn--primary"
+              disabled={!dirty || saving}
+              onClick={saveKey}
+            >
+              {saving ? '儲存中…' : '儲存'}
+            </button>
+          )}
+          {row.updatedAt && (
+            <span className="km-detail-stamp">
+              最後更新 {new Date(row.updatedAt).toLocaleString('zh-TW')}
+            </span>
+          )}
+        </div>
+      </>
+    );
+  };
+
+  /**
+   * derived 旗標的來源區塊。
+   *
+   * 這裡刻意不放任何輸入框：derived 旗標沒有可寫欄位，擺三個空的 disabled
+   * 欄位只會讓人以為是「還沒填」。改為把它衍生自的東西攤開，說明仍只存在
+   * 來源那一份上（頁面的說明在頁面上、key 的說明在 key 上）。
+   */
+  const renderDerivedSource = (name: string) => {
+    const source = parseDerivedSource(name);
+    const keyRow =
+      source.kind === 'key'
+        ? keys.find((k) => k.keyValue === source.keyValue)
+        : undefined;
+    return (
+      <div className="km-field">
+        <div className="km-field-label">衍生來源</div>
+        <dl className="km-source">
+          <dt>類型</dt>
+          <dd>{source.role}</dd>
+
+          {source.kind === 'retired' && (
+            <>
+              <dt>狀態</dt>
+              <dd className="km-source-retired">已退役 · {source.note}</dd>
+            </>
+          )}
+
+          {(source.kind === 'page' || source.kind === 'image') && (
+            <>
+              <dt>來源頁面</dt>
+              <dd>
+                <div className="km-source-main">
+                  {derivedPage?.pageId === source.pageId
+                    ? derivedPage.missing
+                      ? '查不到這一頁——來源可能已被刪除'
+                      : derivedPage.title || source.pageId
+                    : '載入中…'}
+                </div>
+                <div className="km-source-sub">{source.pageId}</div>
+                <a
+                  className="km-usage-link"
+                  href={`/admin/edit/${source.pageId}`}
+                >
+                  跳到該頁編輯 →
+                </a>
+              </dd>
+            </>
+          )}
+
+          {source.kind === 'image' && (
+            <>
+              <dt>圖片 id</dt>
+              <dd>{source.imageId}</dd>
+            </>
+          )}
+
+          {source.kind === 'key' && (
+            <>
+              <dt>來源 key</dt>
+              <dd>
+                <div className="km-source-main">
+                  {keyRow
+                    ? keyRow.title || keyRow.derivedName || source.keyValue
+                    : source.keyValue}
+                </div>
+                <div className="km-source-sub">
+                  {keyRow
+                    ? `${keyRow.keyType} · ${source.keyValue}`
+                    : '這個 key 不在清單上——定義可能已被刪除'}
+                </div>
+                {keyRow && (
+                  <button
+                    type="button"
+                    className="km-source-jump"
+                    onClick={() => jumpToKey(source.keyValue)}
+                  >
+                    去編輯這個 key 的說明 →
+                  </button>
+                )}
+              </dd>
+            </>
+          )}
+
+          {source.kind === 'unknown' && (
+            <>
+              <dt>狀態</dt>
+              <dd>
+                認得出是規則生成的形狀，但解不出來源。可能是舊版命名或形狀已變更。
+              </dd>
+            </>
+          )}
+        </dl>
+      </div>
+    );
+  };
+
+  const renderFlagDetail = (row: FlagAuditRow) => {
+    const reg = registryByName.get(row.name);
+    const isDerived = row.source === 'derived';
+    const isUnregistered = row.source === 'unregistered';
+    const dirty =
+      draftLabel !== (reg?.label || '') ||
+      draftDescription !== (reg?.description || '') ||
+      draftCategory !== (reg?.category || '');
+
+    if (isDerived) {
+      return (
+        <>
+          <div className="km-detail-head">
+            <span className="km-kind-tag km-kind-tag--derived">derived</span>
+            <span className="km-detail-key">{row.name}</span>
+          </div>
+          <div className="km-notice">
+            規則生成的旗標：名稱由程式依 key 或頁面 id 推導，不進註冊表，
+            也不受註冊強制。它沒有自己的標籤與說明——那些寫在下面的來源上，
+            改來源就等於改它。
+          </div>
+          {renderDerivedSource(row.name)}
+        </>
+      );
+    }
+
+    return (
+      <>
+        <div className="km-detail-head">
+          <span className={`km-kind-tag km-kind-tag--${row.source}`}>
+            {isUnregistered ? 'unregistered' : 'flag'}
+          </span>
+          <span className="km-detail-key">{row.name}</span>
+        </div>
+
+        {isUnregistered && (
+          <div className="km-notice km-notice--warn">
+            內容裡在用但註冊表沒有這個旗標。任何用到它的頁面下次存檔都會被擋，
+            先在這裡補註冊。
+          </div>
+        )}
+
+        <div className="km-field">
+          <label className="km-field-label" htmlFor="km-label">
+            標籤
+          </label>
+          <input
+            id="km-label"
+            className="km-field-input"
+            value={draftLabel}
+            spellCheck={false}
+            placeholder="給人看的短名稱"
+            onChange={(e) => setDraftLabel(e.target.value)}
+          />
+        </div>
+
+        <div className="km-field">
+          <label className="km-field-label" htmlFor="km-category">
+            類別
+          </label>
+          <input
+            id="km-category"
+            className="km-field-input"
+            value={draftCategory}
+            spellCheck={false}
+            placeholder="分組用，可留空"
+            onChange={(e) => setDraftCategory(e.target.value)}
+          />
+        </div>
+
+        <div className="km-field">
+          <label className="km-field-label" htmlFor="km-flag-desc">
+            說明
+          </label>
+          <textarea
+            id="km-flag-desc"
+            className="km-field-input km-field-input--area"
+            value={draftDescription}
+            rows={4}
+            onChange={(e) => setDraftDescription(e.target.value)}
+          />
+        </div>
+
+        <div className="km-detail-actions">
+          {isUnregistered ? (
+            <button
+              type="button"
+              className="km-btn km-btn--primary"
+              disabled={saving}
+              onClick={registerFlag}
+            >
+              {saving ? '註冊中…' : '註冊這個旗標'}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="km-btn km-btn--primary"
+                disabled={!dirty || saving}
+                onClick={saveFlag}
+              >
+                {saving ? '儲存中…' : '儲存'}
+              </button>
+              <button
+                type="button"
+                className="km-btn"
+                disabled={saving || renaming}
+                onClick={() =>
+                  renameOpen ? closeRename() : setRenameOpen(true)
+                }
+              >
+                {renameOpen ? '取消改名' : '改名'}
+              </button>
+              <button
+                type="button"
+                className="km-btn km-btn--danger"
+                disabled={saving}
+                onClick={deleteFlag}
+              >
+                刪除註冊
+              </button>
+            </>
+          )}
+        </div>
+
+        {renameOpen && renderRenamePanel(row.name)}
+      </>
+    );
+  };
+
+  /**
+   * 改名面板：輸入新名 → 預覽影響 → 確認寫入。
+   *
+   * 預覽與實際寫入打的是同一個端點（只差 dryRun），所以清單上的筆數就是真的
+   * 會被改的東西，不是另外算的估計值。
+   */
+  const renderRenamePanel = (from: string) => {
+    // 改了名字就讓舊預覽失效，避免拿 A 的預覽去確認 B 的改名
+    const previewStale =
+      !!renamePreview && renamePreview.to !== renameTo.trim();
+    return (
+      <div className="km-rename">
+        <div className="km-field-label">改名</div>
+        <input
+          className="km-field-input"
+          value={renameTo}
+          spellCheck={false}
+          placeholder="新的旗標名稱"
+          aria-label="新的旗標名稱"
+          onChange={(e) => setRenameTo(e.target.value)}
+        />
+        <div className="km-field-hint">
+          會一併改寫所有引用：授予端的標記與需求端的解鎖條件。被改到的頁面
+          `updated_at` 會更新，同步狀態因此標成 modified，下次{' '}
+          <code>pnpm sync</code> 會把它們算成有變動。
+        </div>
+
+        {renameError && <div className="km-rename-error">{renameError}</div>}
+
+        {renamePreview && !previewStale && (
+          <div className="km-rename-preview">
+            <div className="km-rename-preview-head">
+              將把 {renamePreview.pages.length} 頁的 {renamePreview.totalHits}{' '}
+              處引用從 <code>{renamePreview.from}</code> 改為{' '}
+              <code>{renamePreview.to}</code>
+            </div>
+            {renamePreview.pages.length === 0 ? (
+              <div className="km-group-empty">
+                目前沒有任何頁面引用它，只會改註冊表這一列。
+              </div>
+            ) : (
+              renamePreview.pages.map((page) => (
+                <div className="km-usage-item" key={page.pageId}>
+                  <div className="km-usage-title">
+                    {page.title || page.pageId}
+                  </div>
+                  <div className="km-usage-meta">
+                    {page.area} · 授予 {page.contentHits} · 需求{' '}
+                    {page.metadataHits}
+                  </div>
+                  <a
+                    className="km-usage-link"
+                    href={`/admin/edit/${page.pageId}`}
+                  >
+                    跳到該頁編輯 →
+                  </a>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        <div className="km-detail-actions">
+          <button
+            type="button"
+            className="km-btn"
+            disabled={!renameTo.trim() || renaming}
+            onClick={previewRename}
+          >
+            {renaming && !renamePreview ? '計算中…' : '預覽影響'}
+          </button>
+          <button
+            type="button"
+            className="km-btn km-btn--primary"
+            disabled={!renamePreview || previewStale || renaming}
+            title={
+              previewStale
+                ? '名稱已變更，請重新預覽'
+                : `改名 ${from} → ${renameTo}`
+            }
+            onClick={commitRename}
+          >
+            {renaming && renamePreview ? '改名中…' : '確認改名'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  /* ── 渲染：右欄 ── */
+
+  const renderUsageEntry = (
+    pageId: string,
+    pageTitle: string,
+    meta: string
+  ) => (
+    <div className="km-usage-item" key={`${pageId}/${meta}`}>
+      <div className="km-usage-title">{pageTitle || pageId}</div>
+      <div className="km-usage-meta">{meta}</div>
+      <a className="km-usage-link" href={`/admin/edit/${pageId}`}>
+        跳到該頁編輯 →
+      </a>
+    </div>
+  );
+
+  const renderUsage = () => {
+    if (!selected) {
+      return <div className="km-empty">選一個 key 或旗標</div>;
+    }
+    if (selected.kind === 'flag') {
+      const row = selectedFlag;
+      if (!row) return <div className="km-empty">找不到這個旗標</div>;
+      return (
+        <>
+          <div className="km-usage-group">
+            <div className="km-usage-group-title">
+              授予端
+              <span className="km-group-count">{row.grantedBy.length}</span>
+            </div>
+            {row.grantedBy.length === 0 ? (
+              <div className="km-group-empty">
+                {row.source === 'derived'
+                  ? '（由程式授予）'
+                  : '（沒有任何地方授予）'}
+              </div>
+            ) : (
+              row.grantedBy.map((ref) =>
+                renderUsageEntry(ref.pageId, ref.pageTitle, ref.area)
+              )
+            )}
+          </div>
+          <div className="km-usage-group">
+            <div className="km-usage-group-title">
+              需求端
+              <span className="km-group-count">{row.requiredBy.length}</span>
+            </div>
+            {row.requiredBy.length === 0 ? (
+              <div className="km-group-empty">（沒有任何頁面要求）</div>
+            ) : (
+              row.requiredBy.map((ref) =>
+                renderUsageEntry(ref.pageId, ref.pageTitle, ref.area)
+              )
+            )}
+          </div>
+        </>
+      );
+    }
+    if (usageLoading) return <div className="km-empty">載入中…</div>;
+    if (!usage) return <div className="km-empty">—</div>;
+    return (
+      <>
+        <div className="km-usage-group">
+          <div className="km-usage-group-title">
+            定義端
+            <span className="km-group-count">{usage.definitions.length}</span>
+          </div>
+          {usage.definitions.length === 0 ? (
+            <div className="km-group-empty">（沒有任何地方宣告）</div>
+          ) : (
+            usage.definitions.map((def) =>
+              renderUsageEntry(
+                def.pageId,
+                def.pageTitle,
+                `${def.area} · ${def.scope}`
+              )
+            )
+          )}
+        </div>
+        <div className="km-usage-group">
+          <div className="km-usage-group-title">
+            錨點端
+            <span className="km-group-count">{usage.anchors.length}</span>
+          </div>
+          {usage.anchors.length === 0 ? (
+            <div className="km-group-empty">（History 內容裡沒有引用）</div>
+          ) : (
+            usage.anchors.map((anchor) =>
+              renderUsageEntry(
+                anchor.pageId,
+                anchor.pageTitle,
+                [anchor.anchorKind, anchor.label].filter(Boolean).join(' · ')
+              )
+            )
+          )}
+        </div>
+      </>
+    );
+  };
+
+  /** 頂列分頁——三欄（key／flag）與全寬視圖（進度）共用同一條 */
+  const renderTopTabs = () => (
+    <div className="km-tabs km-tabs--top">
+      <button
+        className={`km-tab ${tab === 'keys' ? 'active' : ''}`}
+        onClick={() => switchTab('keys')}
+      >
+        key
+        <span className="km-group-count">{keys.length}</span>
+      </button>
+      <button
+        className={`km-tab ${tab === 'flags' ? 'active' : ''}`}
+        onClick={() => switchTab('flags')}
+      >
+        flag
+        <span className="km-group-count">{audit.length}</span>
+      </button>
+      <button
+        className={`km-tab ${tab === 'progress' ? 'active' : ''}`}
+        onClick={() => switchTab('progress')}
+      >
+        進度
+      </button>
+      <button
+        className={`km-tab ${tab === 'site' ? 'active' : ''}`}
+        onClick={() => switchTab('site')}
+      >
+        站台
+      </button>
+    </div>
+  );
+
+  if (tab === 'progress' || tab === 'site') {
+    return (
+      <div className="km-wrap">
+        {renderTopTabs()}
+        {tab === 'progress' ? (
+          <ProgressOverview markerCountByPage={markerCountByPage} />
+        ) : (
+          <SiteSettingsPanel />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="km-wrap">
+      {renderTopTabs()}
+      <div className="km">
+        {/* 左欄：清單 */}
+        <div className="km-list">
+          <div className="km-search-bar">
+            <input
+              type="text"
+              className="km-search-input"
+              placeholder={
+                tab === 'keys' ? '搜尋 key、名稱…' : '搜尋旗標、標籤…'
+              }
+              value={search}
+              spellCheck={false}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <button
+              type="button"
+              className="km-btn km-btn--new"
+              aria-expanded={creating}
+              aria-label={creating ? '取消新增' : '新增'}
+              title={
+                creating
+                  ? '取消新增'
+                  : tab === 'keys'
+                    ? '直接建一個 key（尚未被任何內容引用）'
+                    : '直接註冊一個旗標（尚未被任何內容引用）'
+              }
+              onClick={() => (creating ? closeCreate() : openCreate())}
+            >
+              {creating ? '×' : '＋'}
+            </button>
+          </div>
+
+          {creating && (
+            <div className="km-create">
+              {tab === 'keys' && (
+                <div
+                  className="km-chips km-chips--sub"
+                  role="group"
+                  aria-label="新 key 的類型"
+                >
+                  {(['story', 'entity'] as const).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      className={`km-chip ${newKeyType === type ? 'active' : ''}`}
+                      aria-pressed={newKeyType === type}
+                      onClick={() => setNewKeyType(type)}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input
+                className="km-field-input"
+                type="text"
+                spellCheck={false}
+                placeholder={tab === 'keys' ? 'key 值' : '旗標名稱'}
+                aria-label={tab === 'keys' ? '新 key 值' : '新旗標名稱'}
+                value={newName}
+                onChange={(e) => {
+                  setNewName(e.target.value);
+                  setCreateError(null);
+                }}
+              />
+              {tab === 'keys' ? (
+                // entity 的名稱權威在 Concepts dossier，這張表永遠不持有它
+                newKeyType === 'story' && (
+                  <input
+                    className="km-field-input"
+                    type="text"
+                    placeholder="劇情點名稱（浮島線索卡會顯示）"
+                    aria-label="新 key 名稱"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                  />
+                )
+              ) : (
+                <>
+                  <input
+                    className="km-field-input"
+                    type="text"
+                    placeholder="標籤（給人看的短名稱，可留空）"
+                    aria-label="新旗標標籤"
+                    value={newLabel}
+                    onChange={(e) => setNewLabel(e.target.value)}
+                  />
+                  <input
+                    className="km-field-input"
+                    type="text"
+                    placeholder="類別（可留空）"
+                    aria-label="新旗標類別"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                  />
+                </>
+              )}
+              {/* entity 的名稱與敘述都在 Concepts dossier，這裡只建反查用的殼 */}
+              {!(tab === 'keys' && newKeyType === 'entity') && (
+                <textarea
+                  className="km-field-input km-field-input--area"
+                  placeholder="說明（可留空）"
+                  aria-label="新項目說明"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                />
+              )}
+              {tab === 'keys' && newKeyType === 'entity' && (
+                <div className="km-field-hint">
+                  entity 的名稱與敘述都在 Concepts dossier，這裡只建反查用的殼。
+                </div>
+              )}
+              {createError && (
+                <div className="km-rename-error">{createError}</div>
+              )}
+              <div className="km-create-actions">
+                <button
+                  type="button"
+                  className="km-btn km-btn--primary"
+                  disabled={!newName.trim() || saving}
+                  onClick={() =>
+                    void (tab === 'keys' ? createKey() : createFlag())
+                  }
+                >
+                  {saving ? '建立中…' : '建立'}
+                </button>
+                <button type="button" className="km-btn" onClick={closeCreate}>
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tab === 'keys' ? (
+            <div className="km-list-toolbar km-list-toolbar--stack">
+              <div className="km-chips" role="group" aria-label="key 類型篩選">
+                {KEY_TYPE_FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    className={`km-chip ${keyTypeFilter === filter.id ? 'active' : ''}`}
+                    aria-pressed={keyTypeFilter === filter.id}
+                    onClick={() => setKeyTypeFilter(filter.id)}
+                  >
+                    {filter.label}
+                    <span className="km-group-count">
+                      {filter.id === 'entity'
+                        ? entityKeys.length
+                        : filter.id === 'story'
+                          ? storyKeys.length
+                          : entityKeys.length + storyKeys.length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {/* 巡查層：三種狀態單選可取消（點已選中的回到全部） */}
+              <div
+                className="km-chips km-chips--sub"
+                role="group"
+                aria-label="key 巡查篩選"
+              >
+                {KEY_ISSUE_FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    className={`km-chip ${keyIssueFilter === filter.id ? 'active' : ''}`}
+                    aria-pressed={keyIssueFilter === filter.id}
+                    title={filter.title}
+                    onClick={() =>
+                      setKeyIssueFilter((current) =>
+                        current === filter.id ? null : filter.id
+                      )
+                    }
+                  >
+                    {filter.label}
+                    <span className="km-group-count">
+                      {keyIssueCounts[filter.id]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {storySongIssues.length > 0 && (
+                <div className="km-warnbar">
+                  <button
+                    type="button"
+                    className="km-warnbar-head"
+                    aria-expanded={storySongsOpen}
+                    onClick={() => setStorySongsOpen((open) => !open)}
+                  >
+                    ⚠ {storySongIssues.length} 首劇情歌未綁 storyKey
+                    <span className="km-warnbar-arrow">
+                      {storySongsOpen ? '▾' : '▸'}
+                    </span>
+                  </button>
+                  {storySongsOpen && (
+                    <ul className="km-warnbar-list">
+                      {storySongIssues.map((song) => (
+                        <li key={song.pageId}>
+                          <a href={`/admin/edit/${song.pageId}`}>
+                            {song.title || song.pageId}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="km-list-toolbar km-list-toolbar--stack">
+              <div
+                className="km-chips"
+                role="group"
+                aria-label="旗標使用狀態篩選"
+              >
+                {FLAG_USE_FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    className={`km-chip ${flagUseFilter === filter.id ? 'active' : ''}`}
+                    aria-pressed={flagUseFilter === filter.id}
+                    onClick={() => selectUseFilter(filter.id)}
+                  >
+                    {filter.label}
+                    <span className="km-group-count">
+                      {usageCounts[filter.id]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {/* 第二層：只在選了「未使用」時出現。點已選中的可取消（回到三種
+                成因全看），所以不需要另一個「全部」chip */}
+              {flagUseFilter === 'unused' && (
+                <div
+                  className="km-chips km-chips--sub"
+                  role="group"
+                  aria-label="未使用成因篩選"
+                >
+                  {FLAG_USAGE_FILTERS.map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      className={`km-chip ${flagCauseFilter === filter.id ? 'active' : ''}`}
+                      aria-pressed={flagCauseFilter === filter.id}
+                      title={USAGE_BADGES[filter.id].title}
+                      onClick={() =>
+                        setFlagCauseFilter((current) =>
+                          current === filter.id ? null : filter.id
+                        )
+                      }
+                    >
+                      {filter.label}
+                      <span className="km-group-count">
+                        {usageCounts[filter.id]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="km-list-scroll">
+            {loading ? (
+              <div className="km-empty">載入中…</div>
+            ) : tab === 'keys' ? (
+              <>
+                {keyTypeFilter !== 'story' &&
+                  renderGroup('entity', entityKeys, renderKeyRow)}
+                {keyTypeFilter !== 'entity' &&
+                  renderGroup('story', storyKeys, renderKeyRow)}
+              </>
+            ) : (
+              flagGroups.map((group) =>
+                renderGroup(group.label, group.rows, renderFlagRow, {
+                  hint: group.hint,
+                  hintTone: group.hintTone,
+                  ...(group.collapsible
+                    ? {
+                        collapsed: !derivedOpen,
+                        onToggle: () => setDerivedOpen((open) => !open),
+                      }
+                    : {}),
+                })
+              )
+            )}
+          </div>
+        </div>
+
+        {/* 中欄：詳細 */}
+        <div className="km-detail">
+          {selected === null ? (
+            <div className="km-empty">從左欄選一個項目</div>
+          ) : selected.kind === 'key' ? (
+            selectedKey ? (
+              renderKeyDetail(selectedKey)
+            ) : (
+              <div className="km-empty">找不到這個 key</div>
+            )
+          ) : selectedFlag ? (
+            renderFlagDetail(selectedFlag)
+          ) : (
+            <div className="km-empty">找不到這個旗標</div>
+          )}
+        </div>
+
+        {/* 右欄：用在哪 */}
+        <div className="km-usage">
+          <div className="km-usage-head">用在哪</div>
+          <div className="km-usage-scroll">{renderUsage()}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
