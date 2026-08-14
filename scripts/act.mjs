@@ -237,7 +237,7 @@ const GROUPS = [
         desc: '最佳化 R2 資產（正式）',
         danger: true,
         confirm: 'optimize',
-        warn: '會對正式 R2 上傳最佳化版本並刪除原檔；腳本本身不再確認。先跑 dry-run。',
+        warn: '會對正式 R2 上傳最佳化版本並刪除原檔（腳本內還會再問一次）。先跑 dry-run。',
       },
       { cmd: 'optimize:assets:dry', desc: '最佳化 R2 資產（dry-run）' },
       { cmd: 'perf', desc: '節流效能量測（行動版）', slow: true },

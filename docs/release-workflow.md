@@ -229,7 +229,8 @@ pnpm act deploy:discord-widget   # Discord widget 同步
 
 #### 7-4 API smoke 驗證
 
-Worker 部署後、merge 之前先確認 API 活著：
+Worker 部署後、merge 之前先確認 API 活著。以下指令是 bash 語法
+（`head`、反斜線續行），在 PowerShell 不能照貼——請開 Git Bash 執行：
 
 ```bash
 curl -s https://eternity-content-api.ptyc4076.workers.dev/api/content/history | head -c 200
@@ -246,7 +247,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 | 出問題的層 | 回復方式 |
 |------------|----------|
-| Worker | `wrangler rollback`（Cloudflare 保留前一版），或 checkout 上一個 tag 重新 `pnpm deploy:*` |
+| Worker | `pnpm --filter <worker> exec wrangler rollback`（Cloudflare 保留前一版；緊急回復是少數直接動 wrangler 的例外），或 checkout 上一個 tag 重新 `pnpm deploy:*` |
 | 前端 | Cloudflare Pages dashboard 將前一次 deployment 設為 production |
 | D1 migration | **無自動回復**——這是 7-1 要求向後相容的理由。真的要退，只能手寫反向 SQL |
 
