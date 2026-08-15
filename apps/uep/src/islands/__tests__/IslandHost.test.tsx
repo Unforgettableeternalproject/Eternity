@@ -111,6 +111,7 @@ import {
   hasPhantomSuggestion,
   pushPhantomGallery,
 } from '../visuals/phantomBridge';
+import { invalidateEntityBindingCache } from '../../components/concepts/entityBinding';
 import { getIslandRuntime } from '../islandRuntime';
 import { ISLAND_RELATED_EVENT } from '../types';
 import type { IslandRelatedDetail } from '../types';
@@ -417,5 +418,166 @@ describe('IslandHost — 進度推進的 chip 標記', () => {
     completeAndRerender(rerender, 'history/u/c1/a1/s1');
     await flushAsync();
     expect(getChipAttentionMark('history')).toBeNull();
+  });
+});
+
+/**
+ * entity 一對多綁定接線（T-8，2026-08-15 定案）
+ *
+ * 走真實的 resolveEntityBinding 求值路徑（不 mock 該模組），fetch 依 URL
+ * 分派，確認：有 dossier 綁定時改打 by-id 端點、孤兒 entityKey 維持原本
+ * 的 by-key 反查。後者是**回歸鎖**——絕大多數 entity 屬於這種情況。
+ */
+describe('IslandHost — entity 一對多綁定接線', () => {
+  const BOUND_SONG = {
+    id: 'echoes/t8/hero-theme',
+    title: '轉正後主題曲',
+    audioFile: 'audio/hero.mp3',
+    songType: 'character',
+    clusterId: 'characters',
+    entityKey: 't8-turncoat',
+    spoilerRevisions: [],
+  };
+
+  const DOSSIER_PAGE = {
+    variants: [
+      {
+        id: 'u',
+        subcategories: [
+          {
+            label: '人物',
+            groups: [
+              {
+                label: '',
+                entries: [
+                  {
+                    name: '轉正角色',
+                    entityKey: 't8-turncoat',
+                    revisions: [
+                      {
+                        id: 'base',
+                        gate: null,
+                        patch: {
+                          set: { 'bindings.echoes': 'echoes/t8/hero-theme' },
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  /** 記錄所有被請求的 URL，供斷言走了哪一條路徑 */
+  let requested: string[] = [];
+
+  function stubRoutedFetch() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        requested.push(url);
+        if (url.includes('/api/concepts/entity-index')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                data: {
+                  entries: [
+                    {
+                      stack: 'dossier',
+                      pageId: 'concepts/t8/records',
+                      entityKey: 't8-turncoat',
+                    },
+                  ],
+                },
+              }),
+          });
+        }
+        if (url.includes('/api/content/concepts/t8/records')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                data: {
+                  content: [
+                    {
+                      type: 'dossier',
+                      content: JSON.stringify(DOSSIER_PAGE),
+                    },
+                  ],
+                },
+              }),
+          });
+        }
+        // 兩個曲目端點都回同一首，差別只在測試斷言看的是被打的 URL
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true, data: { song: BOUND_SONG } }),
+        });
+      })
+    );
+  }
+
+  async function activate(entityKey: string) {
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent<EntityActivateDetail>(UEP_ENTITY_ACTIVATE_EVENT, {
+          detail: {
+            kind: 'character',
+            ref: `entity:${entityKey}`,
+            entityKey,
+          },
+        })
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  beforeEach(() => {
+    progressMock.state = createInitialState();
+    audioMock.currentSongId = null;
+    gatingMock.allowedId = 'echoes';
+    requested = [];
+    invalidateEntityBindingCache();
+    clearEchoSuggestion();
+    stubRoutedFetch();
+  });
+
+  afterEach(() => {
+    clearEchoSuggestion();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('有 dossier 綁定 → 改打 by-id 端點', async () => {
+    render(<IslandHost />);
+    await activate('t8-turncoat');
+
+    expect(
+      requested.some((u) =>
+        u.includes('/api/echoes/song?id=echoes%2Ft8%2Fhero-theme')
+      )
+    ).toBe(true);
+    expect(requested.some((u) => u.includes('/api/echoes/entity-song'))).toBe(
+      false
+    );
+  });
+
+  it('🔒 孤兒 entityKey → 維持原本的 by-key 反查（fallback 零走樣）', async () => {
+    render(<IslandHost />);
+    await activate('t8-orphan');
+
+    expect(
+      requested.some((u) => u.includes('/api/echoes/entity-song?key=t8-orphan'))
+    ).toBe(true);
+    expect(requested.some((u) => u.includes('/api/echoes/song?id='))).toBe(
+      false
+    );
   });
 });

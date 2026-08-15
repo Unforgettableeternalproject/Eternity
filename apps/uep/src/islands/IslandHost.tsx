@@ -30,6 +30,7 @@ import type { ProgressState } from '../progress';
 import { isGateBlocked } from '../components/storage/storageVisibility';
 import { getAudioStore, resolveSpoilerLevel } from '../audio';
 import { isSongUnlockedInZone } from '../components/echoes/echoesVisibility';
+import { resolveEntityBinding } from '../components/concepts/entityBinding';
 import { isGalleryUnlockedInZone } from '../components/visuals/visualsVisibility';
 
 import DraggableIsland from './DraggableIsland';
@@ -197,14 +198,30 @@ export default function IslandHost() {
       if (!shouldMountIsland(progressRef.current, 'echoes')) return;
       controller?.abort();
       controller = new AbortController();
-      void Promise.all([
-        fetch(
-          `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(detail.entityKey)}`,
-          { signal: controller.signal }
-        ).then((response) => response.json()),
-        fetchZoneProgressTree('echoes'),
-      ])
-        .then(([payload, zoneTree]) => {
+      const signal = controller.signal;
+      void (async () => {
+        // entity 一對多綁定（2026-08-15 定案）：先求出這個 entityKey
+        // 此刻該對應哪一首（角色轉正前後各一首主題曲）。有登記綁定就
+        // 改打 by-id——findSongById 刻意不排除 hidden，正好接住切換後
+        // 可能隱藏的劇情期歌曲。
+        // 無綁定（含孤兒 entityKey）維持原本的 by-key 反查，行為零改變。
+        const binding = await resolveEntityBinding(
+          detail.entityKey,
+          'echoes',
+          progressRef.current
+        );
+        if (signal.aborted) return null;
+        const songUrl = binding
+          ? `${API_BASE}/api/echoes/song?id=${encodeURIComponent(binding.id)}`
+          : `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(detail.entityKey)}`;
+        return Promise.all([
+          fetch(songUrl, { signal }).then((response) => response.json()),
+          fetchZoneProgressTree('echoes'),
+        ]);
+      })()
+        .then((resolved) => {
+          if (!resolved) return;
+          const [payload, zoneTree] = resolved;
           // async 落地後重驗——等待期間可能登出/停用 Echoes，此時不得
           // 再推提示或展開島
           if (!shouldMountIsland(progressRef.current, 'echoes')) return;
@@ -293,14 +310,28 @@ export default function IslandHost() {
       if (!shouldMountIsland(progressRef.current, 'visuals')) return;
       controller?.abort();
       controller = new AbortController();
-      void Promise.all([
-        fetch(
-          `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(detail.entityKey)}`,
-          { signal: controller.signal }
-        ).then((response) => response.json()),
-        fetchZoneProgressTree('visuals'),
-      ])
-        .then(([payload, zoneTree]) => {
+      const signal = controller.signal;
+      void (async () => {
+        // entity 一對多綁定（2026-08-15 定案）：同 Echoes 分支的道理，
+        // 先求值此刻該對應哪一個畫廊，有登記綁定就改打 by-id。
+        // 無綁定（含孤兒 entityKey）維持原本的 by-key 反查，行為零改變。
+        const binding = await resolveEntityBinding(
+          detail.entityKey,
+          'visuals',
+          progressRef.current
+        );
+        if (signal.aborted) return null;
+        const galleryUrl = binding
+          ? `${API_BASE}/api/visuals/gallery?id=${encodeURIComponent(binding.id)}`
+          : `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(detail.entityKey)}`;
+        return Promise.all([
+          fetch(galleryUrl, { signal }).then((response) => response.json()),
+          fetchZoneProgressTree('visuals'),
+        ]);
+      })()
+        .then((resolved) => {
+          if (!resolved) return;
+          const [payload, zoneTree] = resolved;
           // async 落地後重驗——等待期間可能登出/停用 Visuals
           if (!shouldMountIsland(progressRef.current, 'visuals')) return;
           const gallery = payload?.data?.gallery;
