@@ -11,6 +11,11 @@
  */
 
 import {
+  buildConceptsBindingIndex,
+  hasRegisteredBinding,
+  type ConceptsBindingEntry,
+} from './concepts-bindings';
+import {
   buildConceptsEntityIndex,
   collectConceptsKeyCandidates,
 } from './concepts-index';
@@ -118,6 +123,12 @@ export async function createKeyConflictChecker(
   const visuals = wanted.has('visuals')
     ? await buildVisualsEntityIndex(db, { includeHidden: true })
     : [];
+  // entity 一對多綁定的放行清單（2026-08-15 定案）：只有 Echoes/Visuals
+  // 的 zone 唯一性會被它豁免，查 Concepts 時不需要多掃一次全區。
+  const bindings: Map<string, ConceptsBindingEntry> =
+    wanted.has('echoes') || wanted.has('visuals')
+      ? await buildConceptsBindingIndex(db)
+      : new Map();
 
   return {
     async find(query: KeyConflictQuery): Promise<KeyConflict | null> {
@@ -136,6 +147,23 @@ export async function createKeyConflictChecker(
             conceptsScope(e.stack, e.variantId) === scope
         );
         return hit ? { pageId: hit.pageId, pageTitle: hit.pageTitle } : null;
+      }
+
+      // entity 一對多綁定例外（2026-08-15 定案）：一個角色可以有多首
+      // 主題曲／多個畫廊（例如轉正前後各一），由 Concepts dossier 的
+      // revision 鏈決定此刻該給哪一個。這個 entityKey 只要在任一條
+      // revision 的 bindings 鏈登記過，同區多筆就是刻意的，放行。
+      //
+      // ⚠️ 刻意**不逐 id 比對**：新頁尚未存檔時不可能已被 Concepts
+      // revision 引用（雞生蛋），要求它先出現在綁定清單裡會讓第二首歌
+      // 永遠存不進去。判定語意是「這個 entityKey 是刻意多綁定的」。
+      //
+      // storyKey 不適用——劇情點與內容是一對一，沒有隨進度切換的語意。
+      if (
+        keyType === 'entity' &&
+        hasRegisteredBinding(bindings, keyValue, area)
+      ) {
+        return null;
       }
 
       // Echoes / Visuals：整個區塊一個實例
