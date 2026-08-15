@@ -19,6 +19,8 @@
 export interface EchoesEntityIndexEntry {
   /** Echoes 歌曲頁 id（`echoes/...`） */
   id: string;
+  /** 歌曲標題——綁定 picker 的選單需要可讀名稱，裸 id 認不出是哪首 */
+  title: string;
   /** 角色歌／區域歌的實體身分；劇情歌沒有，故為選填 */
   entityKey?: string;
   /** 劇情歌的劇情點身分（S10-1 第二套命名空間）；非劇情歌沒有 */
@@ -46,6 +48,7 @@ export interface BuildEchoesEntityIndexOptions {
 
 interface EchoesIndexRow {
   id: string;
+  title: string;
   metadata: string;
 }
 
@@ -68,7 +71,7 @@ export async function buildEchoesEntityIndex(
 ): Promise<EchoesEntityIndexEntry[]> {
   const result = await db
     .prepare(
-      `SELECT id, metadata FROM pages
+      `SELECT id, title, metadata FROM pages
        WHERE area = 'echoes' AND page_type = 'song' AND deleted_at IS NULL
        ORDER BY sort_order ASC`
     )
@@ -94,6 +97,7 @@ export async function buildEchoesEntityIndex(
     if (!entityKey && !storyKey) continue;
     entries.push({
       id: row.id,
+      title: row.title || '',
       ...(entityKey ? { entityKey } : {}),
       ...(storyKey ? { storyKey } : {}),
       ...(meta.gate != null && typeof meta.gate === 'object'
