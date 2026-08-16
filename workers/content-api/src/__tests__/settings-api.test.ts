@@ -116,6 +116,7 @@ describe('/api/settings', () => {
       'reader.restWindowMinutes': 30,
       'reader.restCooldownMinutes': 90,
       'reader.teaInviteChancePct': 10,
+      'entityBinding.embedOrphanGate': 'disabled',
     });
   });
 
