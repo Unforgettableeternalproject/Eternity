@@ -10,6 +10,7 @@ import type { GateCondition } from '../../progress';
 import { API_BASE, uploadAsset, deleteAsset } from './editorHelpers';
 import { deriveSongCategoryFromPageId } from './echoesCategory';
 import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
+import { useBoundEntityKeys, withoutBoundKeys } from './useBoundEntityKeys';
 import GateConditionEditor from './GateConditionEditor';
 import { UploadSpinner } from './UploadSpinner';
 
@@ -449,6 +450,13 @@ export default function EchoesEditorBody({
     'loading' | 'ready' | 'error'
   >('loading');
   const [entityKeyReload, setEntityKeyReload] = useState(0);
+  // 已登記多重綁定的 entityKey（角色轉正前後各一首主題曲之類）——
+  // 同 zone 重複是刻意的，不再警告撞名。伺服器 409 仍是權威把關。
+  const boundEntityKeys = useBoundEntityKeys(apiBase, 'echoes');
+  const takenEntityKeys = useMemo(
+    () => withoutBoundKeys(otherEntityKeys, boundEntityKeys),
+    [otherEntityKeys, boundEntityKeys]
+  );
 
   // === 刪除確認 state ===
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -496,7 +504,7 @@ export default function EchoesEditorBody({
     const isStory = data.category === 'story';
     const activeKey = isStory ? data.storyKey : data.entityKey;
     const label = isStory ? '劇情點 key' : 'entityKey';
-    const taken = isStory ? otherStoryKeys : otherEntityKeys;
+    const taken = isStory ? otherStoryKeys : takenEntityKeys;
     if (activeKey && !ENTITY_KEY_PATTERN.test(activeKey)) {
       issues.push(`${label}「${activeKey}」不是合法 kebab-case`);
     } else if (activeKey && entityKeyCheckStatus === 'loading') {
@@ -519,7 +527,7 @@ export default function EchoesEditorBody({
     data.storyKey,
     data.spoilerRevisions,
     entityKeyCheckStatus,
-    otherEntityKeys,
+    takenEntityKeys,
     otherStoryKeys,
   ]);
 
@@ -799,7 +807,7 @@ export default function EchoesEditorBody({
           <>
             <EntityKeyField
               value={data.entityKey}
-              existingKeys={otherEntityKeys}
+              existingKeys={takenEntityKeys}
               onChange={(entityKey) => update({ entityKey })}
             />
             <div className="ned-gate-scope-hint">

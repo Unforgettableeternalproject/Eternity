@@ -199,6 +199,8 @@ export default function IslandHost() {
       controller?.abort();
       controller = new AbortController();
       const signal = controller.signal;
+      // detail 的 optional chain 收窄進不了 async 閉包，先取出已收窄的值
+      const entityKey = detail.entityKey;
       void (async () => {
         // entity 一對多綁定（2026-08-15 定案）：先求出這個 entityKey
         // 此刻該對應哪一首（角色轉正前後各一首主題曲）。有登記綁定就
@@ -206,14 +208,14 @@ export default function IslandHost() {
         // 可能隱藏的劇情期歌曲。
         // 無綁定（含孤兒 entityKey）維持原本的 by-key 反查，行為零改變。
         const binding = await resolveEntityBinding(
-          detail.entityKey,
+          entityKey,
           'echoes',
           progressRef.current
         );
         if (signal.aborted) return null;
         const songUrl = binding
           ? `${API_BASE}/api/echoes/song?id=${encodeURIComponent(binding.id)}`
-          : `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(detail.entityKey)}`;
+          : `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(entityKey)}`;
         return Promise.all([
           fetch(songUrl, { signal }).then((response) => response.json()),
           fetchZoneProgressTree('echoes'),
@@ -311,19 +313,21 @@ export default function IslandHost() {
       controller?.abort();
       controller = new AbortController();
       const signal = controller.signal;
+      // detail 的 optional chain 收窄進不了 async 閉包，先取出已收窄的值
+      const entityKey = detail.entityKey;
       void (async () => {
         // entity 一對多綁定（2026-08-15 定案）：同 Echoes 分支的道理，
         // 先求值此刻該對應哪一個畫廊，有登記綁定就改打 by-id。
         // 無綁定（含孤兒 entityKey）維持原本的 by-key 反查，行為零改變。
         const binding = await resolveEntityBinding(
-          detail.entityKey,
+          entityKey,
           'visuals',
           progressRef.current
         );
         if (signal.aborted) return null;
         const galleryUrl = binding
           ? `${API_BASE}/api/visuals/gallery?id=${encodeURIComponent(binding.id)}`
-          : `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(detail.entityKey)}`;
+          : `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(entityKey)}`;
         return Promise.all([
           fetch(galleryUrl, { signal }).then((response) => response.json()),
           fetchZoneProgressTree('visuals'),
