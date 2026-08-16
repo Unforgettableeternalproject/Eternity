@@ -18,7 +18,7 @@
  *   revision 時 remount——只有選中的 revision 會實例化 TipTap（惰性）
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import type {
   ChronoFieldDef,
@@ -27,6 +27,7 @@ import type {
   RevisionPatch,
 } from '../concepts/types';
 
+import { getApiBase } from '../../lib/apiBase';
 import MiniEditor from './MiniEditor';
 import { getDialog } from './editorHelpers';
 
@@ -40,7 +41,8 @@ type FieldKind =
   | 'stringlist'
   | 'keyvalue'
   | 'sections'
-  | 'json';
+  | 'json'
+  | 'entity-picker';
 
 interface PatchFieldDef {
   path: string;
@@ -58,6 +60,10 @@ export const STACK_PATCH_FIELDS: Record<StackKind, PatchFieldDef[]> = {
     // 原本列在這裡的 spoiler 反而是死欄位：型別上有、編輯器沒有輸入欄、
     // Reader 也不讀，patch 它不會有任何效果。
     { path: 'aliases', label: '別名（整段替換）', kind: 'stringlist' },
+    // entity 一對多綁定（2026-08-15 定案）：patch 不改內容、只改指向。
+    // 這條 revision 通過後，這個實體在該 zone 就對應到選中的那一個。
+    { path: 'bindings.echoes', label: '綁定歌曲', kind: 'entity-picker' },
+    { path: 'bindings.visuals', label: '綁定畫廊', kind: 'entity-picker' },
   ],
   browser: [
     { path: 'name', label: '角色名稱', kind: 'text' },
@@ -66,6 +72,8 @@ export const STACK_PATCH_FIELDS: Record<StackKind, PatchFieldDef[]> = {
     { path: 'avatar', label: '頭像 R2 key', kind: 'text' },
     { path: 'basic', label: '基本資料（整段替換）', kind: 'keyvalue' },
     { path: 'sections', label: '區段（整段替換）', kind: 'sections' },
+    { path: 'bindings.echoes', label: '綁定歌曲', kind: 'entity-picker' },
+    { path: 'bindings.visuals', label: '綁定畫廊', kind: 'entity-picker' },
   ],
   chrono: [{ path: 'title', label: '標題', kind: 'text' }],
   diff: [
@@ -83,6 +91,7 @@ function defaultValueFor(kind: FieldKind): unknown {
   switch (kind) {
     case 'text':
     case 'html':
+    case 'entity-picker':
       return '';
     case 'number':
       return 0;
@@ -391,6 +400,7 @@ function PatchFieldRow({
       </div>
       <PatchValueEditor
         kind={kind}
+        path={path}
         value={value}
         onChange={onValueChange}
         accent={accent}
@@ -403,16 +413,26 @@ function PatchFieldRow({
 
 function PatchValueEditor({
   kind,
+  path,
   value,
   onChange,
   accent,
 }: {
   kind: FieldKind;
+  path: string;
   value: unknown;
   onChange: (value: unknown) => void;
   accent: string;
 }) {
   switch (kind) {
+    case 'entity-picker':
+      return (
+        <EntityBindingPicker
+          zone={path.endsWith('.visuals') ? 'visuals' : 'echoes'}
+          value={typeof value === 'string' ? value : ''}
+          onChange={onChange}
+        />
+      );
     case 'text':
       return (
         <input
@@ -673,5 +693,115 @@ function JsonValueEditor({
         </div>
       )}
     </div>
+  );
+}
+
+// ── entity 綁定 picker（2026-08-15 定案）────────────────────────────
+
+interface BindingOption {
+  id: string;
+  title: string;
+}
+
+/**
+ * 候選清單模組級快取——一個 dossier 頁可能有數十個條目、每個條目多條
+ * revision，逐個 picker 各自 fetch 就是對同一個端點掃射（entity tooltip
+ * 正是因此被拆掉的，不能同一個坑再踩一次）。
+ *
+ * 走 `getApiBase()` 直接打 worker 而非同源 proxy：echoes/visuals 前綴
+ * 沒有 Astro proxy 路由，而這兩個 entity-index 是公開 GET（有 CORS），
+ * 前台各處本來就直接打。test mode cookie 由 getApiBase 自己解析。
+ */
+const bindingOptionCache: Partial<
+  Record<'echoes' | 'visuals', Promise<BindingOption[]>>
+> = {};
+
+function loadBindingOptions(
+  zone: 'echoes' | 'visuals'
+): Promise<BindingOption[]> {
+  let cached = bindingOptionCache[zone];
+  if (!cached) {
+    cached = (async () => {
+      const res = await fetch(`${getApiBase()}/api/${zone}/entity-index`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as {
+        ok?: boolean;
+        data?: { entries?: { id: string; title?: string }[] };
+      };
+      if (!json.ok) throw new Error('API returned ok=false');
+      return (json.data?.entries || []).map((e) => ({
+        id: e.id,
+        title: e.title || e.id,
+      }));
+    })().catch((err) => {
+      delete bindingOptionCache[zone];
+      throw err;
+    });
+    bindingOptionCache[zone] = cached;
+  }
+  return cached;
+}
+
+/**
+ * 下拉選擇要綁定的歌曲／畫廊，寫入的值是裸 page id。
+ *
+ * 清單載入失敗時退回純文字輸入——比讓使用者完全無法填要好，
+ * 值本來就只是一個 page id 字串。
+ */
+function EntityBindingPicker({
+  zone,
+  value,
+  onChange,
+}: {
+  zone: 'echoes' | 'visuals';
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [options, setOptions] = useState<BindingOption[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    loadBindingOptions(zone)
+      .then((list) => {
+        if (alive) setOptions(list);
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [zone]);
+
+  if (failed) {
+    return (
+      <input
+        className="ced-input"
+        value={value}
+        placeholder={`${zone}/... 頁面 id`}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  }
+
+  // 目前值不在清單中（頁面被刪或改名）也要留得住，否則一開啟就被清掉
+  const missing = value && options && !options.some((o) => o.id === value);
+
+  return (
+    <select
+      className="ced-input"
+      value={value}
+      disabled={!options}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">{options ? '（未選擇）' : '載入中…'}</option>
+      {missing && <option value={value}>{`${value}（已不存在）`}</option>}
+      {(options || []).map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.title}
+        </option>
+      ))}
+    </select>
   );
 }
