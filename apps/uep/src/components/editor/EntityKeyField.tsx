@@ -167,7 +167,7 @@ export default function EntityKeyField({
       )}
       {orphan && !duplicate && (
         <div className="ced-entity-key-hint">
-          此 key 尚無 dossier 條目，跨區對應目前不生效（仍可存檔）
+          此 key 尚無來源條目，跨區對應目前不生效（仍可存檔）
         </div>
       )}
     </div>

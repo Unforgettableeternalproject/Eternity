@@ -28,6 +28,8 @@ interface InterlinkKeyRow {
   updatedAt: string | null;
   /** entity 的權威顯示名稱，來源是 Concepts dossier 條目 */
   derivedName?: string;
+  /** 有沒有對應的 dossier 條目（孤兒判定，僅 entity 有意義） */
+  hasDossierEntry?: boolean;
   definitionCount: number;
   anchorCount: number;
 }
@@ -227,6 +229,12 @@ const KEY_ISSUE_FILTERS = [
     label: '未被引用',
     title: '有定義但 History 零錨點——中性資訊，不是錯誤',
   },
+  {
+    id: 'no-dossier',
+    label: '無來源',
+    title:
+      '這個 entity 在 Concepts 沒有檔案條目——跨區對應不生效（只有特徵條目也算）',
+  },
 ] as const;
 
 type KeyIssueFilter = (typeof KEY_ISSUE_FILTERS)[number]['id'];
@@ -239,6 +247,9 @@ function keyHasIssue(row: InterlinkKeyRow, issue: KeyIssueFilter): boolean {
       return row.definitionCount === 0 && row.anchorCount > 0;
     case 'unreferenced':
       return row.definitionCount > 0 && row.anchorCount === 0;
+    // story 不掛 Concepts 條目，孤兒概念對它不成立——一律不列入
+    case 'no-dossier':
+      return row.keyType === 'entity' && !row.hasDossierEntry;
   }
 }
 
@@ -804,6 +815,8 @@ export default function KeysManager() {
     'orphan-anchor': searchedKeys.filter((k) => keyHasIssue(k, 'orphan-anchor'))
       .length,
     unreferenced: searchedKeys.filter((k) => keyHasIssue(k, 'unreferenced'))
+      .length,
+    'no-dossier': searchedKeys.filter((k) => keyHasIssue(k, 'no-dossier'))
       .length,
   } satisfies Record<KeyIssueFilter, number>;
 

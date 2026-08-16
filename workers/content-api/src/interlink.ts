@@ -653,6 +653,15 @@ export interface InterlinkKeyListRow {
    * 存下來就會與 dossier 形成兩份會各自漂移的名字。
    */
   derivedName?: string;
+  /**
+   * 有沒有對應的 **dossier** 條目（2026-08-15 孤兒定案）。
+   *
+   * 刻意與 `derivedName` 分開：後者取第一個有名字的條目、橫跨所有 stack，
+   * 所以只有 browser 條目的 key 也會有名字——但依定案 browser 只是詳細
+   * 內容，不能替代 dossier 的「存在」。拿 derivedName 判孤兒會漏判。
+   * 僅 entity 有意義（story 不掛 Concepts 條目）。
+   */
+  hasDossierEntry?: boolean;
   /** 定義端筆數：有幾個地方宣告了這個 key */
   definitionCount: number;
   /** 錨點端筆數：History 內容裡有幾處引用 */
@@ -706,6 +715,7 @@ export async function listInterlinkKeys(
     row.definitionCount += 1;
     // 同一個 entity 可能橫跨多個 stack，取第一個有名字的當顯示名
     if (!row.derivedName && entry.name) row.derivedName = entry.name;
+    if (entry.stack === 'dossier') row.hasDossierEntry = true;
   }
   for (const entry of [...echoes, ...visuals]) {
     if (entry.entityKey) touch('entity', entry.entityKey).definitionCount += 1;
