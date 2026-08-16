@@ -1072,6 +1072,34 @@ export const CONCEPTS_PAGES = [
                         content_html:
                           '<p>第七中繼塔第四層的值班員，在職十一年。最後一次出入紀錄之後沒有離開的紀錄。</p>',
                         spoiler: 0,
+                        /* entity 一對多綁定（2026-08-15 定案）：patch 不改
+                           內容、只改指向。持有 test.reached-tower 之前，
+                           點這個 entity 浮出的是中繼塔主題曲與中繼塔畫廊；
+                           拿到旗標之後同一個 entity 換成餘暉與守望者肖像。
+                           ⚠️ 綁定只掛 dossier——warden 在 browser 也有條目，
+                           求值一律取 dossier（定案：browser 只是詳細內容）。*/
+                        revisions: [
+                          {
+                            id: 'base',
+                            gate: null,
+                            patch: {
+                              set: {
+                                'bindings.echoes': PAGE_IDS.songTowerTheme,
+                                'bindings.visuals': PAGE_IDS.galleryRelay,
+                              },
+                            },
+                          },
+                          {
+                            id: 'test-warden:relocated',
+                            gate: { requiresFlags: ['test.reached-tower'] },
+                            patch: {
+                              set: {
+                                'bindings.echoes': PAGE_IDS.songAfterglow,
+                                'bindings.visuals': PAGE_IDS.galleryWarden,
+                              },
+                            },
+                          },
+                        ],
                       },
                       {
                         name: '蜜拉·凡登',
