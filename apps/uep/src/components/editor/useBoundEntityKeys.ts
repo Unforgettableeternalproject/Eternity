@@ -1,3 +1,4 @@
+/* global AbortController */
 /**
  * useBoundEntityKeys — 取得「已登記多重綁定」的 entityKey 集合
  *
