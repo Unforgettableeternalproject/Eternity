@@ -3122,6 +3122,15 @@
   margin: -4px 0 8px 90px;
   letter-spacing: 0.03em;
 }
+/* 孤兒 key 提示：是資訊不是錯誤，刻意不用紅色——照樣可以存檔，
+   補了 dossier 條目就自動生效 */
+.ced-entity-key-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #8a7f6d;
+  margin: -4px 0 8px 90px;
+  letter-spacing: 0.03em;
+}
 
 /* ── Revision 時間線 modal（S7-B） ─────────────────────────────── */
 .ced-rev-open-btn {

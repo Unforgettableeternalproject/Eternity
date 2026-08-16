@@ -808,6 +808,7 @@ export default function EchoesEditorBody({
             <EntityKeyField
               value={data.entityKey}
               existingKeys={takenEntityKeys}
+              checkOrphan
               onChange={(entityKey) => update({ entityKey })}
             />
             <div className="ned-gate-scope-hint">

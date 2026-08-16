@@ -1358,6 +1358,7 @@ export default function VisualsEditorBody({
               <EntityKeyField
                 value={data.entityKey || undefined}
                 existingKeys={takenEntityKeys}
+                checkOrphan
                 onChange={(entityKey) => update({ entityKey: entityKey || '' })}
                 duplicateMessage="此實體ID 已被其他 gallery 使用"
               />
