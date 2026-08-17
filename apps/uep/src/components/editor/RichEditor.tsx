@@ -3194,6 +3194,16 @@ export default function RichEditor({
                       setGate(next);
                       setDirtyMetadata(true);
                     }}
+                    // 實體 revision 條件捷徑只對掛了 entityKey 的媒體頁有
+                    // 意義；劇情歌／插圖走 storyKey，沒有對應的 dossier
+                    // 條目可取條件
+                    entityKey={
+                      isEchoes
+                        ? echoesData.entityKey
+                        : isVisuals
+                          ? visualsData.entityKey
+                          : undefined
+                    }
                     // minimal：progress page / exempt from container 是
                     // History tree 專屬欄位，媒體 zone 不顯示（不傳
                     // callback 即收起 toggle）；既有 metadata 值原樣保留

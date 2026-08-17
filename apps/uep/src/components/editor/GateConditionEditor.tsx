@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import type { GateCondition } from '../../progress';
 import { completionFlag } from '../../progress';
 import FlagPicker from './FlagPicker';
+import { useEntityRevisionGates } from './useEntityRevisionGates';
 
 interface GatePageNode {
   id: string;
@@ -62,6 +63,11 @@ interface GateConditionEditorProps {
    * 需求（整頁未完成就別發佈），故預設關閉。
    */
   showAlwaysLocked?: boolean;
+  /**
+   * 本頁的實體身分（Echoes 角色歌／Visuals 陳列走廊）。有值時多一排
+   * 「套用 {entityKey} 的 revision 條件」捷徑——見 useEntityRevisionGates。
+   */
+  entityKey?: string;
 }
 
 /**
@@ -143,11 +149,13 @@ export default function GateConditionEditor({
   showScopeHint = true,
   flagPrefix,
   showAlwaysLocked = false,
+  entityKey,
 }: GateConditionEditorProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pageTree, setPageTree] = useState<GatePageNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(false);
   const exemptDependents = useGateExemptConflict(apiBase, pageId, isGateExempt);
+  const revisionGates = useEntityRevisionGates(apiBase, entityKey);
 
   const flags = value?.requiresFlags || [];
   const pristineOnly = value?.pristineOnly === true;
@@ -197,6 +205,27 @@ export default function GateConditionEditor({
   function setPristine(next: boolean) {
     onChange(
       normalize({ requiresFlags: flags, pristineOnly: next, alwaysLocked })
+    );
+  }
+
+  /**
+   * 把某條 revision 的條件併進目前條件。
+   *
+   * 併入而非整段取代：歌曲常有自己額外的條件（例如還要讀完某篇），
+   * 取代會靜默清掉那些。`alwaysLocked` 刻意**不帶過來**——那是一票否決
+   * 的鎖，從別處帶進來會讓歌曲莫名永久鎖住。
+   */
+  function applyRevisionGate(gate: GateCondition) {
+    const merged = new Set(flags);
+    for (const flag of gate.requiresFlags || []) {
+      if (flag.trim()) merged.add(flag.trim());
+    }
+    onChange(
+      normalize({
+        requiresFlags: [...merged],
+        pristineOnly: pristineOnly || gate.pristineOnly === true,
+        alwaysLocked,
+      })
     );
   }
 
@@ -342,6 +371,28 @@ export default function GateConditionEditor({
                 ×
               </button>
             </span>
+          ))}
+        </div>
+      )}
+
+      {/* 實體 revision 條件捷徑：角色的主題曲多半要在該角色進到某個敘事
+          階段時才解鎖，而那個階段的條件已經寫在 dossier 的 revision 上。
+          套用後條件屬於本頁自己，之後改 revision 不會回頭影響這裡。 */}
+      {revisionGates.length > 0 && (
+        <div className="ned-gate-revision-presets">
+          <div className="ned-gate-scope-hint">
+            ⓘ 套用 {entityKey} 的進度版本條件（套用後與該版本不再連動）
+          </div>
+          {revisionGates.map((rev) => (
+            <button
+              key={rev.id}
+              type="button"
+              className="ned-gate-add-page"
+              title={(rev.gate.requiresFlags || []).join('、') || '（無旗標）'}
+              onClick={() => applyRevisionGate(rev.gate)}
+            >
+              ＋ {rev.id}
+            </button>
           ))}
         </div>
       )}
