@@ -172,7 +172,35 @@ describe('buildConceptsBindingIndex', () => {
       ],
     });
 
-    // (6) 壞 metadata JSON
+    // (6) 條目層級 bindings：一個只有 base、一個 base + revision 覆蓋
+    await insertConceptsPage(
+      'concepts/bind-test/records/base-level',
+      'dossier',
+      dossierData('u', [
+        {
+          name: '單曲角色',
+          entityKey: 'bind-baseonly',
+          bindings: {
+            echoes: 'echoes/bind/only-theme',
+            visuals: 'visuals/bind/only-art',
+          },
+        },
+        {
+          name: '換曲角色',
+          entityKey: 'bind-basethenrev',
+          bindings: { echoes: 'echoes/bind/before' },
+          revisions: [
+            {
+              id: 'bind-basethenrev:after',
+              gate: { requiresFlags: ['x'] },
+              patch: { set: { 'bindings.echoes': 'echoes/bind/after' } },
+            },
+          ],
+        },
+      ])
+    );
+
+    // (7) 壞 metadata JSON
     await insertConceptsPage(
       'concepts/bind-test/badjson',
       'dossier',
@@ -188,6 +216,22 @@ describe('buildConceptsBindingIndex', () => {
     expect(turncoat!.echoesIds).toEqual([
       'echoes/bind/villain-theme',
       'echoes/bind/hero-theme',
+    ]);
+  });
+
+  it('收條目層級的 bindings——沒有 revision 鏈也算登記', async () => {
+    const index = await buildConceptsBindingIndex(env.CONTENT_DB);
+    const only = index.get('bind-baseonly');
+    expect(only).toBeDefined();
+    expect(only!.echoesIds).toEqual(['echoes/bind/only-theme']);
+    expect(only!.visualsIds).toEqual(['visuals/bind/only-art']);
+  });
+
+  it('條目層級與 revision 的指向都收，條目層級在前', async () => {
+    const index = await buildConceptsBindingIndex(env.CONTENT_DB);
+    expect(index.get('bind-basethenrev')!.echoesIds).toEqual([
+      'echoes/bind/before',
+      'echoes/bind/after',
     ]);
   });
 

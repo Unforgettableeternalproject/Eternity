@@ -27,7 +27,7 @@ import type {
   RevisionPatch,
 } from '../concepts/types';
 
-import { getApiBase } from '../../lib/apiBase';
+import { EntityBindingPicker } from './EntityBindingPicker';
 import MiniEditor from './MiniEditor';
 import { getDialog } from './editorHelpers';
 
@@ -156,6 +156,8 @@ interface PatchEditorProps {
    * 下拉選擇欄位，不再手填 fieldDef ID。未提供時退回 prompt 輸入。
    */
   chronoFieldDefs?: ChronoFieldDef[];
+  /** 條目的 entityKey——綁定 picker 依此篩選候選內容 */
+  entityKey?: string;
   accent: string;
 }
 
@@ -164,6 +166,7 @@ export default function PatchEditor({
   patch,
   onChange,
   chronoFieldDefs,
+  entityKey,
   accent,
 }: PatchEditorProps) {
   const [removeInput, setRemoveInput] = useState('');
@@ -253,6 +256,7 @@ export default function PatchEditor({
           value={value}
           onValueChange={(v) => setPath(path, v)}
           onRemove={() => removeSetPath(path)}
+          entityKey={entityKey}
           accent={accent}
         />
       ))}
@@ -374,6 +378,7 @@ function PatchFieldRow({
   value,
   onValueChange,
   onRemove,
+  entityKey,
   accent,
 }: {
   stackStyle: StackKind;
@@ -381,6 +386,7 @@ function PatchFieldRow({
   value: unknown;
   onValueChange: (value: unknown) => void;
   onRemove: () => void;
+  entityKey?: string;
   accent: string;
 }) {
   const kind = inferFieldKind(stackStyle, path, value);
@@ -403,6 +409,7 @@ function PatchFieldRow({
         path={path}
         value={value}
         onChange={onValueChange}
+        entityKey={entityKey}
         accent={accent}
       />
     </div>
@@ -416,12 +423,14 @@ function PatchValueEditor({
   path,
   value,
   onChange,
+  entityKey,
   accent,
 }: {
   kind: FieldKind;
   path: string;
   value: unknown;
   onChange: (value: unknown) => void;
+  entityKey?: string;
   accent: string;
 }) {
   switch (kind) {
@@ -429,8 +438,11 @@ function PatchValueEditor({
       return (
         <EntityBindingPicker
           zone={path.endsWith('.visuals') ? 'visuals' : 'echoes'}
-          value={typeof value === 'string' ? value : ''}
-          onChange={onChange}
+          entityKey={entityKey}
+          value={typeof value === 'string' && value ? value : undefined}
+          // patch.set 的值不能是 undefined（那等同沒設這個欄位），
+          // 清成「預設推論」時寫空字串，求值端一樣視為未設定
+          onChange={(id) => onChange(id ?? '')}
         />
       );
     case 'text':
@@ -693,115 +705,5 @@ function JsonValueEditor({
         </div>
       )}
     </div>
-  );
-}
-
-// ── entity 綁定 picker（2026-08-15 定案）────────────────────────────
-
-interface BindingOption {
-  id: string;
-  title: string;
-}
-
-/**
- * 候選清單模組級快取——一個 dossier 頁可能有數十個條目、每個條目多條
- * revision，逐個 picker 各自 fetch 就是對同一個端點掃射（entity tooltip
- * 正是因此被拆掉的，不能同一個坑再踩一次）。
- *
- * 走 `getApiBase()` 直接打 worker 而非同源 proxy：echoes/visuals 前綴
- * 沒有 Astro proxy 路由，而這兩個 entity-index 是公開 GET（有 CORS），
- * 前台各處本來就直接打。test mode cookie 由 getApiBase 自己解析。
- */
-const bindingOptionCache: Partial<
-  Record<'echoes' | 'visuals', Promise<BindingOption[]>>
-> = {};
-
-function loadBindingOptions(
-  zone: 'echoes' | 'visuals'
-): Promise<BindingOption[]> {
-  let cached = bindingOptionCache[zone];
-  if (!cached) {
-    cached = (async () => {
-      const res = await fetch(`${getApiBase()}/api/${zone}/entity-index`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        ok?: boolean;
-        data?: { entries?: { id: string; title?: string }[] };
-      };
-      if (!json.ok) throw new Error('API returned ok=false');
-      return (json.data?.entries || []).map((e) => ({
-        id: e.id,
-        title: e.title || e.id,
-      }));
-    })().catch((err) => {
-      delete bindingOptionCache[zone];
-      throw err;
-    });
-    bindingOptionCache[zone] = cached;
-  }
-  return cached;
-}
-
-/**
- * 下拉選擇要綁定的歌曲／畫廊，寫入的值是裸 page id。
- *
- * 清單載入失敗時退回純文字輸入——比讓使用者完全無法填要好，
- * 值本來就只是一個 page id 字串。
- */
-function EntityBindingPicker({
-  zone,
-  value,
-  onChange,
-}: {
-  zone: 'echoes' | 'visuals';
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [options, setOptions] = useState<BindingOption[] | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    loadBindingOptions(zone)
-      .then((list) => {
-        if (alive) setOptions(list);
-      })
-      .catch(() => {
-        if (alive) setFailed(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [zone]);
-
-  if (failed) {
-    return (
-      <input
-        className="ced-input"
-        value={value}
-        placeholder={`${zone}/... 頁面 id`}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    );
-  }
-
-  // 目前值不在清單中（頁面被刪或改名）也要留得住，否則一開啟就被清掉
-  const missing = value && options && !options.some((o) => o.id === value);
-
-  return (
-    <select
-      className="ced-input"
-      value={value}
-      disabled={!options}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="">{options ? '（未選擇）' : '載入中…'}</option>
-      {missing && <option value={value}>{`${value}（已不存在）`}</option>}
-      {(options || []).map((o) => (
-        <option key={o.id} value={o.id}>
-          {o.title}
-        </option>
-      ))}
-    </select>
   );
 }

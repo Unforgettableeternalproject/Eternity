@@ -361,6 +361,7 @@ export default function RevisionModal({
                     updateRevision(selected as number, { patch })
                   }
                   chronoFieldDefs={chronoFieldDefs}
+                  entityKey={entityKey}
                   accent={accent}
                 />
               </>

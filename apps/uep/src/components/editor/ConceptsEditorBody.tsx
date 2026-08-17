@@ -18,6 +18,7 @@ import {
   toAssetPath,
   uploadAsset,
 } from './editorHelpers';
+import { EntityBindingsFields } from './EntityBindingPicker';
 import EntityKeyField from './EntityKeyField';
 import GateConditionEditor from './GateConditionEditor';
 import MiniEditor from './MiniEditor';
@@ -940,6 +941,13 @@ function DossierVariantBody({
                     }
                     existingKeys={usedEntityKeys}
                   />
+                  <EntityBindingsFields
+                    entityKey={entry.entityKey}
+                    value={entry.bindings}
+                    onChange={(bindings) =>
+                      updateEntry(activeEntry!, { bindings })
+                    }
+                  />
                   <AliasesField
                     value={entry.aliases}
                     onChange={(aliases) =>
@@ -1526,6 +1534,11 @@ function BrowserEditor({
                 value={profile.entityKey}
                 onChange={(key) => updateProfile({ entityKey: key })}
                 existingKeys={usedEntityKeys}
+              />
+              <EntityBindingsFields
+                entityKey={profile.entityKey}
+                value={profile.bindings}
+                onChange={(bindings) => updateProfile({ bindings })}
               />
               <div className="ced-field-row">
                 <label className="ced-label">版本</label>

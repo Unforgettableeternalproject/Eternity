@@ -72,11 +72,16 @@ function extractBinding(
   const dotted = set[`bindings.${zone}`];
   if (typeof dotted === 'string' && dotted.trim()) return dotted.trim();
 
-  const nested = asDict(set.bindings);
-  const value = nested?.[zone];
-  if (typeof value === 'string' && value.trim()) return value.trim();
+  return readBindingValue(asDict(set.bindings), zone);
+}
 
-  return null;
+/** 從一個 bindings 物件讀出某個 zone 的指向（條目層級與巢狀 patch 共用） */
+function readBindingValue(
+  bindings: Dict | null,
+  zone: 'echoes' | 'visuals'
+): string | null {
+  const value = bindings?.[zone];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 /**
@@ -100,12 +105,8 @@ function collectPageBindings(
     if (typeof entityKey !== 'string' || !entityKey.trim()) return;
     const key = entityKey.trim();
 
-    for (const revision of asArray(visit.entry.revisions).map(asDict)) {
-      if (!revision) continue;
-      const echoesId = extractBinding(revision.patch, 'echoes');
-      const visualsId = extractBinding(revision.patch, 'visuals');
-      if (!echoesId && !visualsId) continue;
-
+    const record = (echoesId: string | null, visualsId: string | null) => {
+      if (!echoesId && !visualsId) return;
       let bucket = index.get(key);
       if (!bucket) {
         bucket = { echoesIds: [], visualsIds: [] };
@@ -117,6 +118,18 @@ function collectPageBindings(
       if (visualsId && !bucket.visualsIds.includes(visualsId)) {
         bucket.visualsIds.push(visualsId);
       }
+    };
+
+    // 條目層級的初始指向先進（宣告順序與求值順序一致）
+    const base = asDict(visit.entry.bindings);
+    record(readBindingValue(base, 'echoes'), readBindingValue(base, 'visuals'));
+
+    for (const revision of asArray(visit.entry.revisions).map(asDict)) {
+      if (!revision) continue;
+      record(
+        extractBinding(revision.patch, 'echoes'),
+        extractBinding(revision.patch, 'visuals')
+      );
     }
   });
 }
@@ -127,8 +140,9 @@ function collectPageBindings(
  * 無 stack_style 的頁面（homepage / stack 容器）略過；壞 JSON 靜默跳過
  * （沿用其餘索引建構器的容錯風格，一頁壞資料不該打掉整個把關路徑）。
  *
- * 沒有任何 revision 登記綁定的 entityKey **不會出現在回傳的 Map 裡**
- * ——「不在 Map 中」即「未登記多重綁定」，撞名把關據此維持原有 409。
+ * 條目層級 `bindings` 與 revision patch 都沒登記綁定的 entityKey
+ * **不會出現在回傳的 Map 裡**——「不在 Map 中」即「未登記綁定」，
+ * 撞名把關據此維持原有 409。
  */
 export async function buildConceptsBindingIndex(
   db: D1Database
