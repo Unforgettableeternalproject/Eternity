@@ -3,10 +3,13 @@
  *
  * 一個 entityKey 在同一個 zone 可以對應多筆內容（角色轉正前後各一首主題曲），
  * 由 Concepts dossier 條目的 revision 鏈決定「此刻該給哪一個」——revision 的
- * patch 不改內容、只改指向：
+ * patch 不改內容、只改指向。初始指向放在條目層級的 `bindings`，
+ * revision 之後才依進度覆蓋：
  *
- *   { id: 'base',       gate: null,  patch: { set: { 'bindings.echoes': '...' } } }
+ *   entry.bindings = { echoes: '...' }                                   // 初始
  *   { id: 'xxx:turned', gate: {...}, patch: { set: { 'bindings.echoes': '...' } } }
+ *
+ * 只綁一個內容的實體填 `bindings` 就結束，不需要任何 revision。
  *
  * 求值走既有的 `applyRevisions`（累加式，後者覆蓋前者），所以「直到下一個
  * revision 通過為止」是鏈的順序天然表達的，不需要 until 條件。
@@ -23,6 +26,8 @@
  */
 
 import { getApiBase } from '../../lib/apiBase';
+import { evaluateGate } from '../../progress/gating';
+import type { GateCondition } from '../../progress/gating';
 import type { ProgressState } from '../../progress/types';
 
 import { applyRevisions } from './revision';
@@ -37,13 +42,101 @@ interface BindingIndexEntry {
   entityKey?: string;
 }
 
+/** zone 索引的單筆條目摘要（Echoes 歌／Visuals 畫廊共用形狀） */
+interface ZoneIndexEntry {
+  id: string;
+  entityKey?: string;
+  storyKey?: string;
+  /** 內容自己的解鎖閘（索引只回物件型 gate，舊字串 gate 不回傳） */
+  gate?: unknown;
+  /** 靜態封存，凌駕 gate */
+  locked: boolean;
+}
+
 let indexCache: Promise<BindingIndexEntry[]> | null = null;
 const pageCache = new Map<string, Promise<unknown>>();
+const zoneIndexCache: Partial<
+  Record<'echoes' | 'visuals', Promise<ZoneIndexEntry[]>>
+> = {};
 
 /** 清空快取（測試與資料端更新後重抓用） */
 export function invalidateEntityBindingCache(): void {
   indexCache = null;
   pageCache.clear();
+  delete zoneIndexCache.echoes;
+  delete zoneIndexCache.visuals;
+}
+
+/** 載入某個 zone 的條目索引（預設綁定回退用；模組級快取） */
+function loadZoneIndex(zone: 'echoes' | 'visuals'): Promise<ZoneIndexEntry[]> {
+  let cached = zoneIndexCache[zone];
+  if (!cached) {
+    cached = (async () => {
+      const res = await fetch(`${API_BASE}/api/${zone}/entity-index`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: { entries?: ZoneIndexEntry[] };
+      };
+      if (!json.ok) throw new Error('API returned ok=false');
+      return json.data?.entries || [];
+    })().catch((err) => {
+      delete zoneIndexCache[zone];
+      throw err;
+    });
+    zoneIndexCache[zone] = cached;
+  }
+  return cached;
+}
+
+/**
+ * 沒有明確綁定時的預設指向：掛同一個 entityKey、**且自己的 gate 此刻通過**
+ * 的最後一筆內容。
+ *
+ * 大多數實體只需要這一層——「角色轉正換主題曲」用兩首歌各自的 gate 就
+ * 表達完了，dossier 不必寫任何綁定。`bindings` 只在「內容的解鎖時機」與
+ * 「角色的敘事狀態」分歧時才需要出手覆蓋。
+ *
+ * **看 gate 是關鍵**：不看 gate 的排序推論會把「已經建好、但之後才該解鎖」
+ * 的曲目推成早期的預設指向（sort_order 完全可能把未來內容排在前面）。
+ *
+ * 「最後一筆」= zone 索引順序的最後一筆，而索引由 worker 以
+ * `sort_order ASC` 產出——所以劇情上較晚的內容要排在較後面。
+ *
+ * ⚠️ 這裡只求值內容**自身**的 gate，不做父容器繼承與 progressPage 鏈
+ * （那需要 zone tree，而索引不帶）。結果是：父容器被鎖住的內容仍可能
+ * 被選為預設，下游再依完整規則擋掉，該實體就顯示不出內容——而不是退
+ * 而求其次選上一筆。目前沒有「父層鎖住、子層卻掛實體綁定」的內容，
+ * 真的出現時要把 zone tree 帶進來一起判。
+ *
+ * ⚠️ 也刻意**不看 `deriveSongUnlockFlag` 的推導解鎖**：那個旗標的語意是
+ * 「讀者聽過了」，不是「這個階段到了」。納入的話，讀者從 spot 提早聽到
+ * 轉正曲就會把角色的主題曲換掉。
+ *
+ * 劇情內容（有 storyKey）不列入候選——與 picker 同一條規則。
+ */
+async function defaultZoneBinding(
+  entityKey: string,
+  zone: 'echoes' | 'visuals',
+  progress: ProgressState
+): Promise<string | null> {
+  let entries: ZoneIndexEntry[];
+  try {
+    entries = await loadZoneIndex(zone);
+  } catch {
+    return null;
+  }
+
+  let picked: string | null = null;
+  for (const entry of entries) {
+    if (entry.entityKey !== entityKey || entry.storyKey) continue;
+    if (entry.locked) continue; // 靜態封存凌駕 gate
+    if (!evaluateGate(progress, (entry.gate ?? null) as GateCondition | null)) {
+      continue;
+    }
+    picked = entry.id; // 後者覆蓋前者 → 通過的最後一筆
+  }
+  return picked;
 }
 
 /** 載入 Concepts 條目索引（模組級快取；失敗時清快取讓下次重試） */
@@ -118,7 +211,7 @@ export function hasDossierEntry(
   return index.some((e) => e.stack === 'dossier' && e.entityKey === entityKey);
 }
 
-/** 從求值後的條目讀出某個 zone 的綁定指向 */
+/** 從求值後的條目讀出某個 zone 的明確綁定指向（未設定回 null） */
 function readBinding(
   resolved: Record<string, unknown>,
   zone: 'echoes' | 'visuals'
@@ -164,9 +257,13 @@ function findDossierEntries(
 /**
  * 求出這個 entityKey 在指定 zone **此刻**該對應的內容 id。
  *
+ * 兩段式：dossier 的明確綁定 → 同 key 中 gate 通過的最後一筆。
+ * 多數實體只需要後者；前者是「解鎖時機 ≠ 敘事狀態」時的覆蓋手段。
+ *
  * 回傳 `null` 有兩種成因，用途相同但語意不同：
  * 1. **孤兒**——沒有任何 dossier 條目（`hasDossierEntry` 為偽）
- * 2. 有 dossier 條目，但沒有任何 revision 登記該 zone 的綁定
+ * 2. 有 dossier 條目，但該 zone 既沒有明確綁定、也沒有任何掛同一個
+ *    entityKey 且 gate 已通過的內容
  *
  * 呼叫端要區分時得自己再問一次 `hasDossierEntry`；本函式不區分回傳型別，
  * 因為兩種情況的處置一致（退回既有的 by-key 反查或不顯示）。
@@ -205,7 +302,10 @@ export async function resolveEntityBinding(
 
     for (const entry of findDossierEntries(data, entityKey)) {
       const revisions = entry.revisions as ConceptsRevision[] | undefined;
-      if (!Array.isArray(revisions) || revisions.length === 0) continue;
+
+      // 沒有 revision 鏈也要求值：條目層級的 `bindings` 是初始指向，
+      // 只綁一首歌的實體不該被迫開一條 gate: null 的 revision 來表達。
+      // applyRevisions 由 base 的 structuredClone 起手，空鏈時就是原樣回傳。
 
       // ⚠️ 這裡**刻意不檢查 isEntryUnlocked**（2026-08-15 定案規則二）。
       // 條目本身是否被讀者解鎖與「這個綁定要不要生效」無關；下游反查回
@@ -217,7 +317,10 @@ export async function resolveEntityBinding(
     }
   }
 
-  return null;
+  // 沒有明確綁定就照內容自身的 gate 推論（多數實體走的是這條）。
+  // 走到這裡代表條目存在——孤兒已在上面擋掉。
+  const fallback = await defaultZoneBinding(entityKey, zone, progress);
+  return fallback ? { id: fallback } : null;
 }
 
 /**
