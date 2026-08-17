@@ -16,6 +16,7 @@ import {
   applyDotPath,
   removeDotPath,
   applyRevisions,
+  isNoOpRevision,
   isEntryUnlocked,
   isDossierContent,
   isBrowserContent,
@@ -600,5 +601,76 @@ describe('resolveEffectiveViewForPage', () => {
     expect(
       unlocked.variants[0].subcategories[0].groups[0].entries[0].content_html
     ).toBe('<p>他現在是一個更好的人</p>');
+  });
+});
+
+describe('isNoOpRevision', () => {
+  const base = { name: '角色', basic: { 陣營: '同盟' } };
+
+  it('空 patch 是空轉', () => {
+    expect(isNoOpRevision(base, [{ id: 'a', gate: null, patch: {} }], 0)).toBe(
+      true
+    );
+  });
+
+  it('set 的值與 base 相同是空轉', () => {
+    const revs = [
+      { id: 'a', gate: null, patch: { set: { 'basic.陣營': '同盟' } } },
+    ];
+    expect(isNoOpRevision(base, revs, 0)).toBe(true);
+  });
+
+  it('set 的值與 base 不同不是空轉', () => {
+    const revs = [
+      { id: 'a', gate: null, patch: { set: { 'basic.陣營': '帝國' } } },
+    ];
+    expect(isNoOpRevision(base, revs, 0)).toBe(false);
+  });
+
+  it('與「上一版」比較而非與 base 比較', () => {
+    const revs = [
+      { id: 'a', gate: null, patch: { set: { name: '改名' } } },
+      { id: 'b', gate: null, patch: { set: { name: '改名' } } },
+      { id: 'c', gate: null, patch: { set: { name: '角色' } } },
+    ];
+    expect(isNoOpRevision(base, revs, 0)).toBe(false);
+    expect(isNoOpRevision(base, revs, 1)).toBe(true);
+    // 繞回 base 的值仍算有變化——與上一版不同就不是空轉
+    expect(isNoOpRevision(base, revs, 2)).toBe(false);
+  });
+
+  it('前置 revision 不看 gate——判定與模擬進度無關', () => {
+    const revs = [
+      {
+        id: 'a',
+        gate: { requiresFlags: ['never'] },
+        patch: { set: { name: '改名' } },
+      },
+      { id: 'b', gate: null, patch: { set: { name: '改名' } } },
+    ];
+    // gate 永遠不通過，但宣告鏈上 b 與 a 的結果相同 → 空轉
+    expect(isNoOpRevision(base, revs, 1)).toBe(true);
+  });
+
+  it('remove 不存在的路徑是空轉，存在的不是', () => {
+    expect(
+      isNoOpRevision(
+        base,
+        [{ id: 'a', gate: null, patch: { remove: ['無'] } }],
+        0
+      )
+    ).toBe(true);
+    expect(
+      isNoOpRevision(
+        base,
+        [{ id: 'a', gate: null, patch: { remove: ['basic.陣營'] } }],
+        0
+      )
+    ).toBe(false);
+  });
+
+  it('索引超出範圍回 false，不丟例外', () => {
+    expect(isNoOpRevision(base, [], 0)).toBe(false);
+    expect(isNoOpRevision(base, undefined, 0)).toBe(false);
   });
 });

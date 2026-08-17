@@ -3332,6 +3332,15 @@
   background: color-mix(in srgb, var(--ink-mute) 4%, transparent);
   margin-bottom: 8px;
 }
+/* 空轉 revision 警示——提示而非錯誤，用與孤兒提示同一組的土黃調 */
+.ced-rev-hint--warn {
+  color: #8a7f6d;
+  border-color: color-mix(in srgb, #8a7f6d 40%, transparent);
+  background: color-mix(in srgb, #8a7f6d 7%, transparent);
+}
+.ced-rev-noop-mark {
+  color: #8a7f6d;
+}
 
 /* ── PatchEditor（S7-B） ───────────────────────────────────────── */
 .ced-patch-field {
