@@ -105,7 +105,13 @@ export interface WithRevision {
 export interface ConceptsVariationMeta {
   /** 類型群組 ID（不含 era），如 "character_list" */
   type_group: string;
-  /** 時代代號，如 "u" | "e" | "p" */
+  /**
+   * 時代代號，如 "u" | "e" | "p"。
+   *
+   * ⚠️ **只給 chrono/browser/diff 當標題 badge 用**（見 ConceptsReader 的
+   * badge 分支）。dossier 的時代識別看 `variants[].id`／`label`，不看這裡
+   * ——正式站的 dossier 頁一律沒填，那是對的，不要補。
+   */
   era: string;
   /** 所屬 stack 的閱讀器風格 */
   stack_style: 'dossier' | 'browser' | 'chrono' | 'diff';

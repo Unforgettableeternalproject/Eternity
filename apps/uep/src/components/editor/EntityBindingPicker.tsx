@@ -4,9 +4,9 @@
  * 兩處共用：條目層級的初始指向（ConceptsEditorBody）與 revision patch 的
  * 後續改指向（PatchEditor）。寫入的值一律是裸 page id。
  *
- * **多數實體不需要用到這個欄位**——預設指向由內容自身的解鎖條件推論
- * （掛同一個 entityKey 且 gate 已通過的最後一筆，見 entityBinding.ts）。
- * 這裡只在「內容的解鎖時機」與「角色的敘事狀態」分歧時才出手覆蓋。
+ * **同一個 entityKey 在該 zone 只有一筆內容時可以不填**——那時走既有的
+ * by-key 反查即可。同 key 有多筆候選時**非填不可**：系統不會去猜，
+ * 沒登記綁定就是「這個 zone 沒有對應內容」（見 entityBinding.ts）。
  *
  * 候選只列**同一個 entityKey 的非劇情內容**：
  * - 綁定的語意是「這個實體此刻對應到哪一個」，跨實體的內容不是候選——
@@ -25,12 +25,12 @@ import type { EntityBindings } from '../concepts/types';
 import { getApiBase } from '../../lib/apiBase';
 
 /**
- * 「交給預設推論」選項的 `<select>` value。
+ * 「不指定」選項的 `<select>` value。
  *
  * 不能用空字串——那會與「清空輸入」混淆；也不能用 page id 可能長成的
  * 樣子。page id 一律是 `{zone}/...` 的路徑形式，故雙底線字面值安全。
  */
-const AUTO_VALUE = '__auto__';
+const UNSET_VALUE = '__unset__';
 
 interface BindingOption {
   id: string;
@@ -111,7 +111,7 @@ export function EntityBindingPicker({
   zone: 'echoes' | 'visuals';
   /** 條目的實體身分；候選以此篩選。未填時無候選可言 */
   entityKey?: string;
-  /** undefined = 交給預設推論、字串 = 明確覆蓋 */
+  /** undefined = 不指定（單筆走 by-key、多筆則無對應）、字串 = 明確指向 */
   value: string | undefined;
   onChange: (value: string | undefined) => void;
 }) {
@@ -163,18 +163,22 @@ export function EntityBindingPicker({
     options &&
     !candidates.some((o) => o.id === value);
 
+  // 只有一筆候選時不指定仍走得通（消費端的 by-key 反查），多筆候選卻
+  // 不指定就是「沒有對應內容」——系統不會挑。把後果寫在選項上，
+  // 否則作者容易沿用舊行為的印象，以為不填會自動選一個
+  const unsetLabel =
+    candidates.length > 1 ? '（不指定 — 多筆候選，將無對應）' : '（不指定）';
+
   return (
     <select
       className="ced-input"
-      value={value ?? AUTO_VALUE}
+      value={value ?? UNSET_VALUE}
       disabled={!options}
       onChange={(e) =>
-        onChange(e.target.value === AUTO_VALUE ? undefined : e.target.value)
+        onChange(e.target.value === UNSET_VALUE ? undefined : e.target.value)
       }
     >
-      <option value={AUTO_VALUE}>
-        {options ? '（預設：依內容的解鎖條件）' : '載入中…'}
-      </option>
+      <option value={UNSET_VALUE}>{options ? unsetLabel : '載入中…'}</option>
       {missing && <option value={value}>{`${value}（不在候選中）`}</option>}
       {candidates.map((o) => (
         <option key={o.id} value={o.id}>
@@ -202,7 +206,7 @@ export function EntityBindingsFields({
 }) {
   const update = (zone: 'echoes' | 'visuals', id: string | undefined) => {
     const next: EntityBindings = { ...value, [zone]: id };
-    // 交給預設推論 = 欄位不存在，實際刪掉而不是留一個 undefined
+    // 不指定 = 欄位不存在，實際刪掉而不是留一個 undefined
     // （JSON 序列化會丟掉，留著只是讓存檔內容與求值語意對不上）
     if (!next.echoes) delete next.echoes;
     if (!next.visuals) delete next.visuals;
