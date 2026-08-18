@@ -4528,13 +4528,6 @@
   border-color: var(--ned-accent);
   color: var(--ink-title);
 }
-/* 實體 revision 條件捷徑：多個按鈕縱向排列，彼此留一點間距 */
-.ned-gate-revision-presets {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 6px;
-}
 .ned-gate-picker {
   max-height: 200px;
   overflow-y: auto;
