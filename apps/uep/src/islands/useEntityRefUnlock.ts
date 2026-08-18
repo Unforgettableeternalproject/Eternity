@@ -26,7 +26,10 @@ import {
   type ConceptsIndexEntry,
 } from '../components/concepts/conceptsSource';
 import { resolveFromData } from '../components/concepts/entityBinding';
-import type { ZoneEntityIndexEntry } from '../lib/zoneEntityIndex';
+import {
+  findEntryById,
+  type ZoneEntityIndexEntry,
+} from '../lib/zoneEntityIndex';
 import type { ProgressState } from '../progress/types';
 
 import {
@@ -35,14 +38,16 @@ import {
   type TerminalIndexEntry,
 } from './concepts/terminalCore';
 import {
-  isEchoesEntityUnlocked,
   loadEchoesEntityIndex,
   type EchoesEntityIndexEntry,
 } from './echoes/echoesEntityIndex';
+import { isSongUnlockedInZone } from '../components/echoes/echoesVisibility';
+import { isGalleryUnlockedInZone } from '../components/visuals/visualsVisibility';
 import { shouldMountIsland } from './islandRuntime';
+import { fetchZoneProgressTree } from './zoneProgressTree';
+import type { ProgressTreeAdapter } from '../progress';
 import { useDesktopIslandViewport } from './useIslands';
 import {
-  isVisualsEntityUnlocked,
   loadVisualsEntityIndex,
   type VisualsEntityIndexEntry,
 } from './visuals/visualsEntityIndex';
@@ -148,6 +153,34 @@ export function useEntityRefUnlockChecker(
   // 孤兒，但「唯一候選」仍該讓它們可點
   const [dossierReady, setDossierReady] = useState(false);
 
+  /**
+   * zone tree（父容器 gate 繼承）。
+   *
+   * 消費端（IslandHost）一律以 tree-aware 求值判定解鎖，可點判定若只看
+   * 單頁 gate，父層被鎖住的內容就會顯示成可點、點下去卻不合格。
+   * `fetchZoneProgressTree` 自帶模組級快取，與 IslandHost 共用。
+   */
+  const [zoneTrees, setZoneTrees] = useState<
+    Partial<Record<'echoes' | 'visuals', ProgressTreeAdapter>>
+  >({});
+  useEffect(() => {
+    let cancelled = false;
+    for (const zone of ['echoes', 'visuals'] as const) {
+      const mounted = zone === 'echoes' ? echoesMounted : visualsMounted;
+      if (!mounted || zoneTrees[zone]) continue;
+      void fetchZoneProgressTree(zone)
+        .then((tree) => {
+          if (!cancelled) setZoneTrees((prev) => ({ ...prev, [zone]: tree }));
+        })
+        .catch(() => {
+          /* 失敗維持 undefined——該分支保持不可點（fail closed） */
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [echoesMounted, visualsMounted, zoneTrees]);
+
   useEffect(() => {
     if (!needBinding && !orphanGateOn) return;
     let cancelled = false;
@@ -194,15 +227,11 @@ export function useEntityRefUnlockChecker(
     const isBoundAndUnlocked = (
       zone: 'echoes' | 'visuals',
       key: string,
-      zoneEntries: ZoneEntityIndexEntry[] | null,
-      isUnlocked: (
-        entries: ZoneEntityIndexEntry[] | null,
-        key: string,
-        progress: ProgressState
-      ) => boolean
+      zoneEntries: ZoneEntityIndexEntry[] | null
     ): boolean => {
       // 資料未就緒 → 不可點（安全預設：浮島此時也查不到內容）
-      if (!zoneEntries || !dossierReady) return false;
+      const tree = zoneTrees[zone];
+      if (!zoneEntries || !dossierReady || !tree) return false;
       const result = resolveFromData(
         {
           index: dossierIndex,
@@ -215,11 +244,23 @@ export function useEntityRefUnlockChecker(
         progress
       );
       if (result.status !== 'bound') return false;
-      return isUnlocked(
-        zoneEntries.filter((e) => e.id === result.id),
-        key,
-        progress
-      );
+      // ⚠️ 用 findEntryById 而非在排除 hidden 的清單裡找——明確綁定一首
+      // 隱藏的前期曲是合法用法，by-id 消費路徑也不排除 hidden
+      const entry = findEntryById(zoneEntries, result.id);
+      if (!entry) return false;
+      // 指向的內容 entityKey 必須對得上（資料壞掉時比照消費端不顯示）
+      if (entry.entityKey !== key) return false;
+      const node = {
+        id: entry.id,
+        metadata: {
+          entityKey: entry.entityKey,
+          gate: entry.gate,
+          locked: entry.locked,
+        },
+      };
+      return zone === 'echoes'
+        ? isSongUnlockedInZone(node, progress, tree)
+        : isGalleryUnlockedInZone(node, progress, tree);
     };
 
     return (ref: string) => {
@@ -253,20 +294,8 @@ export function useEntityRefUnlockChecker(
       // 內容自己的解鎖判定。資料是 Terminal 島本來就要載的那份（共用
       // 快取），不產生額外請求。
       return (
-        (echoesMounted &&
-          isBoundAndUnlocked(
-            'echoes',
-            key,
-            echoesIndex,
-            isEchoesEntityUnlocked
-          )) ||
-        (visualsMounted &&
-          isBoundAndUnlocked(
-            'visuals',
-            key,
-            visualsIndex,
-            isVisualsEntityUnlocked
-          ))
+        (echoesMounted && isBoundAndUnlocked('echoes', key, echoesIndex)) ||
+        (visualsMounted && isBoundAndUnlocked('visuals', key, visualsIndex))
       );
     };
   }, [
@@ -275,6 +304,7 @@ export function useEntityRefUnlockChecker(
     dossierPages,
     pagesPartial,
     dossierReady,
+    zoneTrees,
     conceptsMounted,
     echoesMounted,
     visualsMounted,

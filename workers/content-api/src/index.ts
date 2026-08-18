@@ -2594,7 +2594,14 @@ export default {
     // ---- Echoes 條目索引（S8 驗收 #2：互動嵌入跨島聯集啟用判定）----
     // 同 concepts/entity-index：獨立前綴避開 contentMatch regex，公開 GET + CDN 短快取。
     if (path === '/api/echoes/entity-index' && request.method === 'GET') {
-      const entries = await buildEchoesEntityIndex(env.CONTENT_DB);
+      // includeHidden：hidden 只是不在列表顯示，仍是合法的引用目標——
+      // dossier 可以明確綁定一首隱藏的前期曲，by-id 消費路徑也不排除它。
+      // 每筆帶 `hidden` 旗標，消費端自行決定要不要納入（數候選時排除、
+      // 驗證明確指向時接受）。id 本來就能從公開的 /tree 端點列舉，
+      // 不構成新的洩漏面。
+      const entries = await buildEchoesEntityIndex(env.CONTENT_DB, {
+        includeHidden: true,
+      });
       return jsonResponse(
         { ok: true, data: { entries, generatedAt: new Date().toISOString() } },
         200,
@@ -2655,7 +2662,14 @@ export default {
     // ---- Visuals 條目索引（S8 驗收 #2：互動嵌入跨島聯集啟用判定）----
     // 同 concepts/entity-index：獨立前綴避開 contentMatch regex，公開 GET + CDN 短快取。
     if (path === '/api/visuals/entity-index' && request.method === 'GET') {
-      const entries = await buildVisualsEntityIndex(env.CONTENT_DB);
+      // includeHidden：hidden 只是不在列表顯示，仍是合法的引用目標——
+      // dossier 可以明確綁定一首隱藏的前期曲，by-id 消費路徑也不排除它。
+      // 每筆帶 `hidden` 旗標，消費端自行決定要不要納入（數候選時排除、
+      // 驗證明確指向時接受）。id 本來就能從公開的 /tree 端點列舉，
+      // 不構成新的洩漏面。
+      const entries = await buildVisualsEntityIndex(env.CONTENT_DB, {
+        includeHidden: true,
+      });
       return jsonResponse(
         { ok: true, data: { entries, generatedAt: new Date().toISOString() } },
         200,

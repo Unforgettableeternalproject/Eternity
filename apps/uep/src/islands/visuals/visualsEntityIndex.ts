@@ -47,9 +47,12 @@ export function isVisualsEntityUnlocked(
   progress: ProgressState
 ): boolean {
   if (!entries) return false;
+  // 索引自 2026-08-18 起含 hidden；此處維持既有語意——隱藏內容不算
+  // 「這個 key 有可用內容」（要指向它得由 dossier 明講）
   return entries.some(
     (e) =>
       e.entityKey === key &&
+      !e.hidden &&
       isGalleryUnlockedInZone(
         {
           id: e.id,

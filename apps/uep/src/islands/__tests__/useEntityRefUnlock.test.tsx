@@ -39,10 +39,20 @@ function stubIndexFetch(routes: {
   visuals?: unknown[];
   /** pageId → dossier 整頁結構（省略時回一個沒有任何條目的空頁） */
   pages?: Record<string, unknown>;
+  /** zone tree 節點（省略時回空樹＝無父層 gate） */
+  tree?: unknown[];
 }): ReturnType<typeof vi.fn> {
   const emptyDossier = { variants: [] };
   const fetchFn = vi.fn((input: string) => {
     const url = String(input);
+    // zone tree 要排在 page 之前——路徑同前綴，會被 page regex 吃掉。
+    // 可點判定改走 tree-aware 求值後，沒有 tree 一律 fail closed
+    if (url.match(/\/api\/content\/(echoes|visuals)\/tree$/)) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, data: routes.tree ?? [] }),
+      });
+    }
     const pageMatch = url.match(/\/api\/content\/(.+)$/);
     if (pageMatch) {
       const data = routes.pages?.[pageMatch[1]] ?? emptyDossier;
@@ -335,6 +345,106 @@ describe('useEntityRefUnlockChecker — 與綁定求值一致', () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(result.current('entity:hero')).toBe(false);
   });
+});
+
+it('🔒 明確綁定 hidden 內容 → 仍可點（by-id 消費路徑不排除 hidden）', async () => {
+  // 轉正後把前期曲從列表隱藏是常態設計。排除 hidden 的清單只該用來
+  // 「數候選」，拿去驗證 dossier 的明確指向就會讓這種綁定永遠不可點
+  stubIndexFetch({
+    concepts: [
+      {
+        name: '轉正角色',
+        stack: 'dossier',
+        pageId: 'concepts/r/chars',
+        entityKey: 'hero',
+      },
+    ],
+    echoes: [
+      { id: 'echoes/x/song-a', entityKey: 'hero', locked: false },
+      {
+        id: 'echoes/x/song-hidden',
+        entityKey: 'hero',
+        locked: false,
+        hidden: true,
+      },
+    ],
+    pages: {
+      'concepts/r/chars': {
+        variants: [
+          {
+            id: 'u',
+            subcategories: [
+              {
+                label: '人物',
+                groups: [
+                  {
+                    label: '',
+                    entries: [
+                      {
+                        name: '轉正角色',
+                        entityKey: 'hero',
+                        bindings: { echoes: 'echoes/x/song-hidden' },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+  const useChecker = await freshChecker();
+  const progress = stateWith({ islandsUnlocked: ['echoes'] });
+  const { result } = renderHook(() => useChecker(progress));
+
+  await waitFor(() => expect(result.current('entity:hero')).toBe(true));
+});
+
+it('hidden 不影響唯一候選的計數（隱藏那筆不算一個候選）', async () => {
+  // 一筆公開 + 一筆隱藏 → 候選仍是「恰好一筆」，走唯一候選即可點
+  stubIndexFetch({
+    echoes: [
+      { id: 'echoes/x/song-a', entityKey: 'hero', locked: false },
+      {
+        id: 'echoes/x/song-hidden',
+        entityKey: 'hero',
+        locked: false,
+        hidden: true,
+      },
+    ],
+  });
+  const useChecker = await freshChecker();
+  const progress = stateWith({ islandsUnlocked: ['echoes'] });
+  const { result } = renderHook(() => useChecker(progress));
+
+  await waitFor(() => expect(result.current('entity:hero')).toBe(true));
+});
+
+it('🔒 zone tree 拿不到 → 不可點（fail closed，與消費端同一套求值）', async () => {
+  // 消費端一律以 tree-aware 求值判定解鎖（tree 取不到就拒絕顯示）。
+  // 可點判定若在沒有 tree 時退回單頁判定，就會比消費端寬鬆——
+  // progressPage 鏈條件全部落空，變成可點卻推不出提示卡
+  const fetchFn = vi.fn((input: string) => {
+    const url = String(input);
+    if (url.includes('/tree')) return Promise.reject(new Error('tree down'));
+    const entries = url.includes('/api/echoes/entity-index')
+      ? [{ id: 'echoes/x/song-a', entityKey: 'hero', locked: false }]
+      : [];
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ ok: true, data: { entries } }),
+    });
+  });
+  vi.stubGlobal('fetch', fetchFn);
+
+  const useChecker = await freshChecker();
+  const progress = stateWith({ islandsUnlocked: ['echoes'] });
+  const { result } = renderHook(() => useChecker(progress));
+
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  expect(result.current('entity:hero')).toBe(false);
 });
 
 describe('useEntityRefUnlockChecker — 孤兒收緊開關', () => {

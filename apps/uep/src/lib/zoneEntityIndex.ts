@@ -14,11 +14,14 @@
  * 放在 `lib/` 而非任一 zone 目錄：islands 與 components 都要用，
  * 而 components 不該反向 import islands。
  *
- * ⚠️ **範圍含意**：索引排除 hidden，與 by-key 反查端點
- * （`findEntitySong`／`findEntityGallery`）一致，但與 by-id 反查
- * （`findSongById`／`findGalleryById`，刻意含 hidden）不同。拿它判定
- * 「同 key 有幾筆候選」是對的；拿它驗證某個明確 id 是否存在則會漏掉
- * 隱藏內容。
+ * ⚠️ **索引含 hidden，每筆帶 `hidden` 旗標**——兩種用途對它的處置相反：
+ *
+ * - **數同 key 有幾筆候選**：要排除 hidden（隱藏內容不在列表出現，
+ *   不該影響「唯一候選」的判定）。用 `soleEntityCandidate`。
+ * - **驗證 dossier 指向的那一筆**：**不可**排除 hidden。明確綁定一首
+ *   隱藏的前期曲是合法用法，by-id 消費路徑（`findSongById`／
+ *   `findGalleryById`）也刻意不排除它——這裡排除就會變成「消費端顯示得
+ *   出來、嵌入卻永遠不可點」。用 `findEntryById`。
  */
 
 import { getApiBase } from './apiBase';
@@ -38,6 +41,8 @@ export interface ZoneEntityIndexEntry {
   gate?: unknown;
   /** 靜態封存，凌駕 gate */
   locked: boolean;
+  /** 從列表隱藏——仍是合法的引用目標（見檔頭的兩種用途） */
+  hidden?: boolean;
   /** 標題（綁定 picker 的選單需要可讀名稱，裸 id 認不出是哪一筆） */
   title?: string;
 }
@@ -88,11 +93,28 @@ export function invalidateZoneEntityIndex(): void {
  * 無法表達——指向與可見性是正交的兩個軸。
  *
  * 劇情內容（有 storyKey）不列入候選：那是另一套命名空間。
+ * **hidden 也不列入**：隱藏內容不在列表出現，不該影響唯一性——要指向它
+ * 就得由 dossier 明講。
  */
 export function soleEntityCandidate(
   entries: readonly ZoneEntityIndexEntry[],
   entityKey: string
 ): string | null {
-  const hits = entries.filter((e) => e.entityKey === entityKey && !e.storyKey);
+  const hits = entries.filter(
+    (e) => e.entityKey === entityKey && !e.storyKey && !e.hidden
+  );
   return hits.length === 1 ? hits[0].id : null;
+}
+
+/**
+ * 依 id 取索引條目——**刻意不管 hidden**。
+ *
+ * 用於驗證 dossier 明確指向的那一筆：明確綁定隱藏內容是合法的，
+ * 這裡若沿用排除 hidden 的清單就會讓那些綁定永遠判成不可點。
+ */
+export function findEntryById(
+  entries: readonly ZoneEntityIndexEntry[],
+  id: string
+): ZoneEntityIndexEntry | null {
+  return entries.find((e) => e.id === id) ?? null;
 }
