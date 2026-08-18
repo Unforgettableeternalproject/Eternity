@@ -39,6 +39,8 @@ import {
   loadVisualsEntityIndex,
   type VisualsEntityIndexEntry,
 } from './visuals/visualsEntityIndex';
+import { hasDossierEntry } from '../components/concepts/entityBinding';
+import { getSetting } from '../lib/uepSettings';
 
 /**
  * 回傳 ref → 是否可點 的聯集判定函式（progress / 各島索引變化時重建，
@@ -107,6 +109,29 @@ export function useEntityRefUnlockChecker(
     };
   }, [visualsMounted, visualsIndex]);
 
+  // 開關一次性讀取（sessionStorage 同步值）——生效時機是「下一次頁面載入」，
+  // 與其餘 uep_settings 消費點的既有契約一致
+  const orphanGateOn =
+    getSetting<string>('entityBinding.embedOrphanGate', 'disabled') ===
+    'enabled';
+
+  // 孤兒判定的索引**不能沿用 conceptsIndex**：那份只在 concepts 島掛載時
+  // 才 fetch，沒掛載時恆為空陣列，開關一開就會把所有 entity 判成孤兒。
+  // 只在開關開啟時載入，關閉時零額外請求。
+  const [dossierIndex, setDossierIndex] = useState<TerminalIndexEntry[]>([]);
+  useEffect(() => {
+    if (!orphanGateOn) return;
+    let cancelled = false;
+    void loadEntityIndex()
+      .then((entries) => {
+        if (!cancelled) setDossierIndex(entries);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [orphanGateOn]);
+
   return useMemo(
     () => (ref: string) => {
       // 各分支額外疊 Mounted 旗標：索引一旦 fetch 過會留在 state 裡，
@@ -121,12 +146,22 @@ export function useEntityRefUnlockChecker(
       const parsed = parseEntityRef(ref);
       if (parsed.type !== 'entity-key') return false;
       const key = parsed.entityKey;
+      // 孤兒收緊（2026-08-15 定案，預設關閉）：沒有 dossier 條目的
+      // entityKey 是佔位，跨區對應不成立。**這是唯一會拿掉現有功能的
+      // 改動**——正式站目前 86% 的 Echoes entity 是孤兒，開關一翻它們
+      // 的嵌入就從能點變成不能點，且沒有錯誤訊息。因此預設 disabled，
+      // 何時翻開是內容決策（等 dossier 補齊或明確接受後果）。
+      if (orphanGateOn && !hasDossierEntry(key, dossierIndex)) {
+        return false;
+      }
       return (
         (echoesMounted && isEchoesEntityUnlocked(echoesIndex, key, progress)) ||
         (visualsMounted && isVisualsEntityUnlocked(visualsIndex, key, progress))
       );
     },
     [
+      orphanGateOn,
+      dossierIndex,
       conceptsMounted,
       echoesMounted,
       visualsMounted,

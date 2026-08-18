@@ -30,6 +30,7 @@ import type { ProgressState } from '../progress';
 import { isGateBlocked } from '../components/storage/storageVisibility';
 import { getAudioStore, resolveSpoilerLevel } from '../audio';
 import { isSongUnlockedInZone } from '../components/echoes/echoesVisibility';
+import { resolveEntityBinding } from '../components/concepts/entityBinding';
 import { isGalleryUnlockedInZone } from '../components/visuals/visualsVisibility';
 
 import DraggableIsland from './DraggableIsland';
@@ -197,14 +198,39 @@ export default function IslandHost() {
       if (!shouldMountIsland(progressRef.current, 'echoes')) return;
       controller?.abort();
       controller = new AbortController();
-      void Promise.all([
-        fetch(
-          `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(detail.entityKey)}`,
-          { signal: controller.signal }
-        ).then((response) => response.json()),
-        fetchZoneProgressTree('echoes'),
-      ])
-        .then(([payload, zoneTree]) => {
+      const signal = controller.signal;
+      // detail 的 optional chain 收窄進不了 async 閉包，先取出已收窄的值
+      const entityKey = detail.entityKey;
+      void (async () => {
+        // entity 一對多綁定（2026-08-15 定案）：先求出這個 entityKey
+        // 此刻該對應哪一首（角色轉正前後各一首主題曲）。求值端已把
+        // 「唯一候選」也算成 bound，所以這裡只認 by-id——findSongById
+        // 刻意不排除 hidden，正好接住切換後可能隱藏的劇情期歌曲。
+        //
+        // ⚠️ 非 bound 一律**不再查**（清掉舊卡即可），**不可以**退回
+        // by-key：entity-song 是全表掃描命中第一筆（無 ORDER BY），
+        // 同 key 多筆時會繞過 dossier 的明確指向顯示任意一筆——那正是
+        // 「多筆候選就必須由 dossier 指明」這條契約要防的事。
+        // error（權威資料拿不到）同理 fail closed。
+        const binding = await resolveEntityBinding(
+          entityKey,
+          'echoes',
+          progressRef.current
+        );
+        if (signal.aborted) return null;
+        if (binding.status !== 'bound') {
+          clearEchoSuggestion();
+          return null;
+        }
+        const songUrl = `${API_BASE}/api/echoes/song?id=${encodeURIComponent(binding.id)}`;
+        return Promise.all([
+          fetch(songUrl, { signal }).then((response) => response.json()),
+          fetchZoneProgressTree('echoes'),
+        ]);
+      })()
+        .then((resolved) => {
+          if (!resolved) return;
+          const [payload, zoneTree] = resolved;
           // async 落地後重驗——等待期間可能登出/停用 Echoes，此時不得
           // 再推提示或展開島
           if (!shouldMountIsland(progressRef.current, 'echoes')) return;
@@ -212,6 +238,14 @@ export default function IslandHost() {
           // 查不到／不合格時清掉舊提示卡——否則上一張 RELATED ECHO
           // 會殘留，誤導使用者以為與這次點擊的 entity 有關
           if (!payload?.ok || !song) {
+            clearEchoSuggestion();
+            return;
+          }
+          // 指向的必須是**同一個實體**的內容。picker 的候選本來就只列同
+          // entityKey 的曲目，不一致代表資料已經壞掉（target 被刪、
+          // entityKey 被改、或載入失敗時手填打錯），此時寧可不顯示也不能
+          // 把別人的歌掛到這個角色頭上
+          if (song.entityKey !== entityKey) {
             clearEchoSuggestion();
             return;
           }
@@ -293,20 +327,44 @@ export default function IslandHost() {
       if (!shouldMountIsland(progressRef.current, 'visuals')) return;
       controller?.abort();
       controller = new AbortController();
-      void Promise.all([
-        fetch(
-          `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(detail.entityKey)}`,
-          { signal: controller.signal }
-        ).then((response) => response.json()),
-        fetchZoneProgressTree('visuals'),
-      ])
-        .then(([payload, zoneTree]) => {
+      const signal = controller.signal;
+      // detail 的 optional chain 收窄進不了 async 閉包，先取出已收窄的值
+      const entityKey = detail.entityKey;
+      void (async () => {
+        // entity 一對多綁定（2026-08-15 定案）：同 Echoes 分支的道理，
+        // 先求值此刻該對應哪一個畫廊，只認 by-id。非 bound 一律不再查
+        // ——entity-gallery 同樣是全表掃描命中第一筆（無 ORDER BY）
+        const binding = await resolveEntityBinding(
+          entityKey,
+          'visuals',
+          progressRef.current
+        );
+        if (signal.aborted) return null;
+        if (binding.status !== 'bound') {
+          clearPhantomSuggestion();
+          return null;
+        }
+        const galleryUrl = `${API_BASE}/api/visuals/gallery?id=${encodeURIComponent(binding.id)}`;
+        return Promise.all([
+          fetch(galleryUrl, { signal }).then((response) => response.json()),
+          fetchZoneProgressTree('visuals'),
+        ]);
+      })()
+        .then((resolved) => {
+          if (!resolved) return;
+          const [payload, zoneTree] = resolved;
           // async 落地後重驗——等待期間可能登出/停用 Visuals
           if (!shouldMountIsland(progressRef.current, 'visuals')) return;
           const gallery = payload?.data?.gallery;
           // 查不到／不合格時清掉舊提示卡——否則上一張 RELATED VISUAL
           // 會殘留，誤導使用者以為與這次點擊的 entity 有關
           if (!payload?.ok || !gallery) {
+            clearPhantomSuggestion();
+            return;
+          }
+          // 同 Echoes 分支：指向的必須是同一個實體的畫廊，
+          // 不一致代表資料壞了，寧可不顯示
+          if (gallery.entityKey !== entityKey) {
             clearPhantomSuggestion();
             return;
           }

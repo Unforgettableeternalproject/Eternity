@@ -27,6 +27,9 @@ export interface RevisionGateSummary {
   gate: unknown;
 }
 
+/** 四種 stack 風格（`metadata.stack_style` 的合法值） */
+export type ConceptsStack = 'dossier' | 'browser' | 'chrono' | 'diff';
+
 /** 索引中的單筆條目摘要 */
 export interface EntityIndexEntry {
   /** 顯示名稱（dossier/browser 為 name、diff 為 term、chrono 為 title/year） */
@@ -122,7 +125,7 @@ function withRevisionFields(
  * 接受 D1 存的字串，也接受已經是 ContentBlock[] 的陣列——存檔路徑
  * （upsertPage）拿到的 body.content 是後者，讀取路徑拿到的是前者。
  */
-function parseStructuredBlock(content: unknown): Dict | null {
+export function parseStructuredBlock(content: unknown): Dict | null {
   let blocks: unknown = content;
   if (typeof content === 'string') {
     try {
@@ -162,35 +165,41 @@ function countChronoEvents(period: Dict): number {
   return count;
 }
 
-/** 收集單頁所有條目摘要 */
-function collectFromPage(
+/**
+ * 單次條目走訪的回報內容（`forEachConceptsEntry` → 呼叫端）。
+ *
+ * `entry` 是原始條目物件，**含 revisions 全文**；要抽什麼由呼叫端決定。
+ * ⚠️ 公開端點（`/api/concepts/entity-index`）只能取摘要，
+ * revision 的 `patch` 內容不可外流——patch 裡的綁定值是尚未解鎖內容的
+ * page id（slug 即歌名/畫廊名），與 `revisionGates` 刻意只帶 id+gate
+ * 是同一個理由。
+ */
+export interface ConceptsEntryVisit {
+  /** 原始條目物件（dossier entry / browser profile / chrono period / diff entry） */
+  entry: Dict;
+  /** 顯示名稱的來源欄位（各 stack 不同：name / title|year / term） */
+  nameSource: unknown;
+  /** 僅 dossier */
+  variantId?: string;
+  category?: string;
+  group?: string;
+  groupGate?: unknown;
+  /** 僅 chrono */
+  eventCount?: number;
+}
+
+/**
+ * 四種 stack 的條目遍歷器——**結構走法的單一事實來源**。
+ *
+ * 索引建構（`collectFromPage`）與綁定掃描（`concepts-bindings.ts`）共用
+ * 同一份走法，各自決定要從條目抽什麼。理由同 `collectConceptsKeyCandidates`
+ * 的檔內說明：同一套遍歷規則存在兩份必然漂移。
+ */
+export function forEachConceptsEntry(
   data: Dict,
   stack: EntityIndexEntry['stack'],
-  pageId: string,
-  pageTitle: string
-): EntityIndexEntry[] {
-  const out: EntityIndexEntry[] = [];
-  // 實體身分只由 dossier 與 browser 承擔。diff（純對照表）與 chrono
-  // （事件的時序排列）都不是實體，不收 entityKey / aliases——連帶讓它們
-  // 不再產生 key 候選、不進嵌入目標、不進 terminal 檢索。
-  // 用白名單而非逐一排除：日後新增 stack 時預設不進身分體系，要進得明寫。
-  const includeIdentity = stack === 'dossier' || stack === 'browser';
-  const push = (
-    name: unknown,
-    entry: Dict,
-    extra?: Partial<EntityIndexEntry>
-  ) => {
-    if (typeof name !== 'string' || !name.trim()) return;
-    out.push({
-      name: name.trim(),
-      stack,
-      pageId,
-      pageTitle,
-      ...withRevisionFields(entry, includeIdentity),
-      ...extra,
-    });
-  };
-
+  visit: (v: ConceptsEntryVisit) => void
+): void {
   if (stack === 'dossier') {
     for (const variant of asArray(data.variants).map(asDict)) {
       if (!variant) continue;
@@ -206,7 +215,9 @@ function collectFromPage(
               : undefined;
           for (const entry of asArray(group.entries).map(asDict)) {
             if (entry) {
-              push(entry.name, entry, {
+              visit({
+                entry,
+                nameSource: entry.name,
                 category: asLabel(subcat.label),
                 group: asLabel(group.label),
                 variantId: asLabel(variant.id),
@@ -219,12 +230,14 @@ function collectFromPage(
     }
   } else if (stack === 'browser') {
     for (const profile of asArray(data.profiles).map(asDict)) {
-      if (profile) push(profile.name, profile);
+      if (profile) visit({ entry: profile, nameSource: profile.name });
     }
   } else if (stack === 'chrono') {
     for (const period of asArray(data.periods).map(asDict)) {
       if (period) {
-        push(period.title || period.year, period, {
+        visit({
+          entry: period,
+          nameSource: period.title || period.year,
           eventCount: countChronoEvents(period),
         });
       }
@@ -238,7 +251,9 @@ function collectFromPage(
           // hidden = 故事中尚未出現的概念——不進索引（名稱也不洩漏）；
           // locked（已出現未解釋）照常納入，由 Terminal 顯示 restricted
           if (entry && entry.hidden !== true) {
-            push(entry.term, entry, {
+            visit({
+              entry,
+              nameSource: entry.term,
               category: asLabel(subcat.label),
               group: asLabel(section.label),
             });
@@ -247,6 +262,38 @@ function collectFromPage(
       }
     }
   }
+}
+
+/** 收集單頁所有條目摘要 */
+function collectFromPage(
+  data: Dict,
+  stack: EntityIndexEntry['stack'],
+  pageId: string,
+  pageTitle: string
+): EntityIndexEntry[] {
+  const out: EntityIndexEntry[] = [];
+  // 實體身分只由 dossier 與 browser 承擔。diff（純對照表）與 chrono
+  // （事件的時序排列）都不是實體，不收 entityKey / aliases——連帶讓它們
+  // 不再產生 key 候選、不進嵌入目標、不進 terminal 檢索。
+  // 用白名單而非逐一排除：日後新增 stack 時預設不進身分體系，要進得明寫。
+  const includeIdentity = stack === 'dossier' || stack === 'browser';
+
+  forEachConceptsEntry(data, stack, (v) => {
+    const name = v.nameSource;
+    if (typeof name !== 'string' || !name.trim()) return;
+    out.push({
+      name: name.trim(),
+      stack,
+      pageId,
+      pageTitle,
+      ...withRevisionFields(v.entry, includeIdentity),
+      ...(v.category !== undefined ? { category: v.category } : {}),
+      ...(v.group !== undefined ? { group: v.group } : {}),
+      ...(v.variantId !== undefined ? { variantId: v.variantId } : {}),
+      ...(v.groupGate !== undefined ? { groupGate: v.groupGate } : {}),
+      ...(v.eventCount !== undefined ? { eventCount: v.eventCount } : {}),
+    });
+  });
 
   return out;
 }

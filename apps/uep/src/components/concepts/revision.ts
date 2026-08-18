@@ -28,6 +28,7 @@ import type {
   ConceptsRevision,
   DiffContent,
   DossierContent,
+  RevisionPatch,
 } from './types';
 
 // ── dot-notation path 工具 ─────────────────────────────────────────
@@ -115,21 +116,81 @@ export function applyRevisions<T extends Record<string, unknown>>(
 
   for (const revision of revisions) {
     if (!evaluateGate(progress, revision.gate)) continue;
-    const patch = revision.patch;
-    if (!patch) continue;
-    if (Array.isArray(patch.remove)) {
-      for (const path of patch.remove) {
-        if (typeof path === 'string') removeDotPath(clone, path);
-      }
-    }
-    if (patch.set && typeof patch.set === 'object') {
-      for (const [path, value] of Object.entries(patch.set)) {
-        // value 也 clone：防止多條目共用 patch 物件時的引用共用
-        applyDotPath(clone, path, structuredClone(value));
-      }
-    }
+    applyPatch(clone, revision.patch);
   }
   return clone;
+}
+
+/** 把單一 patch 就地套到目標物件上（remove 先於 set，與宣告語意一致） */
+function applyPatch(
+  target: Record<string, unknown>,
+  patch: RevisionPatch | undefined
+): void {
+  if (!patch) return;
+  if (Array.isArray(patch.remove)) {
+    for (const path of patch.remove) {
+      if (typeof path === 'string') removeDotPath(target, path);
+    }
+  }
+  if (patch.set && typeof patch.set === 'object') {
+    for (const [path, value] of Object.entries(patch.set)) {
+      // value 也 clone：防止多條目共用 patch 物件時的引用共用
+      applyDotPath(target, path, structuredClone(value));
+    }
+  }
+}
+
+/** 結構相等比較（key 順序無關；patch 值只有 JSON 型別） */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== 'object' || typeof b !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, i) => deepEqual(item, b[i]));
+  }
+  const ak = Object.keys(a as Record<string, unknown>);
+  const bk = Object.keys(b as Record<string, unknown>);
+  if (ak.length !== bk.length) return false;
+  return ak.every(
+    (k) =>
+      Object.prototype.hasOwnProperty.call(b, k) &&
+      deepEqual(
+        (a as Record<string, unknown>)[k],
+        (b as Record<string, unknown>)[k]
+      )
+  );
+}
+
+/**
+ * 這一條 revision 套下去有沒有真的改到東西（編輯器的空轉警示用）。
+ *
+ * 判定方式是**比較結果而非比較 patch**：把前面所有 revision 無條件疊完
+ * 當作「上一個版本」，再看套上這一條之後有沒有變化。兩種空轉因此用同一
+ * 條規則涵蓋——patch 全空，以及 patch 設的值與上一版本相同。
+ *
+ * ⚠️ 前置 revision 一律無條件套用（不看 gate）：這裡問的是「宣告鏈上相鄰
+ * 兩版有沒有差異」，而 gate 是讀者側的時機問題。若改成依某個進度求值，
+ * 同一條 revision 會依模擬進度時而警示時而不警示——編輯期的靜態檢查
+ * 不該有這種不確定性。
+ *
+ * 只是提示，不阻擋：空轉 revision 有合法用途（佔位、先建 id 之後再補
+ * 內容），擋下來會擋掉正常的編輯流程。
+ */
+export function isNoOpRevision(
+  base: Record<string, unknown>,
+  revisions: ConceptsRevision[] | undefined,
+  index: number
+): boolean {
+  if (!revisions || index < 0 || index >= revisions.length) return false;
+
+  const previous = structuredClone(base);
+  for (let i = 0; i < index; i++) applyPatch(previous, revisions[i].patch);
+
+  const next = structuredClone(previous);
+  applyPatch(next, revisions[index].patch);
+
+  return deepEqual(previous, next);
 }
 
 /**

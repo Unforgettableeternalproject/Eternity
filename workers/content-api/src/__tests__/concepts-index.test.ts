@@ -534,3 +534,88 @@ describe('buildConceptsEntityIndex — publicOnly 選項', () => {
     expect(allEntries.map((e) => e.name)).toContain('隱藏條目');
   });
 });
+
+/**
+ * 綁定值不得外洩到公開索引（entity 一對多綁定 T-9）
+ *
+ * revision 的 patch 裡的 bindings 值是尚未解鎖內容的 page id，slug 即歌名／
+ * 畫廊名——公開等同劇透。`revisionGates` 刻意只帶 id+gate 就是為了這件事，
+ * 本測試把它鎖住：日後若有人為了方便把 patch 加進索引摘要，這裡會失敗。
+ *
+ * 附帶確認 Concepts 自己的 revision 機制不受影響：帶 bindings 的 revision
+ * 在 gate 摘要裡與一般 revision 完全一樣（更動通知水位只看 gate，不看 patch）。
+ */
+describe('entity-index — 綁定值不外洩', () => {
+  beforeAll(async () => {
+    await insertConceptsPage(
+      'concepts/leak/records/characters',
+      '綁定外洩測試',
+      'dossier',
+      {
+        variants: [
+          {
+            id: 'u',
+            subcategories: [
+              {
+                label: '人物',
+                groups: [
+                  {
+                    label: '',
+                    entries: [
+                      {
+                        name: '綁定角色',
+                        entityKey: 'leak-turncoat',
+                        revisions: [
+                          {
+                            id: 'base',
+                            gate: null,
+                            patch: {
+                              set: {
+                                'bindings.echoes': 'echoes/leak/secret-song',
+                              },
+                            },
+                          },
+                          {
+                            id: 'leak-turncoat:turned',
+                            gate: { requiresFlags: ['leak-turncoat:turned'] },
+                            patch: {
+                              set: {
+                                'bindings.echoes': 'echoes/leak/spoiler-song',
+                              },
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }
+    );
+  });
+
+  it('索引摘要不含 patch 內容，未解鎖歌曲 id 不出現在回應中', async () => {
+    const { buildConceptsEntityIndex } = await import('../concepts-index');
+    const entries = await buildConceptsEntityIndex(env.CONTENT_DB);
+    const serialized = JSON.stringify(entries);
+    expect(serialized).not.toContain('secret-song');
+    expect(serialized).not.toContain('spoiler-song');
+    expect(serialized).not.toContain('bindings');
+  });
+
+  it('帶 bindings 的 revision 在 gate 摘要中與一般 revision 無異', async () => {
+    const { buildConceptsEntityIndex } = await import('../concepts-index');
+    const entries = await buildConceptsEntityIndex(env.CONTENT_DB);
+    const entry = entries.find((e) => e.entityKey === 'leak-turncoat');
+    expect(entry?.revisionGates).toEqual([
+      { id: 'base', gate: null },
+      {
+        id: 'leak-turncoat:turned',
+        gate: { requiresFlags: ['leak-turncoat:turned'] },
+      },
+    ]);
+  });
+});

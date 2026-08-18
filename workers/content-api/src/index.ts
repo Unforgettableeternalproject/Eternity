@@ -24,6 +24,7 @@ import {
   requireJwtOrApiToken,
 } from './auth';
 import { extractAssetKeysFromContentBlock } from './assets';
+import { buildConceptsBindingIndex } from './concepts-bindings';
 import { buildConceptsEntityIndex } from './concepts-index';
 import { buildEchoesEntityIndex } from './echoes-index';
 import { buildVisualsEntityIndex } from './visuals-index';
@@ -2147,6 +2148,26 @@ export default {
         cors,
         true
       );
+    }
+
+    // ---- entity 一對多綁定登記（2026-08-15 定案）----
+    // ⚠️ **admin only，且刻意不做 CDN 快取**：回應內容是 revision patch 裡的
+    // 綁定指向，也就是尚未解鎖內容的 page id（slug 即歌名／畫廊名）——
+    // 公開等同劇透，這與同檔上方 entity-index 的 revisionGates 只帶 id+gate
+    // 是同一個理由。編輯器（唯一性放寬、綁定 picker）是唯一消費端。
+    if (path === '/api/concepts/bound-keys' && request.method === 'GET') {
+      if (!(await isAuthorized(request, env))) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
+      const index = await buildConceptsBindingIndex(env.CONTENT_DB);
+      // Map 不能直接 JSON 化——轉成純物件（空索引回 {}，不是 404：
+      // 「查得到但沒有任何登記」與「端點不存在」是不同的事）
+      const bound: Record<
+        string,
+        { echoesIds: string[]; visualsIds: string[] }
+      > = {};
+      for (const [key, value] of index) bound[key] = value;
+      return jsonResponse({ ok: true, data: { bound } }, 200, cors);
     }
 
     // ---- 跨區互聯反查（S10-1）----

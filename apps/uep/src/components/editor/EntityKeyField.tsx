@@ -17,9 +17,10 @@
  * 跨 stack 一致性不在此驗證（見設計文件 §4-2：Terminal 查詢時回報衝突）。
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { ENTITY_KEY_PATTERN } from '../../embed/marks';
+import { isOrphanEntityKey } from '../concepts/entityBinding';
 import { isBrowserContent, isDossierContent } from '../concepts/revision';
 import type { ConceptsData } from '../concepts/types';
 
@@ -99,6 +100,13 @@ interface EntityKeyFieldProps {
   placeholder?: string;
   /** 重複時的警告文案；預設實體ID 文案 */
   duplicateMessage?: string;
+  /**
+   * 檢查這個 key 有沒有對應的 Concepts dossier 條目（2026-08-15 定案）。
+   *
+   * 只有 Echoes/Visuals 這種「引用實體」的編輯器要開——Concepts 自己
+   * 就是權威來源，在那裡提示「找不到 dossier 條目」是自我矛盾。
+   */
+  checkOrphan?: boolean;
 }
 
 export default function EntityKeyField({
@@ -108,10 +116,29 @@ export default function EntityKeyField({
   label = '實體ID',
   placeholder = '如 xavier-colsono（選填）',
   duplicateMessage = '此實體ID 已被同範圍的其他條目使用',
+  checkOrphan = false,
 }: EntityKeyFieldProps) {
   const raw = value ?? '';
   const invalidFormat = raw.length > 0 && !ENTITY_KEY_PATTERN.test(raw);
   const duplicate = raw.length > 0 && !invalidFormat && existingKeys.has(raw);
+  const [orphan, setOrphan] = useState(false);
+
+  // 孤兒提示（2026-08-15 定案）：沒有 dossier 條目的 entityKey 是佔位，
+  // 跨 zone 對應不會生效。這是**提示不是阻擋**——照樣可以存檔，等哪天
+  // 補了 dossier 條目就自動生效，不需要回頭改這一頁。
+  useEffect(() => {
+    if (!checkOrphan || !raw || invalidFormat) {
+      setOrphan(false);
+      return;
+    }
+    let alive = true;
+    void isOrphanEntityKey(raw).then((result) => {
+      if (alive) setOrphan(result);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [checkOrphan, raw, invalidFormat]);
 
   return (
     <div className="ced-entity-key">
@@ -137,6 +164,11 @@ export default function EntityKeyField({
       )}
       {duplicate && (
         <div className="ced-entity-key-error">{duplicateMessage}</div>
+      )}
+      {orphan && !duplicate && (
+        <div className="ced-entity-key-hint">
+          此 key 尚無來源條目，跨區對應目前不生效（仍可存檔）
+        </div>
       )}
     </div>
   );

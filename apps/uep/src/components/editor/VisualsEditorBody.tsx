@@ -10,6 +10,7 @@ import {
   type AssetItem as ImagePickerItem,
 } from './editorHelpers';
 import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
+import { useBoundEntityKeys, withoutBoundKeys } from './useBoundEntityKeys';
 import GateConditionEditor from './GateConditionEditor';
 import { UploadSpinner } from './UploadSpinner';
 import { isSamePagePath } from '../../lib/pagePath';
@@ -375,6 +376,14 @@ export default function VisualsEditorBody({
     return () => controller.abort();
   }, [apiBase, galleryId, keyCheckReload]);
 
+  // 已登記多重綁定的 entityKey（同一角色轉正前後各一個畫廊之類）——
+  // 同 zone 重複是刻意的，不再警告撞名。伺服器 409 仍是權威把關。
+  const boundEntityKeys = useBoundEntityKeys(apiBase, 'visuals');
+  const takenEntityKeys = useMemo(
+    () => withoutBoundKeys(otherKeys.entityKeys, boundEntityKeys),
+    [otherKeys.entityKeys, boundEntityKeys]
+  );
+
   const validationIssues = useMemo(() => {
     const issues: string[] = [];
     const checkKey = (
@@ -399,7 +408,7 @@ export default function VisualsEditorBody({
       checkKey(
         'entityKey',
         data.entityKey,
-        otherKeys.entityKeys,
+        takenEntityKeys,
         'entityKey「{key}」已被其他 gallery 使用'
       );
     if (showStoryKey)
@@ -415,6 +424,7 @@ export default function VisualsEditorBody({
     data.storyKey,
     keyCheckStatus,
     otherKeys,
+    takenEntityKeys,
     showEntityKey,
     showStoryKey,
   ]);
@@ -1347,7 +1357,8 @@ export default function VisualsEditorBody({
             <>
               <EntityKeyField
                 value={data.entityKey || undefined}
-                existingKeys={otherKeys.entityKeys}
+                existingKeys={takenEntityKeys}
+                checkOrphan
                 onChange={(entityKey) => update({ entityKey: entityKey || '' })}
                 duplicateMessage="此實體ID 已被其他 gallery 使用"
               />

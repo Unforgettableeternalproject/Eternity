@@ -244,3 +244,38 @@ describe('PatchEditor — JSON 自訂值', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * entity 一對多綁定 picker（T-5，2026-08-15 定案）
+ *
+ * 值是字串，若沒有 STACK_PATCH_FIELDS 的顯式定義就會被 inferFieldKind
+ * 依值形狀猜成 'text'（純文字框）——那條路徑正是本組測試要鎖住的。
+ */
+describe('bindings picker 欄位', () => {
+  it('bindings.echoes / bindings.visuals 不被推斷成純文字框', () => {
+    expect(inferFieldKind('dossier', 'bindings.echoes', 'echoes/a/b')).toBe(
+      'entity-picker'
+    );
+    expect(inferFieldKind('dossier', 'bindings.visuals', 'visuals/a/b')).toBe(
+      'entity-picker'
+    );
+  });
+
+  it('未定義的 bindings 子路徑仍走一般字串推斷（不誤擴大）', () => {
+    expect(inferFieldKind('dossier', 'bindings.storage', 'x')).toBe('text');
+  });
+
+  it('🔒 只有 dossier 有綁定欄位——browser/chrono/diff 都沒有', () => {
+    // dossier 是實體的唯一權威來源，求值端（entityBinding.ts）也只讀
+    // dossier。browser 若給了 picker，作者會編出 runtime 永不消費的綁定。
+    expect(inferFieldKind('browser', 'bindings.echoes', 'echoes/a/b')).toBe(
+      'text'
+    );
+    expect(inferFieldKind('chrono', 'bindings.echoes', 'echoes/a/b')).toBe(
+      'text'
+    );
+    expect(inferFieldKind('diff', 'bindings.echoes', 'echoes/a/b')).toBe(
+      'text'
+    );
+  });
+});

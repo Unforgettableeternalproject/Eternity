@@ -110,6 +110,16 @@ describe('GET /api/visuals/entity-index', () => {
     expect(gated!.locked).toBe(true);
   });
 
+  it('帶出 title 供綁定 picker 顯示可讀名稱', async () => {
+    const entries = await fetchIndex();
+    expect(
+      entries.find((e) => e.entityKey === 'vidx-gallery-gated')!.title
+    ).toBe('有閘畫廊');
+    expect(
+      entries.find((e) => e.entityKey === 'vidx-gallery-plain')!.title
+    ).toBe('普通畫廊');
+  });
+
   it('無 gate 的條目不落 gate 欄位；未設 locked 預設 false', async () => {
     const entries = await fetchIndex();
     const plain = entries.find((e) => e.entityKey === 'vidx-gallery-plain');

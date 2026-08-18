@@ -4,6 +4,8 @@ import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../../lib/apiBase';
 
 export const prerender = false;
 
+const JWT_COOKIE = 'uep-admin-jwt';
+
 /**
  * /api/concepts/* 同源 proxy（編輯器層 API_BASE='' 的配套路由）。
  *
@@ -12,17 +14,23 @@ export const prerender = false;
  * 四組轉發路由，漏了 concepts 前綴——導致 /api/concepts/entity-index
  * 在本地、staging、正式的編輯器內一律 404。此路由補上缺口。
  *
- * concepts 前綴目前只有公開唯讀端點（entity-index、widget 摘要），
- * 因此僅轉發 GET，不需要帶 admin JWT。
+ * 仍只轉發 GET（concepts 前綴沒有寫入端點），但**必須帶 admin JWT**：
+ * 2026-08-15 起 `/api/concepts/bound-keys` 掛了 `isAuthorized`（回應含
+ * revision 的綁定指向，即未解鎖內容的 page id，不可公開）。JWT 存在
+ * httpOnly cookie，瀏覽器端讀不到也組不出 Bearer header，只能由 server
+ * 轉發——同 `/api/interlink/*` 的模式。公開端點多帶一個 header 無害。
  */
 export const GET: APIRoute = async ({ cookies, params, url }) => {
   const contentApi = getApiBase(
     cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
   );
   const target = `${contentApi}/api/concepts/${params.path || ''}${url.search}`;
+  const headers = new Headers();
+  const jwt = cookies.get(JWT_COOKIE)?.value;
+  if (jwt) headers.set('Authorization', `Bearer ${jwt}`);
 
   try {
-    const response = await fetch(target);
+    const response = await fetch(target, { headers });
     return new Response(await response.arrayBuffer(), {
       status: response.status,
       headers: {

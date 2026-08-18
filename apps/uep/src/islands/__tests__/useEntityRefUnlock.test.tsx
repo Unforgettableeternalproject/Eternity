@@ -182,3 +182,69 @@ describe('useEntityRefUnlockChecker — 跨島聯集', () => {
     }
   });
 });
+
+/**
+ * 孤兒收緊開關（T-12，2026-08-15 定案）
+ *
+ * 這是整批改動中**唯一會拿掉現有功能**的一項：開關開啟後，沒有 dossier
+ * 條目的 entityKey 其 `entity:{key}` 嵌入會從能點變成不能點。正式站目前
+ * 86% 的 Echoes entity 屬於這種情況，因此預設關閉。
+ *
+ * 「關閉時行為與改動前完全一致」是本組最重要的回歸鎖。
+ */
+describe('useEntityRefUnlockChecker — 孤兒收緊開關', () => {
+  /** getSetting 讀的是 window.__uepSettings（sessionStorage 只是它的來源） */
+  function setOrphanGate(value: 'enabled' | 'disabled') {
+    window.__uepSettings = { 'entityBinding.embedOrphanGate': value };
+  }
+
+  afterEach(() => {
+    delete window.__uepSettings;
+  });
+
+  it('🔒 預設（關閉）：孤兒 entityKey 維持可點，行為與改動前一致', async () => {
+    stubIndexFetch({
+      // concepts 沒有這個 key = 孤兒；echoes 有 → 舊行為判可點
+      echoes: [{ id: 'echoes/x/song-a', entityKey: 'orphan', locked: false }],
+    });
+    const useChecker = await freshChecker();
+    const progress = stateWith({ islandsUnlocked: ['echoes'] });
+    const { result } = renderHook(() => useChecker(progress));
+
+    await waitFor(() => expect(result.current('entity:orphan')).toBe(true));
+  });
+
+  it('開啟：孤兒 entityKey 變不可點', async () => {
+    setOrphanGate('enabled');
+    stubIndexFetch({
+      echoes: [{ id: 'echoes/x/song-a', entityKey: 'orphan', locked: false }],
+    });
+    const useChecker = await freshChecker();
+    const progress = stateWith({ islandsUnlocked: ['echoes'] });
+    const { result } = renderHook(() => useChecker(progress));
+
+    // 給索引載入的時間，確認結果穩定為不可點
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(result.current('entity:orphan')).toBe(false);
+  });
+
+  it('開啟：有 dossier 條目的 entityKey 不受影響', async () => {
+    setOrphanGate('enabled');
+    stubIndexFetch({
+      concepts: [
+        {
+          name: '有檔案的角色',
+          stack: 'dossier',
+          pageId: 'concepts/r/chars',
+          entityKey: 'hero',
+        },
+      ],
+      echoes: [{ id: 'echoes/x/song-a', entityKey: 'hero', locked: false }],
+    });
+    const useChecker = await freshChecker();
+    const progress = stateWith({ islandsUnlocked: ['echoes'] });
+    const { result } = renderHook(() => useChecker(progress));
+
+    await waitFor(() => expect(result.current('entity:hero')).toBe(true));
+  });
+});
