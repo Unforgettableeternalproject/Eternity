@@ -72,8 +72,9 @@ export const STACK_PATCH_FIELDS: Record<StackKind, PatchFieldDef[]> = {
     { path: 'avatar', label: '頭像 R2 key', kind: 'text' },
     { path: 'basic', label: '基本資料（整段替換）', kind: 'keyvalue' },
     { path: 'sections', label: '區段（整段替換）', kind: 'sections' },
-    { path: 'bindings.echoes', label: '綁定歌曲', kind: 'entity-picker' },
-    { path: 'bindings.visuals', label: '綁定畫廊', kind: 'entity-picker' },
+    // 綁定欄刻意不給 browser：dossier 是實體的唯一權威來源，
+    // 求值端（entityBinding.ts）也只讀 dossier。在這裡開欄位會產生
+    // 「編輯器存得下去、runtime 永遠不消費」的假權威。
   ],
   chrono: [{ path: 'title', label: '標題', kind: 'text' }],
   diff: [

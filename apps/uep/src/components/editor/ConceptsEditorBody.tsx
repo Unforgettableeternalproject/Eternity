@@ -1535,11 +1535,8 @@ function BrowserEditor({
                 onChange={(key) => updateProfile({ entityKey: key })}
                 existingKeys={usedEntityKeys}
               />
-              <EntityBindingsFields
-                entityKey={profile.entityKey}
-                value={profile.bindings}
-                onChange={(bindings) => updateProfile({ bindings })}
-              />
+              {/* browser 不提供綁定欄：dossier 是實體的唯一權威來源，
+                  求值端只讀 dossier，這裡開欄位等於假權威 */}
               <div className="ced-field-row">
                 <label className="ced-label">版本</label>
                 <button

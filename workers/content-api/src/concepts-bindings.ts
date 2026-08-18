@@ -3,16 +3,13 @@
  *
  * entity 一對多內容綁定（2026-08-15 定案）：一個 entityKey 在同一個 zone
  * 可以對應多筆內容（例如角色轉正前後各一首主題曲），由 Concepts dossier
- * 條目的 revision 鏈決定「此刻該給哪一個」——revision 的 patch 不改內容，
- * 只改指向：
+ * 條目決定「此刻該給哪一個」——初始指向放在條目層級的 `bindings`，
+ * revision 的 patch 不改內容、只改指向：
  *
- *   { id: 'base',       gate: null,  patch: { set: { 'bindings.echoes': 'echoes/...' } } }
+ *   entry.bindings = { echoes: 'echoes/...' }                            // 初始
  *   { id: 'xxx:turned', gate: {...}, patch: { set: { 'bindings.echoes': 'echoes/...' } } }
  *
- * base（尚未通過任何 gate 時的預設）就是鏈上 `gate: null` 的那一條——
- * `ConceptsRevision.gate` 本來就允許 null 表示無條件（見 concepts/types.ts
- * 的欄位說明，id 慣例 'base'），因此**不需要在條目層另開 bindings 欄位**，
- * 掃描端只看 revisions 一個地方。
+ * 兩個地方都要掃：只綁一個內容的實體不會有任何 revision。
  *
  * 本模組只回答「哪些 entityKey 登記過綁定、指向哪些 id」，**不做求值**
  * ——求值需要讀者進度，那是前端的事（apps/uep 的 entityBinding.ts）。
@@ -87,18 +84,17 @@ function readBindingValue(
 /**
  * 掃描一頁的條目，把綁定登記併進 `index`。
  *
- * 只收 dossier 與 browser——與 entityKey 身分體系的範圍一致
- * （concepts-index 的 `includeIdentity` 白名單同一條規則）。
- * 注意 browser 條目的綁定**也會被收進來**：本函式回答的是「這個 entityKey
- * 登記過綁定嗎」，用於撞名放行；前端求值時才依「dossier 優先於 browser」
- * 挑出權威的那一條。兩者用途不同，不可混淆。
+ * **只收 dossier。** dossier 是實體的唯一權威來源，綁定只能掛在這裡；
+ * browser 是角色的詳細內容，與綁定無關。掃描端若把 browser 也收進來，
+ * 會出現「求值端只讀 dossier、把關端卻認 browser」的分岔——browser 上
+ * 寫一筆綁定就能放行撞名，但那筆綁定 runtime 永遠不會被消費。
  */
 function collectPageBindings(
   data: Dict,
   stack: ConceptsStack,
   index: Map<string, ConceptsBindingEntry>
 ): void {
-  if (stack !== 'dossier' && stack !== 'browser') return;
+  if (stack !== 'dossier') return;
 
   forEachConceptsEntry(data, stack, (visit) => {
     const entityKey = visit.entry.entityKey;
@@ -166,7 +162,7 @@ export async function buildConceptsBindingIndex(
       continue;
     }
     const stack = metadata?.stack_style;
-    if (stack !== 'dossier' && stack !== 'browser') continue;
+    if (stack !== 'dossier') continue;
 
     const data = parseStructuredBlock(row.content);
     if (!data) continue;

@@ -259,16 +259,18 @@ describe('bindings picker 欄位', () => {
     expect(inferFieldKind('dossier', 'bindings.visuals', 'visuals/a/b')).toBe(
       'entity-picker'
     );
-    expect(inferFieldKind('browser', 'bindings.echoes', 'echoes/a/b')).toBe(
-      'entity-picker'
-    );
   });
 
   it('未定義的 bindings 子路徑仍走一般字串推斷（不誤擴大）', () => {
     expect(inferFieldKind('dossier', 'bindings.storage', 'x')).toBe('text');
   });
 
-  it('chrono / diff 沒有綁定欄位（實體身分只由 dossier 與 browser 承擔）', () => {
+  it('🔒 只有 dossier 有綁定欄位——browser/chrono/diff 都沒有', () => {
+    // dossier 是實體的唯一權威來源，求值端（entityBinding.ts）也只讀
+    // dossier。browser 若給了 picker，作者會編出 runtime 永不消費的綁定。
+    expect(inferFieldKind('browser', 'bindings.echoes', 'echoes/a/b')).toBe(
+      'text'
+    );
     expect(inferFieldKind('chrono', 'bindings.echoes', 'echoes/a/b')).toBe(
       'text'
     );

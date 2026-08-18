@@ -43,12 +43,16 @@ export interface ConceptsRevision {
 /**
  * 實體在其他 zone 的內容指向（entity 一對多綁定）。
  *
- * **選填、而且多數實體不需要填**：預設由內容自身的 gate 推論（掛同一個
- * entityKey 且 gate 已通過的最後一筆），這一層只在「內容的解鎖時機」與
- * 「角色的敘事狀態」分歧時才用來覆蓋。
+ * **選填**：同一個 entityKey 在該 zone 只有一筆內容時不必填，走既有的
+ * by-key 反查即可；同 key 有多筆候選時才非填不可——由誰決定指向必須明確。
  *
  * 條目層級的值是初始指向，revision 的 `patch.set['bindings.echoes']`
- * 之後才依進度覆蓋它。未設定（欄位不存在）即回到預設推論。
+ * 之後才依進度覆蓋它。未設定（欄位不存在）即「這個 zone 沒有對應內容」，
+ * **不會**去掃同 key 的內容猜一個。
+ *
+ * ⚠️ 指向與可見性正交：指到某首歌不代表那首歌解鎖了，內容的可見性一律
+ * 由它自己的 gate/locked 與 spoiler 降級鏈決定。也因此**不可以拿內容
+ * 自身的 gate 來挑指向**——那會讓「綁著但還沒解鎖」變得無法表達。
  */
 export interface EntityBindings {
   /** Echoes 歌曲頁 id */
@@ -225,7 +229,16 @@ export interface ProfileSection {
   content_html: string;
 }
 
-export interface CharacterProfile extends WithRevision {
+/**
+ * browser stack 的角色檔案。
+ *
+ * 帶 entityKey（同一個角色在 dossier 與 browser 都可能有條目，靠 key 關聯），
+ * 但**不帶 bindings**——dossier 是實體的唯一權威來源，跨 zone 的內容指向
+ * 只能掛在那裡。browser 是角色的詳細內容，與指向無關；求值端
+ * （`entityBinding.ts`）與撞名把關端（worker 的 `concepts-bindings.ts`）
+ * 都只讀 dossier，在這裡開欄位會產生 runtime 永不消費的假權威。
+ */
+export interface CharacterProfile extends Omit<WithRevision, 'bindings'> {
   /** 角色全名 */
   name: string;
   /** 分類路徑（從根到葉，如 ['U時代', '三區', '無組織']） */

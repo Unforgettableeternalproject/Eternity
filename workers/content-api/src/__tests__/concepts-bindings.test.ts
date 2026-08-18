@@ -13,7 +13,7 @@ import {
  * 1. revision patch 的 bindings.echoes / bindings.visuals 被收進索引
  * 2. dot-path 與巢狀兩種 patch 寫法都認（求值端 applyRevisions 兩種都生效）
  * 3. 同 entityKey 跨多個 dossier variant 的綁定會合併
- * 4. browser 條目的綁定也收（撞名放行用；求值端才做 dossier 優先）
+ * 4. browser 條目的綁定不收（dossier 是唯一權威來源）
  * 5. 無 bindings 的一般 revision 不誤判
  * 6. 壞 metadata JSON 靜默跳過，不打掉整個索引
  * 7. chrono/diff 不參與身分體系，即使寫了 bindings 也不收
@@ -124,9 +124,11 @@ describe('buildConceptsBindingIndex', () => {
       ])
     );
 
-    // (2) 巢狀物件寫法 + (4) browser 條目
-    await insertConceptsPage('concepts/bind-test/browser/traits', 'browser', {
-      profiles: [
+    // (2) 巢狀物件寫法
+    await insertConceptsPage(
+      'concepts/bind-test/records/nested',
+      'dossier',
+      dossierData('u', [
         {
           name: '巢狀寫法角色',
           entityKey: 'bind-nested',
@@ -136,6 +138,26 @@ describe('buildConceptsBindingIndex', () => {
               gate: null,
               patch: {
                 set: { bindings: { echoes: 'echoes/bind/nested-theme' } },
+              },
+            },
+          ],
+        },
+      ])
+    );
+
+    // (4) browser 條目即使寫了綁定也不收——dossier 是唯一權威來源
+    await insertConceptsPage('concepts/bind-test/browser/traits', 'browser', {
+      profiles: [
+        {
+          name: '不該被收的角色',
+          entityKey: 'bind-browser',
+          bindings: { echoes: 'echoes/bind/should-not' },
+          revisions: [
+            {
+              id: 'base',
+              gate: null,
+              patch: {
+                set: { 'bindings.visuals': 'visuals/bind/should-not' },
               },
             },
           ],
@@ -254,6 +276,13 @@ describe('buildConceptsBindingIndex', () => {
     const index = await buildConceptsBindingIndex(env.CONTENT_DB);
     expect(index.has('bind-plain')).toBe(false);
     expect(index.has('bind-norev')).toBe(false);
+  });
+
+  it('🔒 browser stack 即使寫了 bindings 也不收——dossier 是唯一權威', async () => {
+    // 掃描端若收 browser，會與只讀 dossier 的求值端分岔：browser 上寫一筆
+    // 就能放行撞名，但那筆綁定 runtime 永遠不會被消費。
+    const index = await buildConceptsBindingIndex(env.CONTENT_DB);
+    expect(index.has('bind-browser')).toBe(false);
   });
 
   it('diff stack 即使寫了 bindings 也不收（不參與身分體系）', async () => {
