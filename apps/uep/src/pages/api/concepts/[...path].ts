@@ -14,11 +14,11 @@ const JWT_COOKIE = 'uep-admin-jwt';
  * 四組轉發路由，漏了 concepts 前綴——導致 /api/concepts/entity-index
  * 在本地、staging、正式的編輯器內一律 404。此路由補上缺口。
  *
- * 仍只轉發 GET（concepts 前綴沒有寫入端點），但**必須帶 admin JWT**：
- * 2026-08-15 起 `/api/concepts/bound-keys` 掛了 `isAuthorized`（回應含
- * revision 的綁定指向，即未解鎖內容的 page id，不可公開）。JWT 存在
+ * 仍只轉發 GET（concepts 前綴沒有寫入端點）。JWT 一併轉發：目前 concepts
+ * 前綴只剩公開端點（`bound-keys` 隨 entityKey 撞名把關一起於 2026-08-18
+ * 退場），多帶一個 header 無害，之後若再加授權端點也不必回頭補。JWT 存在
  * httpOnly cookie，瀏覽器端讀不到也組不出 Bearer header，只能由 server
- * 轉發——同 `/api/interlink/*` 的模式。公開端點多帶一個 header 無害。
+ * 轉發——同 `/api/interlink/*` 的模式。
  */
 export const GET: APIRoute = async ({ cookies, params, url }) => {
   const contentApi = getApiBase(
