@@ -18,7 +18,7 @@
  *   revision 時 remount——只有選中的 revision 會實例化 TipTap（惰性）
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import type {
   ChronoFieldDef,
@@ -27,6 +27,7 @@ import type {
   RevisionPatch,
 } from '../concepts/types';
 
+import { EntityBindingPicker } from './EntityBindingPicker';
 import MiniEditor from './MiniEditor';
 import { getDialog } from './editorHelpers';
 
@@ -40,7 +41,8 @@ type FieldKind =
   | 'stringlist'
   | 'keyvalue'
   | 'sections'
-  | 'json';
+  | 'json'
+  | 'entity-picker';
 
 interface PatchFieldDef {
   path: string;
@@ -58,6 +60,10 @@ export const STACK_PATCH_FIELDS: Record<StackKind, PatchFieldDef[]> = {
     // 原本列在這裡的 spoiler 反而是死欄位：型別上有、編輯器沒有輸入欄、
     // Reader 也不讀，patch 它不會有任何效果。
     { path: 'aliases', label: '別名（整段替換）', kind: 'stringlist' },
+    // entity 一對多綁定（2026-08-15 定案）：patch 不改內容、只改指向。
+    // 這條 revision 通過後，這個實體在該 zone 就對應到選中的那一個。
+    { path: 'bindings.echoes', label: '綁定歌曲', kind: 'entity-picker' },
+    { path: 'bindings.visuals', label: '綁定畫廊', kind: 'entity-picker' },
   ],
   browser: [
     { path: 'name', label: '角色名稱', kind: 'text' },
@@ -66,6 +72,9 @@ export const STACK_PATCH_FIELDS: Record<StackKind, PatchFieldDef[]> = {
     { path: 'avatar', label: '頭像 R2 key', kind: 'text' },
     { path: 'basic', label: '基本資料（整段替換）', kind: 'keyvalue' },
     { path: 'sections', label: '區段（整段替換）', kind: 'sections' },
+    // 綁定欄刻意不給 browser：dossier 是實體的唯一權威來源，
+    // 求值端（entityBinding.ts）也只讀 dossier。在這裡開欄位會產生
+    // 「編輯器存得下去、runtime 永遠不消費」的假權威。
   ],
   chrono: [{ path: 'title', label: '標題', kind: 'text' }],
   diff: [
@@ -83,6 +92,7 @@ function defaultValueFor(kind: FieldKind): unknown {
   switch (kind) {
     case 'text':
     case 'html':
+    case 'entity-picker':
       return '';
     case 'number':
       return 0;
@@ -147,6 +157,8 @@ interface PatchEditorProps {
    * 下拉選擇欄位，不再手填 fieldDef ID。未提供時退回 prompt 輸入。
    */
   chronoFieldDefs?: ChronoFieldDef[];
+  /** 條目的 entityKey——綁定 picker 依此篩選候選內容 */
+  entityKey?: string;
   accent: string;
 }
 
@@ -155,6 +167,7 @@ export default function PatchEditor({
   patch,
   onChange,
   chronoFieldDefs,
+  entityKey,
   accent,
 }: PatchEditorProps) {
   const [removeInput, setRemoveInput] = useState('');
@@ -244,6 +257,7 @@ export default function PatchEditor({
           value={value}
           onValueChange={(v) => setPath(path, v)}
           onRemove={() => removeSetPath(path)}
+          entityKey={entityKey}
           accent={accent}
         />
       ))}
@@ -365,6 +379,7 @@ function PatchFieldRow({
   value,
   onValueChange,
   onRemove,
+  entityKey,
   accent,
 }: {
   stackStyle: StackKind;
@@ -372,6 +387,7 @@ function PatchFieldRow({
   value: unknown;
   onValueChange: (value: unknown) => void;
   onRemove: () => void;
+  entityKey?: string;
   accent: string;
 }) {
   const kind = inferFieldKind(stackStyle, path, value);
@@ -391,8 +407,10 @@ function PatchFieldRow({
       </div>
       <PatchValueEditor
         kind={kind}
+        path={path}
         value={value}
         onChange={onValueChange}
+        entityKey={entityKey}
         accent={accent}
       />
     </div>
@@ -403,16 +421,31 @@ function PatchFieldRow({
 
 function PatchValueEditor({
   kind,
+  path,
   value,
   onChange,
+  entityKey,
   accent,
 }: {
   kind: FieldKind;
+  path: string;
   value: unknown;
   onChange: (value: unknown) => void;
+  entityKey?: string;
   accent: string;
 }) {
   switch (kind) {
+    case 'entity-picker':
+      return (
+        <EntityBindingPicker
+          zone={path.endsWith('.visuals') ? 'visuals' : 'echoes'}
+          entityKey={entityKey}
+          value={typeof value === 'string' && value ? value : undefined}
+          // patch.set 的值不能是 undefined（那等同沒設這個欄位），
+          // 清成「預設推論」時寫空字串，求值端一樣視為未設定
+          onChange={(id) => onChange(id ?? '')}
+        />
+      );
     case 'text':
       return (
         <input

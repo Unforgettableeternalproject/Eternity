@@ -37,7 +37,8 @@ export type SettingKey =
   | 'reader.restPageCount'
   | 'reader.restWindowMinutes'
   | 'reader.restCooldownMinutes'
-  | 'reader.teaInviteChancePct';
+  | 'reader.teaInviteChancePct'
+  | 'entityBinding.embedOrphanGate';
 
 export type SettingValue = string | number;
 
@@ -62,6 +63,8 @@ export const SETTING_DEFAULTS: Record<SettingKey, SettingValue> = {
   'reader.restWindowMinutes': 30,
   'reader.restCooldownMinutes': 90,
   'reader.teaInviteChancePct': 10,
+  // 預設關閉——見 ORPHAN_GATE_MODES 的說明（一次收緊會造成體感回歸）
+  'entityBinding.embedOrphanGate': 'disabled',
 };
 
 export const SETTING_KEYS = Object.keys(SETTING_DEFAULTS) as SettingKey[];
@@ -69,6 +72,15 @@ export const SETTING_KEYS = Object.keys(SETTING_DEFAULTS) as SettingKey[];
 const PROTECTION_MODES = ['always', 'never', 'env'];
 
 const IDLE_NUDGE_MODES = ['enabled', 'disabled'];
+/**
+ * 孤兒 entityKey 是否收緊 `entity:{key}` 嵌入的可點性（2026-08-15 定案）。
+ *
+ * 預設 **disabled**：目前正式站 86% 的 Echoes entity 是孤兒（那批角色的
+ * dossier 尚未建立），一次收緊會讓現在能點的嵌入明天變成不能點，且沒有
+ * 任何錯誤訊息。綁定機制本體與孤兒巡查都可以先上線（零回歸），這個開關
+ * 何時翻開是內容決策不是工程排程。
+ */
+const ORPHAN_GATE_MODES = ['enabled', 'disabled'];
 
 export interface SettingsMap {
   [key: string]: SettingValue;
@@ -164,6 +176,14 @@ export function validateSetting(
         };
       }
       return { ok: true, value: value as number };
+    case 'entityBinding.embedOrphanGate':
+      if (typeof value !== 'string' || !ORPHAN_GATE_MODES.includes(value)) {
+        return {
+          ok: false,
+          error: `entityBinding.embedOrphanGate 必須是 ${ORPHAN_GATE_MODES.join(' / ')}`,
+        };
+      }
+      return { ok: true, value };
     case 'reader.idleNudgeMode':
       if (typeof value !== 'string' || !IDLE_NUDGE_MODES.includes(value)) {
         return {

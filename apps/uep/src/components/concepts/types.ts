@@ -40,6 +40,27 @@ export interface ConceptsRevision {
   patch: RevisionPatch;
 }
 
+/**
+ * 實體在其他 zone 的內容指向（entity 一對多綁定）。
+ *
+ * **選填**：同一個 entityKey 在該 zone 只有一筆內容時不必填，對應關係
+ * 已經唯一確定；同 key 有多筆候選時才非填不可——由誰決定指向必須明確。
+ *
+ * 條目層級的值是初始指向，revision 的 `patch.set['bindings.echoes']`
+ * 之後才依進度覆蓋它。未設定（欄位不存在）時：該 zone 恰好一筆就是那一筆，
+ * 多於一筆即「沒有對應內容」——**不會**去挑一個。
+ *
+ * ⚠️ 指向與可見性正交：指到某首歌不代表那首歌解鎖了，內容的可見性一律
+ * 由它自己的 gate/locked 與 spoiler 降級鏈決定。也因此**不可以拿內容
+ * 自身的 gate 來挑指向**——那會讓「綁著但還沒解鎖」變得無法表達。
+ */
+export interface EntityBindings {
+  /** Echoes 歌曲頁 id */
+  echoes?: string;
+  /** Visuals 畫廊頁 id */
+  visuals?: string;
+}
+
 /** 帶 entityKey 與 revision 鏈的條目包裝（四種 stack 條目共用） */
 export interface WithRevision {
   /**
@@ -50,6 +71,17 @@ export interface WithRevision {
    * 選填——無深連/解鎖需求的條目可不掛。
    */
   entityKey?: string;
+  /**
+   * 跨 zone 內容綁定的**初始指向**（entity 一對多綁定）。
+   *
+   * 求值走 `applyRevisions`，故此處是 patch 疊加前的底值：只綁一首歌／
+   * 一個畫廊的實體填這裡就夠，不必為了綁定而開一條 `gate: null` 的
+   * revision。要隨劇情換指向時才在 revision 用
+   * `patch.set['bindings.echoes']` 覆蓋。
+   *
+   * 依附 entityKey 存在——沒有 entityKey 的條目填了也無從被反查。
+   */
+  bindings?: EntityBindings;
   /**
    * Base 解鎖條件（S7 驗收 #4，2026-07-17 語意修正）：條目可見性的
    * **唯一**閘門——未通過前條目整條隱藏，通過即可見。
@@ -73,7 +105,13 @@ export interface WithRevision {
 export interface ConceptsVariationMeta {
   /** 類型群組 ID（不含 era），如 "character_list" */
   type_group: string;
-  /** 時代代號，如 "u" | "e" | "p" */
+  /**
+   * 時代代號，如 "u" | "e" | "p"。
+   *
+   * ⚠️ **只給 chrono/browser/diff 當標題 badge 用**（見 ConceptsReader 的
+   * badge 分支）。dossier 的時代識別看 `variants[].id`／`label`，不看這裡
+   * ——正式站的 dossier 頁一律沒填，那是對的，不要補。
+   */
   era: string;
   /** 所屬 stack 的閱讀器風格 */
   stack_style: 'dossier' | 'browser' | 'chrono' | 'diff';
@@ -197,7 +235,16 @@ export interface ProfileSection {
   content_html: string;
 }
 
-export interface CharacterProfile extends WithRevision {
+/**
+ * browser stack 的角色檔案。
+ *
+ * 帶 entityKey（同一個角色在 dossier 與 browser 都可能有條目，靠 key 關聯），
+ * 但**不帶 bindings**——dossier 是實體的唯一權威來源，跨 zone 的內容指向
+ * 只能掛在那裡。browser 是角色的詳細內容，與指向無關；求值端
+ * （`entityBinding.ts`）與撞名把關端（worker 的 `concepts-bindings.ts`）
+ * 都只讀 dossier，在這裡開欄位會產生 runtime 永不消費的假權威。
+ */
+export interface CharacterProfile extends Omit<WithRevision, 'bindings'> {
   /** 角色全名 */
   name: string;
   /** 分類路徑（從根到葉，如 ['U時代', '三區', '無組織']） */
@@ -247,7 +294,10 @@ export type ChronoEra = 'pre-ad' | 'ad' | 'fa' | 'nw';
  * 代表他）。實體身分只由 dossier 與 browser 承擔。
  * gate / revisions 仍保留：時期內容可隨劇情進度揭露。
  */
-export interface ChronoPeriod extends Omit<WithRevision, 'entityKey'> {
+export interface ChronoPeriod extends Omit<
+  WithRevision,
+  'entityKey' | 'bindings'
+> {
   /** 時期代號 */
   era: ChronoEra;
   /** 年份數字 */
@@ -312,7 +362,10 @@ export interface DiffSection {
  * 內容改由 dossier + revision 承擔。
  * gate / revisions 仍保留：譯名可隨劇情進度揭露。
  */
-export interface DiffEntry extends Omit<WithRevision, 'entityKey'> {
+export interface DiffEntry extends Omit<
+  WithRevision,
+  'entityKey' | 'bindings'
+> {
   /** 術語/詞條名稱 */
   term: string;
   /** 定義或翻譯值（依 section 的 valueLabels 對位） */

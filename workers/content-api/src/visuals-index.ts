@@ -19,6 +19,8 @@
 export interface VisualsEntityIndexEntry {
   /** Visuals gallery 頁 id（`visuals/...`） */
   id: string;
+  /** 畫廊標題——綁定 picker 的選單需要可讀名稱，裸 id 認不出是哪個 */
+  title: string;
   /** 陳列走廊（profiles）的實體身分；鑲框室插圖沒有，故為選填 */
   entityKey?: string;
   /** 鑲框室（illustrations）插圖的劇情點身分（S10-1 第二套命名空間） */
@@ -43,6 +45,7 @@ export interface BuildVisualsEntityIndexOptions {
 
 interface VisualsIndexRow {
   id: string;
+  title: string;
   metadata: string;
 }
 
@@ -65,7 +68,7 @@ export async function buildVisualsEntityIndex(
 ): Promise<VisualsEntityIndexEntry[]> {
   const result = await db
     .prepare(
-      `SELECT id, metadata FROM pages
+      `SELECT id, title, metadata FROM pages
        WHERE area = 'visuals' AND page_type = 'gallery' AND deleted_at IS NULL
        ORDER BY sort_order ASC`
     )
@@ -91,6 +94,7 @@ export async function buildVisualsEntityIndex(
     if (!entityKey && !storyKey) continue;
     entries.push({
       id: row.id,
+      title: row.title || '',
       ...(entityKey ? { entityKey } : {}),
       ...(storyKey ? { storyKey } : {}),
       ...(meta.gate != null && typeof meta.gate === 'object'

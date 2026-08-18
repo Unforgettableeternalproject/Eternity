@@ -27,6 +27,8 @@ import type {
   ConceptsVariationMeta,
 } from '../concepts/types';
 
+import { isNoOpRevision } from '../concepts/revision';
+
 import GateConditionEditor from './GateConditionEditor';
 import { API_BASE, getDialog } from './editorHelpers';
 import PatchEditor from './PatchEditor';
@@ -89,6 +91,18 @@ export default function RevisionModal({
 
   const current =
     typeof selected === 'number' ? (revisions[selected] ?? null) : null;
+
+  /**
+   * 每一條 revision 是不是空轉（純提示，不阻擋存檔）。
+   *
+   * 逐條重算而非只算選中那條：時間線上要能一眼看出哪幾版是空的，
+   * 而且插入／上下移會讓「上一版」整串位移，只算選中那條會過期。
+   * 條目資料是單一 entry 的規模，全鏈重算的成本可忽略。
+   */
+  const noOpFlags = React.useMemo(
+    () => revisions.map((_, i) => isNoOpRevision(baseEntry, revisions, i)),
+    [baseEntry, revisions]
+  );
 
   function updateRevision(idx: number, patch: Partial<ConceptsRevision>) {
     onChange(revisions.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
@@ -202,7 +216,18 @@ export default function RevisionModal({
                   }
                 }}
               >
-                <span className="ced-rev-item-id">{rev.id || '(未命名)'}</span>
+                <span className="ced-rev-item-id">
+                  {rev.id || '(未命名)'}
+                  {noOpFlags[i] && (
+                    <span
+                      className="ced-rev-noop-mark"
+                      title="這一版沒有改到任何內容"
+                    >
+                      {' '}
+                      ⊘
+                    </span>
+                  )}
+                </span>
                 <span className="ced-rev-item-note">
                   {rev.gate ? '⚑ 有解鎖條件' : '無條件'}
                 </span>
@@ -353,6 +378,13 @@ export default function RevisionModal({
                 {/* key=selected-patchVersion：切換 revision 或整包複製時
                     整棵 remount——MiniEditor content 只吃初始值，且同時
                     只有選中的 revision 會實例化 TipTap（惰性 mount） */}
+                {noOpFlags[selected as number] && (
+                  <div className="ced-rev-hint ced-rev-hint--warn">
+                    ⚠ 這一版沒有改到任何內容——patch 是空的，或設定的值與
+                    上一版相同。可以照樣存檔（佔位或稍後補內容都是合理用法），
+                    但讀者不會察覺到任何變化。
+                  </div>
+                )}
                 <PatchEditor
                   key={`${selected}-${patchVersion}`}
                   stackStyle={stackStyle}
@@ -361,6 +393,7 @@ export default function RevisionModal({
                     updateRevision(selected as number, { patch })
                   }
                   chronoFieldDefs={chronoFieldDefs}
+                  entityKey={entityKey}
                   accent={accent}
                 />
               </>

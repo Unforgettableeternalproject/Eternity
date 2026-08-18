@@ -11,6 +11,11 @@
  */
 
 import {
+  buildConceptsBindingIndex,
+  hasValidBinding,
+  type ConceptsBindingEntry,
+} from './concepts-bindings';
+import {
   buildConceptsEntityIndex,
   collectConceptsKeyCandidates,
 } from './concepts-index';
@@ -118,6 +123,12 @@ export async function createKeyConflictChecker(
   const visuals = wanted.has('visuals')
     ? await buildVisualsEntityIndex(db, { includeHidden: true })
     : [];
+  // entity 一對多綁定的放行清單（2026-08-15 定案）：只有 Echoes/Visuals
+  // 的 zone 唯一性會被它豁免，查 Concepts 時不需要多掃一次全區。
+  const bindings: Map<string, ConceptsBindingEntry> =
+    wanted.has('echoes') || wanted.has('visuals')
+      ? await buildConceptsBindingIndex(db)
+      : new Map();
 
   return {
     async find(query: KeyConflictQuery): Promise<KeyConflict | null> {
@@ -140,6 +151,27 @@ export async function createKeyConflictChecker(
 
       // Echoes / Visuals：整個區塊一個實例
       const entries = area === 'echoes' ? echoes : visuals;
+
+      // entity 一對多綁定例外（2026-08-15 定案）：一個角色可以有多首
+      // 主題曲／多個畫廊（例如轉正前後各一），由 Concepts dossier 的
+      // bindings + revision 鏈決定此刻該給哪一個。這個 entityKey 只要
+      // 登記過有效綁定，同區多筆就是刻意的，放行。
+      //
+      // ⚠️ 刻意**不比對要存的這一頁**：新頁尚未存檔時不可能已被 Concepts
+      // 引用（雞生蛋），要求它先出現在綁定清單裡會讓第二首歌永遠存不進去。
+      // 判定語意是「這個 entityKey 是刻意多綁定的」。
+      //
+      // 但登記過的 target 必須本身有效（存在且 entityKey 相符）——見
+      // hasValidBinding 的說明。`entries` 已含 hidden，正是驗證需要的範圍。
+      //
+      // storyKey 不適用——劇情點與內容是一對一，沒有隨進度切換的語意。
+      if (
+        keyType === 'entity' &&
+        hasValidBinding(bindings, keyValue, area, entries)
+      ) {
+        return null;
+      }
+
       const hit = entries.find((e) => {
         if (e.id === excludePageId) return false;
         return keyType === 'entity'
@@ -625,6 +657,15 @@ export interface InterlinkKeyListRow {
    * 存下來就會與 dossier 形成兩份會各自漂移的名字。
    */
   derivedName?: string;
+  /**
+   * 有沒有對應的 **dossier** 條目（2026-08-15 孤兒定案）。
+   *
+   * 刻意與 `derivedName` 分開：後者取第一個有名字的條目、橫跨所有 stack，
+   * 所以只有 browser 條目的 key 也會有名字——但依定案 browser 只是詳細
+   * 內容，不能替代 dossier 的「存在」。拿 derivedName 判孤兒會漏判。
+   * 僅 entity 有意義（story 不掛 Concepts 條目）。
+   */
+  hasDossierEntry?: boolean;
   /** 定義端筆數：有幾個地方宣告了這個 key */
   definitionCount: number;
   /** 錨點端筆數：History 內容裡有幾處引用 */
@@ -678,6 +719,7 @@ export async function listInterlinkKeys(
     row.definitionCount += 1;
     // 同一個 entity 可能橫跨多個 stack，取第一個有名字的當顯示名
     if (!row.derivedName && entry.name) row.derivedName = entry.name;
+    if (entry.stack === 'dossier') row.hasDossierEntry = true;
   }
   for (const entry of [...echoes, ...visuals]) {
     if (entry.entityKey) touch('entity', entry.entityKey).definitionCount += 1;

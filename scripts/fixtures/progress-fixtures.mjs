@@ -241,12 +241,19 @@ export const PAGE_IDS = {
   songSignal: 'echoes/stories/u.s./test-relay-signal',
   songTowerTheme: 'echoes/areas/ad_main/test-tower-theme',
   songAfterglow: 'echoes/areas/ad_main/test-afterglow',
+  /* ⚠️ 下面兩首**故意掛同一個 entityKey（test-warden）**——entity 一對多
+     綁定的素材：同一角色轉調前後各一首主題曲。它們同時也是「撞名放行」
+     的驗收對象（同 zone 兩筆同 key，存得下去才代表 409 例外生效）。 */
+  songWardenEarly: 'echoes/characters/core_chara/protag/test-warden-early',
+  songWardenLate: 'echoes/characters/core_chara/protag/test-warden-late',
   /* ⚠️ Visuals 同理，看 division（`visuals/{division}/…` 第二段）：
      entityKey 只在陳列走廊 `profiles`、storyKey 只在鑲框室 `illustrations`，
      編輯器依 division 顯隱這兩個欄位。放錯的欄位存得進 D1 但永遠不生效。 */
   galleryBlackout: 'visuals/illustrations/era_u/test-blackout-scene',
   galleryRelay: 'visuals/profiles/locations/test-relay-gallery',
   galleryWarden: 'visuals/profiles/characters/test-warden-portraits',
+  /* 與 galleryWarden 同掛 test-warden——visuals 側的撞名放行驗收對象 */
+  galleryWardenEarly: 'visuals/profiles/characters/test-warden-early',
   stuffOpen: 'storage/boxes/test-crate-open',
   stuffLocked: 'storage/boxes/test-crate-locked',
   stuffProgression: 'storage/boxes/test-crate-progression',
@@ -825,6 +832,45 @@ export const ECHOES_PAGES = [
       entityKey: ENTITY_KEYS.afterglow,
     },
   },
+  /* ── entity 一對多綁定素材（2026-08-15 定案）──────────────────
+   *
+   * 這兩首**故意掛同一個 entityKey**。在舊規則下第二首會被 409 擋住；
+   * 因為 test-warden 已在 dossier 的 revision 鏈登記綁定，撞名把關放行。
+   * 綁定鏈決定讀者此刻聽到哪一首：轉調前是前期曲，持 test.reached-tower
+   * 之後同一個 entity 換成後期曲。
+   */
+  {
+    id: PAGE_IDS.songWardenEarly,
+    title: '[測試] 守望者 · 前期',
+    pageType: 'song',
+    sortOrder: 92,
+    content: richText(''),
+    metadata: {
+      subtitle: '值班室',
+      category: 'character',
+      spoilerLevel: 0,
+      audioFile: 'audio/test-warden-early.mp3',
+      audioMeta: { duration: 168, format: 'mp3', title: 'Warden (Early)' },
+      appreciation: ['綁定鏈的 base——未持 test.reached-tower 時該聽到這首。'],
+      entityKey: ENTITY_KEYS.warden,
+    },
+  },
+  {
+    id: PAGE_IDS.songWardenLate,
+    title: '[測試] 守望者 · 後期',
+    pageType: 'song',
+    sortOrder: 93,
+    content: richText(''),
+    metadata: {
+      subtitle: '中繼塔頂',
+      category: 'character',
+      spoilerLevel: 0,
+      audioFile: 'audio/test-warden-late.mp3',
+      audioMeta: { duration: 195, format: 'mp3', title: 'Warden (Late)' },
+      appreciation: ['綁定鏈的第二段——持旗後同一個 entity 換成這首。'],
+      entityKey: ENTITY_KEYS.warden,
+    },
+  },
 ];
 
 /* ── Visuals ───────────────────────────────────────────────
@@ -907,6 +953,31 @@ export const VISUALS_PAGES = [
           file: 'images/test-relay-interior.png',
           caption: '第四層',
           sortOrder: 1,
+        },
+      ],
+    },
+  },
+  /* 與 galleryWarden 同掛 test-warden——visuals 側的撞名放行素材，
+     同時是綁定鏈的 base 指向（轉調前的影像） */
+  {
+    id: PAGE_IDS.galleryWardenEarly,
+    title: '[測試] 守望者影像 · 前期',
+    pageType: 'gallery',
+    sortOrder: 92,
+    content: richText(''),
+    metadata: {
+      icon: 'user',
+      description: '到職前兩年的存檔照，只有一張。',
+      group: '測試素材',
+      spoilerLevel: 0,
+      layout: 'pinboard',
+      entityKey: ENTITY_KEYS.warden,
+      images: [
+        {
+          id: 'test-img-warden-early',
+          file: 'images/test-warden.png',
+          caption: '到職證件照',
+          sortOrder: 0,
         },
       ],
     },
@@ -1072,6 +1143,34 @@ export const CONCEPTS_PAGES = [
                         content_html:
                           '<p>第七中繼塔第四層的值班員，在職十一年。最後一次出入紀錄之後沒有離開的紀錄。</p>',
                         spoiler: 0,
+                        /* entity 一對多綁定（2026-08-15 定案）：patch 不改
+                           內容、只改指向。持有 test.reached-tower 之前，
+                           點這個 entity 浮出的是中繼塔主題曲與中繼塔畫廊；
+                           拿到旗標之後同一個 entity 換成餘暉與守望者肖像。
+                           ⚠️ 綁定只掛 dossier——warden 在 browser 也有條目，
+                           求值一律取 dossier（定案：browser 只是詳細內容）。*/
+                        revisions: [
+                          {
+                            id: 'base',
+                            gate: null,
+                            patch: {
+                              set: {
+                                'bindings.echoes': PAGE_IDS.songWardenEarly,
+                                'bindings.visuals': PAGE_IDS.galleryWardenEarly,
+                              },
+                            },
+                          },
+                          {
+                            id: 'test-warden:relocated',
+                            gate: { requiresFlags: ['test.reached-tower'] },
+                            patch: {
+                              set: {
+                                'bindings.echoes': PAGE_IDS.songWardenLate,
+                                'bindings.visuals': PAGE_IDS.galleryWarden,
+                              },
+                            },
+                          },
+                        ],
                       },
                       {
                         name: '蜜拉·凡登',

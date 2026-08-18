@@ -3122,6 +3122,15 @@
   margin: -4px 0 8px 90px;
   letter-spacing: 0.03em;
 }
+/* 孤兒 key 提示：是資訊不是錯誤，刻意不用紅色——照樣可以存檔，
+   補了 dossier 條目就自動生效 */
+.ced-entity-key-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #8a7f6d;
+  margin: -4px 0 8px 90px;
+  letter-spacing: 0.03em;
+}
 
 /* ── Revision 時間線 modal（S7-B） ─────────────────────────────── */
 .ced-rev-open-btn {
@@ -3322,6 +3331,15 @@
   border: 1px solid var(--hairline);
   background: color-mix(in srgb, var(--ink-mute) 4%, transparent);
   margin-bottom: 8px;
+}
+/* 空轉 revision 警示——提示而非錯誤，用與孤兒提示同一組的土黃調 */
+.ced-rev-hint--warn {
+  color: #8a7f6d;
+  border-color: color-mix(in srgb, #8a7f6d 40%, transparent);
+  background: color-mix(in srgb, #8a7f6d 7%, transparent);
+}
+.ced-rev-noop-mark {
+  color: #8a7f6d;
 }
 
 /* ── PatchEditor（S7-B） ───────────────────────────────────────── */

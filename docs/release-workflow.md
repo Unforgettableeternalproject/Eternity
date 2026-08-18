@@ -261,18 +261,28 @@ pnpm check
 pnpm test:all
 pnpm test:e2e
 
-# ⚠️ 合 PR 之前先讓 develop 拿到 release 的完整歷史。
-# PR 是 squash merge——main 上只會留一顆不含 release commit 的新 commit，
-# 事後 CI 的 sync-back（main → develop）merge-base 會退到上一版，
-# 整包 diff 對上 develop 既有的相同變更就是滿版衝突（v1.0.0 實際發生過）。
-# 先做這步，squash 後的 sync-back 因內容一致而自動通過。
-git checkout develop
-git merge --ff-only release/vX.Y.Z   # release 從 develop 切出，必為 ff
-git push origin develop
-
 # 建立 PR: release/vX.Y.Z → main
 # PR 通過後合併，Pages 自動部署前端
 ```
+
+**⚠️ 合併後不要刪除 release／hotfix 分支，直到 CI 的 sync-back 跑完。**
+sync-back 是拿**原分支**（不是 main）合回 develop——merge-base 正是 develop
+切出它的那一點，diff 只有這批 commit，develop 直接 ff 且拿到完整歷史。
+分支若已不在，job 會退回 `head=main`，那條路徑的 merge-base 會因為 squash
+退到上一版，整包 diff 對上 develop 既有的相同變更就是滿版衝突（v1.0.0 卡過）。
+
+分支名由 CI 依 `{branch_type}/v{version}` 推導，所以**分支命名必須守慣例**
+（`release/v1.0.0`、`hotfix/v1.0.0`）。命名不合就會走進上述 fallback。
+
+走 fallback 時（或想多一層保險）才需要這個合併前置：
+
+```bash
+git checkout develop
+git merge --ff-only release/vX.Y.Z   # release 從 develop 切出，必為 ff
+git push origin develop
+```
+
+做了也無害——develop 已對齊時，sync-back 的 merge 會是 no-op（204）。
 
 合併後的正式驗證：
 

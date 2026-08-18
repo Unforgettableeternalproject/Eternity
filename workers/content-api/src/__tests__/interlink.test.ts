@@ -580,3 +580,182 @@ describe('findStorySongsWithoutKey — 劇情歌漏綁 storyKey 巡查', () => {
     );
   });
 });
+
+describe('findKeyConflict — entity 一對多綁定例外（2026-08-15 定案）', () => {
+  beforeAll(async () => {
+    // 已在 dossier revision 鏈登記綁定的 entityKey：允許同區多首
+    await insertConceptsPage(
+      'concepts/bindx/records/characters',
+      '綁定測試檔案',
+      'dossier',
+      {
+        variants: [
+          {
+            id: 'u',
+            subcategories: [
+              {
+                label: '人物',
+                groups: [
+                  {
+                    label: '',
+                    entries: [
+                      {
+                        name: '轉正角色',
+                        entityKey: 'bindx-turncoat',
+                        revisions: [
+                          {
+                            id: 'base',
+                            gate: null,
+                            patch: {
+                              set: {
+                                'bindings.echoes': 'echoes/bindx/villain',
+                              },
+                            },
+                          },
+                          {
+                            id: 'bindx-turncoat:turned',
+                            gate: { requiresFlags: ['bindx-turncoat:turned'] },
+                            patch: {
+                              set: { 'bindings.echoes': 'echoes/bindx/hero' },
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }
+    );
+
+    await insertKeyPage('echoes', 'echoes/bindx/villain', '反派期主題曲', {
+      entityKey: 'bindx-turncoat',
+    });
+    await insertKeyPage('echoes', 'echoes/bindx/hero', '轉正後主題曲', {
+      entityKey: 'bindx-turncoat',
+    });
+
+    // 對照組：沒有任何 dossier 綁定登記的 entityKey
+    await insertKeyPage('echoes', 'echoes/bindx/plain-a', '未登記甲', {
+      entityKey: 'bindx-plain',
+    });
+  });
+
+  it('已登記綁定的 entityKey：同區第二首不算衝突', async () => {
+    const conflict = await findKeyConflict(env.CONTENT_DB, {
+      keyType: 'entity',
+      keyValue: 'bindx-turncoat',
+      area: 'echoes',
+      scope: ZONE_SCOPE,
+      excludePageId: 'echoes/bindx/hero',
+    });
+    expect(conflict).toBeNull();
+  });
+
+  it('尚未存檔的新頁也放行（不逐 id 比對，避免雞生蛋）', async () => {
+    const conflict = await findKeyConflict(env.CONTENT_DB, {
+      keyType: 'entity',
+      keyValue: 'bindx-turncoat',
+      area: 'echoes',
+      // 這一頁還不存在，也不在任何 bindings 鏈裡
+      excludePageId: 'echoes/bindx/brand-new',
+      scope: ZONE_SCOPE,
+    });
+    expect(conflict).toBeNull();
+  });
+
+  it('未登記綁定的 entityKey：409 把關行為完全不變', async () => {
+    const conflict = await findKeyConflict(env.CONTENT_DB, {
+      keyType: 'entity',
+      keyValue: 'bindx-plain',
+      area: 'echoes',
+      scope: ZONE_SCOPE,
+      excludePageId: 'echoes/bindx/plain-b',
+    });
+    expect(conflict).not.toBeNull();
+    expect(conflict!.pageId).toBe('echoes/bindx/plain-a');
+  });
+
+  it('綁定只豁免登記過的 area——只綁 echoes 不影響 visuals 的把關', async () => {
+    await insertKeyPage('visuals', 'visuals/bindx/gal-a', '甲畫廊', {
+      entityKey: 'bindx-turncoat',
+    });
+    const conflict = await findKeyConflict(env.CONTENT_DB, {
+      keyType: 'entity',
+      keyValue: 'bindx-turncoat',
+      area: 'visuals',
+      scope: ZONE_SCOPE,
+      excludePageId: 'visuals/bindx/gal-b',
+    });
+    expect(conflict).not.toBeNull();
+    expect(conflict!.pageId).toBe('visuals/bindx/gal-a');
+  });
+
+  it('🔒 綁定的 target 不存在時 409 恢復把關（殘留綁定不算豁免）', async () => {
+    // 只看「登記過字串」的話，一筆指向已刪頁面的殘留綁定就能永久開啟這個
+    // key 的撞名豁免，同 key 想塞幾筆都行——而那些內容誰都綁不到，
+    // 求值端只會回 unbound，讀者看到的是 by-key 反查的任意一筆
+    await insertConceptsPage(
+      'concepts/bindx/records/ghost',
+      '殘留綁定檔案',
+      'dossier',
+      {
+        variants: [
+          {
+            id: 'u',
+            subcategories: [
+              {
+                label: '人物',
+                groups: [
+                  {
+                    label: '',
+                    entries: [
+                      {
+                        name: '殘留角色',
+                        entityKey: 'bindx-ghost',
+                        // 指向一個從來不存在的頁面
+                        bindings: { echoes: 'echoes/bindx/deleted-song' },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }
+    );
+    await insertKeyPage('echoes', 'echoes/bindx/ghost-a', '殘留甲', {
+      entityKey: 'bindx-ghost',
+    });
+
+    const conflict = await findKeyConflict(env.CONTENT_DB, {
+      keyType: 'entity',
+      keyValue: 'bindx-ghost',
+      area: 'echoes',
+      scope: ZONE_SCOPE,
+      excludePageId: 'echoes/bindx/ghost-b',
+    });
+    expect(conflict).not.toBeNull();
+    expect(conflict!.pageId).toBe('echoes/bindx/ghost-a');
+  });
+
+  it('storyKey 不適用綁定例外（劇情點與內容是一對一）', async () => {
+    await insertKeyPage('echoes', 'echoes/bindx/story-a', '劇情曲甲', {
+      storyKey: 'bindx-turncoat',
+      category: 'story',
+    });
+    const conflict = await findKeyConflict(env.CONTENT_DB, {
+      keyType: 'story',
+      keyValue: 'bindx-turncoat',
+      area: 'echoes',
+      scope: ZONE_SCOPE,
+      excludePageId: 'echoes/bindx/story-b',
+    });
+    expect(conflict).not.toBeNull();
+    expect(conflict!.pageId).toBe('echoes/bindx/story-a');
+  });
+});
