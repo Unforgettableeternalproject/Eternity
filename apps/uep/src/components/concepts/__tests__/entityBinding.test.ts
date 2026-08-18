@@ -116,8 +116,6 @@ const INDEX = [
     entityKey: 'eb-nobinding',
   },
   { stack: 'dossier', pageId: 'concepts/eb/records', entityKey: 'eb-baseonly' },
-  { stack: 'dossier', pageId: 'concepts/eb/records', entityKey: 'eb-turnauto' },
-  { stack: 'dossier', pageId: 'concepts/eb/records', entityKey: 'eb-archived' },
   {
     stack: 'dossier',
     pageId: 'concepts/eb/records',
@@ -131,30 +129,6 @@ const INDEX = [
   },
 ];
 
-/**
- * Echoes zone 索引（worker 以 sort_order ASC 產出，故陣列順序 = 「最早」）。
- * eb-nobinding 掛兩首：預設回退必須穩定取第一首。
- */
-const ECHOES_INDEX = [
-  // 轉正角色：反派曲無條件、轉正曲有 gate。dossier 完全不必寫綁定
-  {
-    id: 'echoes/eb/turn-villain',
-    entityKey: 'eb-turnauto',
-    locked: false,
-  },
-  {
-    id: 'echoes/eb/turn-hero',
-    entityKey: 'eb-turnauto',
-    gate: { requiresFlags: ['eb-turnauto:turned'] },
-    locked: false,
-  },
-  // 劇情歌走 storyKey，不該被當成任何實體的預設
-  { id: 'echoes/eb/story', storyKey: 'eb-story-spot', locked: false },
-  // 靜態封存凌駕 gate
-  { id: 'echoes/eb/archived', entityKey: 'eb-archived', locked: true },
-  { id: 'echoes/eb/nobinding-only', entityKey: 'eb-nobinding', locked: false },
-];
-
 const PAGE_DATA: Record<string, unknown> = {
   'concepts/eb/records': dossierPage([
     TURNCOAT,
@@ -162,8 +136,6 @@ const PAGE_DATA: Record<string, unknown> = {
     NO_BINDING,
     BASE_ONLY,
     BASE_THEN_REV,
-    { name: '自動轉正角色', entityKey: 'eb-turnauto' },
-    { name: '封存角色', entityKey: 'eb-archived' },
   ]),
   'concepts/eb/browser': {
     profiles: [
@@ -187,19 +159,6 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn((url: string) => {
-      if (url.includes('/api/echoes/entity-index')) {
-        return Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({ ok: true, data: { entries: ECHOES_INDEX } }),
-        });
-      }
-      if (url.includes('/api/visuals/entity-index')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ ok: true, data: { entries: [] } }),
-        });
-      }
       if (url.includes('/api/concepts/entity-index')) {
         return Promise.resolve({
           ok: true,
@@ -297,6 +256,16 @@ describe('resolveEntityBinding — 條目層級的初始綁定', () => {
   });
 });
 
+describe('🔒 回歸鎖：不拿內容自身的 gate 挑指向', () => {
+  it('沒有登記綁定就是 null——不會去掃同 key 的內容猜一個', async () => {
+    // 「綁著但還沒解鎖」必須表達得出來，指向與可見性是正交的兩個軸。
+    // 若這條失敗，代表有人把「按 gate 通過與否挑最後一筆」的推論加了回來。
+    expect(
+      await resolveEntityBinding('eb-nobinding', 'echoes', stateWith())
+    ).toBeNull();
+  });
+});
+
 describe('resolveEntityBinding — 孤兒規則', () => {
   it('沒有任何 dossier 條目 → null（孤兒）', async () => {
     const result = await resolveEntityBinding(
@@ -316,66 +285,12 @@ describe('resolveEntityBinding — 孤兒規則', () => {
     expect(result).toBeNull();
   });
 
-  it('有 dossier 條目但無綁定登記 → 退到同 key 的內容', async () => {
+  it('有 dossier 條目但無綁定登記 → null（非孤兒的 null）', async () => {
     expect(
       await resolveEntityBinding('eb-nobinding', 'echoes', stateWith())
-    ).toEqual({ id: 'echoes/eb/nobinding-only' });
+    ).toBeNull();
     // 與孤兒的差別：hasDossierEntry 為真
     expect(hasDossierEntry('eb-nobinding', INDEX as never)).toBe(true);
-  });
-
-  it('🔑 轉正案例只靠歌自己的 gate——dossier 不寫任何綁定', async () => {
-    expect(
-      await resolveEntityBinding('eb-turnauto', 'echoes', stateWith())
-    ).toEqual({ id: 'echoes/eb/turn-villain' });
-    expect(
-      await resolveEntityBinding(
-        'eb-turnauto',
-        'echoes',
-        stateWith(['eb-turnauto:turned'])
-      )
-    ).toEqual({ id: 'echoes/eb/turn-hero' });
-  });
-
-  it('gate 未通過的內容不會被推論成預設', async () => {
-    // eb-turnauto 未轉正時，轉正曲雖排在後面也不該被選中
-    const before = await resolveEntityBinding(
-      'eb-turnauto',
-      'echoes',
-      stateWith()
-    );
-    expect(before?.id).not.toBe('echoes/eb/turn-hero');
-  });
-
-  it('靜態封存（locked）凌駕 gate，不列入預設', async () => {
-    expect(
-      await resolveEntityBinding('eb-archived', 'echoes', stateWith())
-    ).toBeNull();
-  });
-
-  it('該 zone 連預設候選都沒有時才是 null', async () => {
-    expect(
-      await resolveEntityBinding('eb-nobinding', 'visuals', stateWith())
-    ).toBeNull();
-  });
-
-  it('孤兒不吃預設回退——沒有 dossier 條目就到此為止', async () => {
-    // 索引裡有掛 eb-browseronly 的歌也一樣（此 key 只有 browser 條目）
-    expect(
-      await resolveEntityBinding('eb-browseronly', 'echoes', stateWith())
-    ).toBeNull();
-  });
-
-  it('明確綁定優先於預設回退', async () => {
-    expect(
-      await resolveEntityBinding('eb-baseonly', 'echoes', stateWith())
-    ).toEqual({ id: 'echoes/eb/only-theme' });
-  });
-
-  it('劇情內容（storyKey）不會被當成預設', async () => {
-    expect(
-      await resolveEntityBinding('eb-story-spot', 'echoes', stateWith())
-    ).toBeNull();
   });
 });
 
