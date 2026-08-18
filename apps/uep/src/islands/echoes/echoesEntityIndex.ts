@@ -14,43 +14,27 @@
  */
 
 import { isSongUnlockedInZone } from '../../components/echoes/echoesVisibility';
-import { getApiBase } from '../../lib/apiBase';
+import {
+  loadZoneEntityIndex,
+  type ZoneEntityIndexEntry,
+} from '../../lib/zoneEntityIndex';
 import type { ProgressState } from '../../progress/types';
 
-/** Worker EchoesEntityIndexEntry 的前端鏡像 */
-export interface EchoesEntityIndexEntry {
-  id: string;
-  /** 角色歌／區域歌才有；S10-1 起劇情歌改掛 storyKey，故為選填 */
-  entityKey?: string;
-  /** 劇情歌的劇情點身分（entity 聯集判定不使用，僅為型別誠實） */
-  storyKey?: string;
-  gate?: unknown;
-  locked: boolean;
-}
+/**
+ * 索引條目摘要——型別本體在 `lib/zoneEntityIndex`（Echoes 與 Visuals
+ * 的回應形狀相同，且 entity 綁定求值也用同一份）。此處保留舊名。
+ */
+export type EchoesEntityIndexEntry = ZoneEntityIndexEntry;
 
-const API_BASE = getApiBase();
-
-let indexCache: Promise<EchoesEntityIndexEntry[]> | null = null;
-
-/** 載入 Echoes entity 索引（模組級快取；失敗時清除快取讓下次重試） */
-export function loadEchoesEntityIndex(): Promise<EchoesEntityIndexEntry[]> {
-  if (!indexCache) {
-    indexCache = (async () => {
-      const res = await fetch(`${API_BASE}/api/echoes/entity-index`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: { entries?: EchoesEntityIndexEntry[] };
-        error?: string;
-      };
-      if (!json.ok) throw new Error(json.error || 'API returned ok=false');
-      return json.data?.entries || [];
-    })().catch((err) => {
-      indexCache = null;
-      throw err;
-    });
-  }
-  return indexCache;
+/**
+ * 載入 echoes entity 索引（模組級快取；失敗時清除快取讓下次重試）。
+ *
+ * 委派給 `lib/zoneEntityIndex` 的共用載入器——同一個端點原本在這裡、
+ * 對位的 Visuals 索引、以及 entity 綁定求值各有一份快取，
+ * 三份互相看不見（見該檔檔頭）。
+ */
+export function loadEchoesEntityIndex(): Promise<ZoneEntityIndexEntry[]> {
+  return loadZoneEntityIndex('echoes');
 }
 
 /**
