@@ -50,13 +50,80 @@ interface BindingIndexEntry {
   entityKey?: string;
 }
 
+/**
+ * zone 索引的單筆條目摘要。
+ *
+ * ⚠️ **刻意只取身分欄位，不取 gate/locked**：本模組唯一會用到 zone 索引
+ * 的地方是「數同 key 有幾筆候選」，而數量與可見性無關。曾經有一版拿
+ * gate 通過與否來挑指向（`defaultZoneBinding`，已於 f8ec34a 移除），
+ * 那會讓「綁著但還沒解鎖」無法表達——型別上不給 gate 就是不讓它復活。
+ */
+interface ZoneIndexEntry {
+  id: string;
+  entityKey?: string;
+  storyKey?: string;
+}
+
 let indexCache: Promise<BindingIndexEntry[]> | null = null;
 const pageCache = new Map<string, Promise<unknown>>();
+const zoneIndexCache: Partial<
+  Record<'echoes' | 'visuals', Promise<ZoneIndexEntry[]>>
+> = {};
 
 /** 清空快取（測試與資料端更新後重抓用） */
 export function invalidateEntityBindingCache(): void {
   indexCache = null;
   pageCache.clear();
+  delete zoneIndexCache.echoes;
+  delete zoneIndexCache.visuals;
+}
+
+/** 載入某個 zone 的條目索引（模組級快取；失敗時清快取讓下次重試） */
+function loadZoneIndex(zone: 'echoes' | 'visuals'): Promise<ZoneIndexEntry[]> {
+  let cached = zoneIndexCache[zone];
+  if (!cached) {
+    cached = (async () => {
+      const res = await fetch(`${API_BASE}/api/${zone}/entity-index`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: { entries?: ZoneIndexEntry[] };
+      };
+      if (!json.ok) throw new Error('API returned ok=false');
+      return json.data?.entries || [];
+    })().catch((err) => {
+      delete zoneIndexCache[zone];
+      throw err;
+    });
+    zoneIndexCache[zone] = cached;
+  }
+  return cached;
+}
+
+/**
+ * 同一個 entityKey 在該 zone 的**唯一**候選——恰好一筆時對應關係已經
+ * 唯一確定，不需要任何綁定登記（這正是「entity 不一定要有 binding」的
+ * 實務意義）。
+ *
+ * 多於一筆回 `null`：由誰指向必須明確，系統不挑。零筆同理。
+ *
+ * ⚠️ **這不是推論**：只數數量，完全不看 gate/locked，也不看排序。
+ *
+ * 範圍與既有的 by-key 反查端點一致（`findEntitySong`／`findEntityGallery`
+ * 與 `entity-index` **都排除 hidden**），所以拿它取代 by-key 不改變任何
+ * 既有結果——只是把「D1 未指定順序命中第一筆」換成「確定唯一才用」。
+ *
+ * 劇情內容（有 storyKey）不列入候選：那是另一套命名空間。
+ *
+ * 索引拿不到時 throw，由呼叫端收斂成 `error`（fail closed）。
+ */
+async function soleZoneCandidate(
+  entityKey: string,
+  zone: 'echoes' | 'visuals'
+): Promise<string | null> {
+  const entries = await loadZoneIndex(zone);
+  const hits = entries.filter((e) => e.entityKey === entityKey && !e.storyKey);
+  return hits.length === 1 ? hits[0].id : null;
 }
 
 /** 載入 Concepts 條目索引（模組級快取；失敗時清快取讓下次重試） */
@@ -196,8 +263,13 @@ export type EntityBindingResult =
 /**
  * 求出這個 entityKey 在指定 zone **此刻**該對應的內容 id。
  *
- * `unbound`／`orphan` 都不會去猜：沒綁就是沒綁。呼叫端可以自行決定要退回
- * by-key 反查（同 key 只有一筆內容時的正常用法）還是不顯示。
+ * 三段式：dossier 的明確綁定 → 該 zone 的唯一候選 → 沒有對應。
+ *
+ * `bound` 以外的狀態呼叫端一律不該再自行反查——**尤其不可退回 by-key
+ * 端點**。同 key 多筆時 by-key 會依 D1 未指定順序命中任意一筆，那正是
+ * 「多筆候選就必須由 dossier 指明」這條契約要防的事（picker 的
+ * 「多筆候選，將無對應」說的就是這個）。唯一候選的情況本函式已經
+ * 直接回 `bound`，呼叫端沒有需要自己猜的餘地。
  *
  * 求值後只回**一個** id，未通過 gate 的 revision 指向的內容不會外流——
  * 這是本設計優於「回傳候選陣列讓前端挑」的關鍵。
@@ -224,8 +296,12 @@ export async function resolveEntityBinding(
   }
 
   // 孤兒判定優先於一切：一筆 dossier 條目都沒有就到此為止，
-  // 不再看 browser、不再看 revisions
-  if (!hasDossierEntry(entityKey, index)) return { status: 'orphan' };
+  // 不再看 browser、不再看 revisions。
+  // 但「不是實體」不代表「沒有內容」——正式站多數 Echoes entity 都是
+  // 孤兒，它們的歌照樣要能被反查到，只是走唯一候選而非綁定
+  if (!hasDossierEntry(entityKey, index)) {
+    return withSoleCandidate(entityKey, zone, 'orphan');
+  }
 
   // dossier 優先於 browser（2026-08-15 定案）：browser 只是詳細內容。
   // 正式站的 xavier-colsono 目前就同時掛在兩邊。
@@ -261,7 +337,29 @@ export async function resolveEntityBinding(
     }
   }
 
-  return pageLoadFailed ? { status: 'error' } : { status: 'unbound' };
+  if (pageLoadFailed) return { status: 'error' };
+
+  // 沒有登記綁定：同 key 恰好一筆時對應仍是唯一確定的
+  return withSoleCandidate(entityKey, zone, 'unbound');
+}
+
+/**
+ * 沒有明確綁定時的收尾：唯一候選視同綁定，否則回 `fallback` 狀態。
+ *
+ * 孤兒與未綁定共用——兩者的問題都是「dossier 沒說指向誰」，答案也一樣：
+ * 該 zone 只有一筆就是它，不只一筆就得由 dossier 指明。
+ */
+async function withSoleCandidate(
+  entityKey: string,
+  zone: 'echoes' | 'visuals',
+  fallback: 'unbound' | 'orphan'
+): Promise<EntityBindingResult> {
+  try {
+    const sole = await soleZoneCandidate(entityKey, zone);
+    return sole ? { status: 'bound', id: sole } : { status: fallback };
+  } catch {
+    return { status: 'error' };
+  }
 }
 
 /**

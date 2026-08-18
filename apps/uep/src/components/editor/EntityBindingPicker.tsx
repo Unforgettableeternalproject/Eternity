@@ -4,9 +4,9 @@
  * 兩處共用：條目層級的初始指向（ConceptsEditorBody）與 revision patch 的
  * 後續改指向（PatchEditor）。寫入的值一律是裸 page id。
  *
- * **同一個 entityKey 在該 zone 只有一筆內容時可以不填**——那時走既有的
- * by-key 反查即可。同 key 有多筆候選時**非填不可**：系統不會去猜，
- * 沒登記綁定就是「這個 zone 沒有對應內容」（見 entityBinding.ts）。
+ * **同一個 entityKey 在該 zone 只有一筆內容時可以不填**——對應關係已經
+ * 唯一確定。同 key 有多筆候選時**非填不可**：系統不會去挑，沒登記綁定
+ * 就是「這個 zone 沒有對應內容」（見 entityBinding.ts）。
  *
  * 候選只列**同一個 entityKey 的非劇情內容**：
  * - 綁定的語意是「這個實體此刻對應到哪一個」，跨實體的內容不是候選——

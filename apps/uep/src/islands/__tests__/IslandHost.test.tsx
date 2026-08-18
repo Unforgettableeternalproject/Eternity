@@ -278,18 +278,37 @@ describe('IslandHost — 已在播放／展示的項目不再出嵌入提示卡'
   };
 
   /**
-   * ⚠️ `ok: true` 不可省：`resolveEntityBinding` 的 `loadIndex` 會檢查
-   * `res.ok`，缺了就 throw → 求值回 `{ status: 'error' }` → 消費端
-   * fail closed（不推提示卡）。這裡的 concepts 索引回的是歌曲 payload，
-   * `data.entries` 為空，因此判成 orphan 並退回 by-key 反查——正是這組
-   * 測試要走的路徑。
+   * ⚠️ 兩件事都不可省：
+   *
+   * 1. `ok: true`——`resolveEntityBinding` 的索引載入會檢查 `res.ok`，
+   *    缺了就 throw → 求值回 `error` → 消費端 fail closed（不推提示卡）。
+   * 2. **zone 索引要回得出這個 entityKey 的唯一候選**——這組測試的
+   *    entity 沒有 dossier 條目，靠「同 key 恰好一筆」才求得到指向。
+   *    回空陣列的話會是 orphan，消費端不查，提示卡永遠不出現。
    */
-  function stubFetch(payload: unknown) {
+  function stubFetch(payload: unknown, soleId = SONG.id) {
     vi.stubGlobal(
       'fetch',
-      vi.fn(() =>
-        Promise.resolve({ ok: true, json: () => Promise.resolve(payload) })
-      )
+      vi.fn((url: string) => {
+        if (url.includes('/entity-index')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                data: {
+                  entries: url.includes('/api/concepts/')
+                    ? []
+                    : [{ id: soleId, entityKey: 'heroine' }],
+                },
+              }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(payload),
+        });
+      })
     );
   }
 
@@ -348,7 +367,7 @@ describe('IslandHost — 已在播放／展示的項目不再出嵌入提示卡'
   it('Visuals：反查到的畫廊正是目前投射中的 → 不推提示', async () => {
     gatingMock.allowedId = 'visuals';
     pushPhantomGallery({ ...GALLERY, source: 'mirror' });
-    stubFetch({ ok: true, data: { gallery: GALLERY } });
+    stubFetch({ ok: true, data: { gallery: GALLERY } }, GALLERY.id);
     render(<IslandHost />);
 
     await activateEntity();
@@ -363,7 +382,7 @@ describe('IslandHost — 已在播放／展示的項目不再出嵌入提示卡'
       id: 'visuals/profiles/cast/rival',
       source: 'mirror',
     });
-    stubFetch({ ok: true, data: { gallery: GALLERY } });
+    stubFetch({ ok: true, data: { gallery: GALLERY } }, GALLERY.id);
     render(<IslandHost />);
 
     await activateEntity();
@@ -524,7 +543,25 @@ describe('IslandHost — entity 一對多綁定接線', () => {
               }),
           });
         }
-        // 兩個曲目端點都回同一首，差別只在測試斷言看的是被打的 URL
+        // zone 索引：唯一候選判定用。t8-turncoat 有兩首（靠 dossier 綁定
+        // 指明），t8-orphan 只有一首（孤兒但對應唯一確定）
+        if (url.includes('/api/echoes/entity-index')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                data: {
+                  entries: [
+                    { id: 'echoes/t8/villain-theme', entityKey: 't8-turncoat' },
+                    { id: 'echoes/t8/hero-theme', entityKey: 't8-turncoat' },
+                    { id: 'echoes/t8/orphan-theme', entityKey: 't8-orphan' },
+                  ],
+                },
+              }),
+          });
+        }
+        // 曲目端點一律回同一首，差別只在測試斷言看的是被打的 URL
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ ok: true, data: { song: BOUND_SONG } }),
@@ -578,16 +615,67 @@ describe('IslandHost — entity 一對多綁定接線', () => {
     );
   });
 
-  it('🔒 孤兒 entityKey → 維持原本的 by-key 反查（fallback 零走樣）', async () => {
+  it('🔒 孤兒但唯一候選 → 仍查得到（走 by-id，不靠 by-key 猜）', async () => {
+    // 正式站多數 Echoes entity 都是孤兒，它們的歌照樣要能被反查到。
+    // 差別只在「唯一候選」是確定的，而 by-key 端點是全表掃描命中第一筆
     render(<IslandHost />);
     await activate('t8-orphan');
 
     expect(
-      requested.some((u) => u.includes('/api/echoes/entity-song?key=t8-orphan'))
+      requested.some((u) =>
+        u.includes('/api/echoes/song?id=echoes%2Ft8%2Forphan-theme')
+      )
     ).toBe(true);
+    expect(requested.some((u) => u.includes('/api/echoes/entity-song'))).toBe(
+      false
+    );
+  });
+
+  it('🔒 多筆候選又沒有綁定 → 完全不查（不退回 by-key）', async () => {
+    // t8-multi 在 zone 索引有兩筆、dossier 沒有條目——沒有人指明就是
+    // 沒有對應。by-key 會依 D1 未指定順序命中任意一筆，正是要防的事
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        requested.push(url);
+        if (url.includes('/api/concepts/entity-index')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ ok: true, data: { entries: [] } }),
+          });
+        }
+        if (url.includes('/api/echoes/entity-index')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                data: {
+                  entries: [
+                    { id: 'echoes/t8/multi-a', entityKey: 't8-multi' },
+                    { id: 'echoes/t8/multi-b', entityKey: 't8-multi' },
+                  ],
+                },
+              }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true, data: { song: BOUND_SONG } }),
+        });
+      })
+    );
+    invalidateEntityBindingCache();
+    render(<IslandHost />);
+    await activate('t8-multi');
+
+    expect(requested.some((u) => u.includes('/api/echoes/entity-song'))).toBe(
+      false
+    );
     expect(requested.some((u) => u.includes('/api/echoes/song?id='))).toBe(
       false
     );
+    expect(hasEchoSuggestion()).toBe(false);
   });
 
   it('🔒 綁定指到別人的歌 → 不顯示（entityKey 不一致）', async () => {

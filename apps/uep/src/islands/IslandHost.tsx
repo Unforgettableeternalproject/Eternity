@@ -203,38 +203,34 @@ export default function IslandHost() {
       const entityKey = detail.entityKey;
       void (async () => {
         // entity 一對多綁定（2026-08-15 定案）：先求出這個 entityKey
-        // 此刻該對應哪一首（角色轉正前後各一首主題曲）。有登記綁定就
-        // 改打 by-id——findSongById 刻意不排除 hidden，正好接住切換後
-        // 可能隱藏的劇情期歌曲。
-        // 無綁定（含孤兒 entityKey）維持原本的 by-key 反查，行為零改變。
+        // 此刻該對應哪一首（角色轉正前後各一首主題曲）。求值端已把
+        // 「唯一候選」也算成 bound，所以這裡只認 by-id——findSongById
+        // 刻意不排除 hidden，正好接住切換後可能隱藏的劇情期歌曲。
+        //
+        // ⚠️ 非 bound 一律**不再查**（清掉舊卡即可），**不可以**退回
+        // by-key：entity-song 是全表掃描命中第一筆（無 ORDER BY），
+        // 同 key 多筆時會繞過 dossier 的明確指向顯示任意一筆——那正是
+        // 「多筆候選就必須由 dossier 指明」這條契約要防的事。
+        // error（權威資料拿不到）同理 fail closed。
         const binding = await resolveEntityBinding(
           entityKey,
           'echoes',
           progressRef.current
         );
         if (signal.aborted) return null;
-        // ⚠️ 權威資料拿不到時 fail closed，**不可以**退回 by-key：
-        // entity-song 是全表掃描命中第一筆（無 ORDER BY），同 key 多候選
-        // 時會繞過 dossier 的明確指向、顯示任意一筆。
-        // 比照「查不到」清掉舊卡——殘留的提示卡會被誤認為與這次點擊有關
-        if (binding.status === 'error') {
+        if (binding.status !== 'bound') {
           clearEchoSuggestion();
           return null;
         }
-        const songUrl =
-          binding.status === 'bound'
-            ? `${API_BASE}/api/echoes/song?id=${encodeURIComponent(binding.id)}`
-            : `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(entityKey)}`;
-        const viaBinding = binding.status === 'bound';
+        const songUrl = `${API_BASE}/api/echoes/song?id=${encodeURIComponent(binding.id)}`;
         return Promise.all([
           fetch(songUrl, { signal }).then((response) => response.json()),
           fetchZoneProgressTree('echoes'),
-          Promise.resolve(viaBinding),
         ]);
       })()
         .then((resolved) => {
           if (!resolved) return;
-          const [payload, zoneTree, viaBinding] = resolved;
+          const [payload, zoneTree] = resolved;
           // async 落地後重驗——等待期間可能登出/停用 Echoes，此時不得
           // 再推提示或展開島
           if (!shouldMountIsland(progressRef.current, 'echoes')) return;
@@ -245,12 +241,11 @@ export default function IslandHost() {
             clearEchoSuggestion();
             return;
           }
-          // 明確綁定必須指到**同一個實體**的內容。picker 的候選本來就只列
-          // 同 entityKey 的曲目，不一致代表資料已經壞掉（target 被刪、
+          // 指向的必須是**同一個實體**的內容。picker 的候選本來就只列同
+          // entityKey 的曲目，不一致代表資料已經壞掉（target 被刪、
           // entityKey 被改、或載入失敗時手填打錯），此時寧可不顯示也不能
-          // 把別人的歌掛到這個角色頭上。
-          // by-key 路徑不必檢查——它本來就是按 key 查出來的
-          if (viaBinding && song.entityKey !== entityKey) {
+          // 把別人的歌掛到這個角色頭上
+          if (song.entityKey !== entityKey) {
             clearEchoSuggestion();
             return;
           }
@@ -337,34 +332,27 @@ export default function IslandHost() {
       const entityKey = detail.entityKey;
       void (async () => {
         // entity 一對多綁定（2026-08-15 定案）：同 Echoes 分支的道理，
-        // 先求值此刻該對應哪一個畫廊，有登記綁定就改打 by-id。
-        // 無綁定（含孤兒 entityKey）維持原本的 by-key 反查，行為零改變。
+        // 先求值此刻該對應哪一個畫廊，只認 by-id。非 bound 一律不再查
+        // ——entity-gallery 同樣是全表掃描命中第一筆（無 ORDER BY）
         const binding = await resolveEntityBinding(
           entityKey,
           'visuals',
           progressRef.current
         );
         if (signal.aborted) return null;
-        // ⚠️ 同 Echoes 分支：權威資料拿不到時 fail closed，不退回 by-key
-        // （entity-gallery 同樣是全表掃描命中第一筆，無 ORDER BY）
-        if (binding.status === 'error') {
+        if (binding.status !== 'bound') {
           clearPhantomSuggestion();
           return null;
         }
-        const galleryUrl =
-          binding.status === 'bound'
-            ? `${API_BASE}/api/visuals/gallery?id=${encodeURIComponent(binding.id)}`
-            : `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(entityKey)}`;
-        const viaBinding = binding.status === 'bound';
+        const galleryUrl = `${API_BASE}/api/visuals/gallery?id=${encodeURIComponent(binding.id)}`;
         return Promise.all([
           fetch(galleryUrl, { signal }).then((response) => response.json()),
           fetchZoneProgressTree('visuals'),
-          Promise.resolve(viaBinding),
         ]);
       })()
         .then((resolved) => {
           if (!resolved) return;
-          const [payload, zoneTree, viaBinding] = resolved;
+          const [payload, zoneTree] = resolved;
           // async 落地後重驗——等待期間可能登出/停用 Visuals
           if (!shouldMountIsland(progressRef.current, 'visuals')) return;
           const gallery = payload?.data?.gallery;
@@ -374,9 +362,9 @@ export default function IslandHost() {
             clearPhantomSuggestion();
             return;
           }
-          // 同 Echoes 分支：明確綁定必須指到同一個實體的畫廊，
+          // 同 Echoes 分支：指向的必須是同一個實體的畫廊，
           // 不一致代表資料壞了，寧可不顯示
-          if (viaBinding && gallery.entityKey !== entityKey) {
+          if (gallery.entityKey !== entityKey) {
             clearPhantomSuggestion();
             return;
           }

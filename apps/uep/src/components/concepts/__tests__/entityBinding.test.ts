@@ -154,6 +154,23 @@ const PAGE_DATA: Record<string, unknown> = {
   },
 };
 
+/**
+ * zone 索引：只用來數「同 key 有幾筆候選」。
+ *
+ * - `eb-sole`：唯一候選 → 不必登記綁定也能對應
+ * - `eb-nobinding`：兩筆 → 沒有 dossier 指明就沒有對應
+ * - `eb-turncoat` 的兩首：登記過綁定，走 bound 路徑，不靠數量
+ */
+const ECHOES_INDEX = [
+  { id: 'echoes/eb/villain', entityKey: 'eb-turncoat' },
+  { id: 'echoes/eb/hero', entityKey: 'eb-turncoat' },
+  { id: 'echoes/eb/sole-theme', entityKey: 'eb-sole' },
+  { id: 'echoes/eb/nb-a', entityKey: 'eb-nobinding' },
+  { id: 'echoes/eb/nb-b', entityKey: 'eb-nobinding' },
+  // 劇情內容走另一套命名空間，不列入候選
+  { id: 'echoes/eb/story', storyKey: 'eb-sole' },
+];
+
 beforeEach(() => {
   invalidateEntityBindingCache();
   vi.stubGlobal(
@@ -163,6 +180,19 @@ beforeEach(() => {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ ok: true, data: { entries: INDEX } }),
+        });
+      }
+      if (url.includes('/api/echoes/entity-index')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ok: true, data: { entries: ECHOES_INDEX } }),
+        });
+      }
+      if (url.includes('/api/visuals/entity-index')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true, data: { entries: [] } }),
         });
       }
       const match = url.match(/\/api\/content\/(.+)$/);
@@ -256,13 +286,71 @@ describe('resolveEntityBinding — 條目層級的初始綁定', () => {
   });
 });
 
+describe('resolveEntityBinding — 唯一候選視同綁定', () => {
+  it('同 key 只有一筆內容時不必登記綁定（孤兒也適用）', async () => {
+    // eb-sole 沒有 dossier 條目，但 Echoes 只有一首掛這個 key——
+    // 對應關係已經唯一確定，不需要任何人指明
+    expect(
+      await resolveEntityBinding('eb-sole', 'echoes', stateWith())
+    ).toEqual({ status: 'bound', id: 'echoes/eb/sole-theme' });
+  });
+
+  it('劇情內容不算候選（storyKey 是另一套命名空間）', async () => {
+    // echoes/eb/story 的 storyKey 也叫 eb-sole，但不能被算進候選數，
+    // 否則 eb-sole 會變成「兩筆」而失去唯一性
+    const result = await resolveEntityBinding('eb-sole', 'echoes', stateWith());
+    expect(result).toEqual({ status: 'bound', id: 'echoes/eb/sole-theme' });
+  });
+
+  it('該 zone 一筆候選都沒有 → orphan（不是硬湊一個）', async () => {
+    expect(
+      await resolveEntityBinding('eb-sole', 'visuals', stateWith())
+    ).toEqual({ status: 'orphan' });
+  });
+});
+
 describe('🔒 回歸鎖：不拿內容自身的 gate 挑指向', () => {
-  it('沒有登記綁定就是 unbound——不會去掃同 key 的內容猜一個', async () => {
+  it('多筆候選又沒有登記綁定 → unbound，不挑', async () => {
     // 「綁著但還沒解鎖」必須表達得出來，指向與可見性是正交的兩個軸。
-    // 若這條失敗，代表有人把「按 gate 通過與否挑最後一筆」的推論加了回來。
+    // 若這條失敗，代表有人把「按 gate 通過與否挑最後一筆」的推論加了
+    // 回來——eb-nobinding 在 zone 索引裡有兩筆，只能由 dossier 指明。
     expect(
       await resolveEntityBinding('eb-nobinding', 'echoes', stateWith())
     ).toEqual({ status: 'unbound' });
+  });
+
+  it('zone 索引拿不到時回 error，不是 unbound', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/api/concepts/entity-index')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ ok: true, data: { entries: INDEX } }),
+          });
+        }
+        if (url.includes('/api/echoes/entity-index')) {
+          return Promise.reject(new Error('network down'));
+        }
+        const match = url.match(/\/api\/content\/(.+)$/);
+        const data = match ? PAGE_DATA[match[1]] : undefined;
+        if (!data) return Promise.resolve({ ok: false });
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              data: {
+                content: [{ type: 'dossier', content: JSON.stringify(data) }],
+              },
+            }),
+        });
+      })
+    );
+    invalidateEntityBindingCache();
+    expect(
+      await resolveEntityBinding('eb-nobinding', 'echoes', stateWith())
+    ).toEqual({ status: 'error' });
   });
 });
 
