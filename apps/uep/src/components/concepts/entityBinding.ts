@@ -175,38 +175,57 @@ function findDossierEntries(
 }
 
 /**
+ * 求值結果。
+ *
+ * ⚠️ **`error` 必須與 `unbound`／`orphan` 分開**：三者以前都壓成 `null`，
+ * 而呼叫端對 `null` 一律退回 by-key 反查——於是 Concepts 索引或頁面抓取
+ * 暫時失敗時，dossier 上寫好的明確指向會被繞過，改由 by-key 回傳任意一筆
+ * 候選（worker 的 `findEntitySong` 是全表掃描命中第一筆，**無 `ORDER BY`**，
+ * D1 未指定順序）。權威資料拿不到時只能 fail closed，不能猜。
+ */
+export type EntityBindingResult =
+  /** dossier 明確指向這一筆 */
+  | { status: 'bound'; id: string }
+  /** 有 dossier 條目，但該 zone 沒登記綁定（條目層與 revision 皆無） */
+  | { status: 'unbound' }
+  /** 沒有任何 dossier 條目——依定案這個 key 不是實體 */
+  | { status: 'orphan' }
+  /** 權威資料拿不到（索引／頁面 fetch 或解析失敗） */
+  | { status: 'error' };
+
+/**
  * 求出這個 entityKey 在指定 zone **此刻**該對應的內容 id。
  *
- * 回傳 `null` 有兩種成因，用途相同但語意不同：
- * 1. **孤兒**——沒有任何 dossier 條目（`hasDossierEntry` 為偽）
- * 2. 有 dossier 條目，但該 zone 沒有登記綁定（條目層與 revision 皆無）
- *
- * 兩者都不會去猜：沒綁就是沒綁，呼叫端自行退回 by-key 反查或不顯示。
- *
- * 呼叫端要區分時得自己再問一次 `hasDossierEntry`；本函式不區分回傳型別，
- * 因為兩種情況的處置一致（退回既有的 by-key 反查或不顯示）。
+ * `unbound`／`orphan` 都不會去猜：沒綁就是沒綁。呼叫端可以自行決定要退回
+ * by-key 反查（同 key 只有一筆內容時的正常用法）還是不顯示。
  *
  * 求值後只回**一個** id，未通過 gate 的 revision 指向的內容不會外流——
  * 這是本設計優於「回傳候選陣列讓前端挑」的關鍵。
+ *
+ * ⚠️ 已知限制（等 E/P 時代內容出現時才會碰到）：同一個 entityKey 可以在
+ * 多個 dossier variant 各有條目、各自登記綁定（entityKey 唯一性只在
+ * variant 內，見 ConceptsEditorBody 的說明）。此時本函式取**遍歷順序上
+ * 第一個有綁定的**，順序由 Concepts 索引決定而非讀者的閱讀脈絡。正式站
+ * 目前七頁都只有單一 variant（`u`），碰不到；要正確處理需要把時代脈絡
+ * （History 的 zone ↔ dossier 的 variant id）傳進來。
  */
 export async function resolveEntityBinding(
   entityKey: string,
   zone: 'echoes' | 'visuals',
   progress: ProgressState
-): Promise<{ id: string } | null> {
-  if (!entityKey) return null;
+): Promise<EntityBindingResult> {
+  if (!entityKey) return { status: 'orphan' };
 
   let index: BindingIndexEntry[];
   try {
     index = await loadIndex();
   } catch {
-    // 索引拿不到時退回既有路徑（呼叫端的 by-key fallback），不是失敗
-    return null;
+    return { status: 'error' };
   }
 
   // 孤兒判定優先於一切：一筆 dossier 條目都沒有就到此為止，
   // 不再看 browser、不再看 revisions
-  if (!hasDossierEntry(entityKey, index)) return null;
+  if (!hasDossierEntry(entityKey, index)) return { status: 'orphan' };
 
   // dossier 優先於 browser（2026-08-15 定案）：browser 只是詳細內容。
   // 正式站的 xavier-colsono 目前就同時掛在兩邊。
@@ -214,9 +233,16 @@ export async function resolveEntityBinding(
     .filter((e) => e.stack === 'dossier' && e.entityKey === entityKey)
     .map((e) => e.pageId);
 
+  // 任何一頁權威資料抓不到就不能斷言「沒綁」——那一頁上可能正好有綁定。
+  // 寧可 fail closed（不顯示）也不能退回 by-key 猜一筆
+  let pageLoadFailed = false;
+
   for (const pageId of Array.from(new Set(candidatePages))) {
     const data = await loadPageData(pageId);
-    if (!data) continue;
+    if (!data) {
+      pageLoadFailed = true;
+      continue;
+    }
 
     for (const entry of findDossierEntries(data, entityKey)) {
       const revisions = entry.revisions as ConceptsRevision[] | undefined;
@@ -231,11 +257,11 @@ export async function resolveEntityBinding(
       // 外洩的把關在下游，不在這裡重複做。
       const resolved = applyRevisions(entry, revisions, progress);
       const id = readBinding(resolved, zone);
-      if (id) return { id };
+      if (id) return { status: 'bound', id };
     }
   }
 
-  return null;
+  return pageLoadFailed ? { status: 'error' } : { status: 'unbound' };
 }
 
 /**

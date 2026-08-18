@@ -277,10 +277,19 @@ describe('IslandHost — 已在播放／展示的項目不再出嵌入提示卡'
     ],
   };
 
+  /**
+   * ⚠️ `ok: true` 不可省：`resolveEntityBinding` 的 `loadIndex` 會檢查
+   * `res.ok`，缺了就 throw → 求值回 `{ status: 'error' }` → 消費端
+   * fail closed（不推提示卡）。這裡的 concepts 索引回的是歌曲 payload，
+   * `data.entries` 為空，因此判成 orphan 並退回 by-key 反查——正是這組
+   * 測試要走的路徑。
+   */
   function stubFetch(payload: unknown) {
     vi.stubGlobal(
       'fetch',
-      vi.fn(() => Promise.resolve({ json: () => Promise.resolve(payload) }))
+      vi.fn(() =>
+        Promise.resolve({ ok: true, json: () => Promise.resolve(payload) })
+      )
     );
   }
 
@@ -579,5 +588,34 @@ describe('IslandHost — entity 一對多綁定接線', () => {
     expect(requested.some((u) => u.includes('/api/echoes/song?id='))).toBe(
       false
     );
+  });
+
+  it('🔒 權威資料拿不到 → fail closed，不退回 by-key', async () => {
+    // by-key 是全表掃描命中第一筆（無 ORDER BY），同 key 多候選時會顯示
+    // 任意一筆，繞過 dossier 寫好的明確指向。索引暫時抓不到寧可什麼都不推
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        requested.push(url);
+        if (url.includes('/api/concepts/entity-index')) {
+          return Promise.reject(new Error('network down'));
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true, data: { song: BOUND_SONG } }),
+        });
+      })
+    );
+    invalidateEntityBindingCache();
+    render(<IslandHost />);
+    await activate('t8-turncoat');
+
+    expect(requested.some((u) => u.includes('/api/echoes/entity-song'))).toBe(
+      false
+    );
+    expect(requested.some((u) => u.includes('/api/echoes/song?id='))).toBe(
+      false
+    );
+    expect(hasEchoSuggestion()).toBe(false);
   });
 });

@@ -193,7 +193,7 @@ describe('resolveEntityBinding — 隨進度切換指向', () => {
       'echoes',
       stateWith()
     );
-    expect(result).toEqual({ id: 'echoes/eb/villain' });
+    expect(result).toEqual({ status: 'bound', id: 'echoes/eb/villain' });
   });
 
   it('通過轉正 gate 後同一個 entityKey 給轉正曲', async () => {
@@ -202,23 +202,23 @@ describe('resolveEntityBinding — 隨進度切換指向', () => {
       'echoes',
       stateWith(['eb-turncoat:turned'])
     );
-    expect(result).toEqual({ id: 'echoes/eb/hero' });
+    expect(result).toEqual({ status: 'bound', id: 'echoes/eb/hero' });
   });
 
   it('同一條 revision 可同時切換 echoes 與 visuals', async () => {
     const progress = stateWith(['eb-turncoat:turned']);
     expect(
       await resolveEntityBinding('eb-turncoat', 'visuals', progress)
-    ).toEqual({ id: 'visuals/eb/after' });
+    ).toEqual({ status: 'bound', id: 'visuals/eb/after' });
   });
 
-  it('該 zone 沒有綁定時回 null（visuals 在 base 階段未登記）', async () => {
+  it('該 zone 沒有綁定時是 unbound（visuals 在 base 階段未登記）', async () => {
     const result = await resolveEntityBinding(
       'eb-turncoat',
       'visuals',
       stateWith()
     );
-    expect(result).toBeNull();
+    expect(result).toEqual({ status: 'unbound' });
   });
 });
 
@@ -226,23 +226,23 @@ describe('resolveEntityBinding — 條目層級的初始綁定', () => {
   it('沒有任何 revision 也能綁定（不必為了綁定開一條 gate: null 的 revision）', async () => {
     expect(
       await resolveEntityBinding('eb-baseonly', 'echoes', stateWith())
-    ).toEqual({ id: 'echoes/eb/only-theme' });
+    ).toEqual({ status: 'bound', id: 'echoes/eb/only-theme' });
     expect(
       await resolveEntityBinding('eb-baseonly', 'visuals', stateWith())
-    ).toEqual({ id: 'visuals/eb/only-art' });
+    ).toEqual({ status: 'bound', id: 'visuals/eb/only-art' });
   });
 
   it('revision 通過後覆蓋條目層級的初始指向', async () => {
     expect(
       await resolveEntityBinding('eb-basethenrev', 'echoes', stateWith())
-    ).toEqual({ id: 'echoes/eb/before' });
+    ).toEqual({ status: 'bound', id: 'echoes/eb/before' });
     expect(
       await resolveEntityBinding(
         'eb-basethenrev',
         'echoes',
         stateWith(['eb-basethenrev:after'])
       )
-    ).toEqual({ id: 'echoes/eb/after' });
+    ).toEqual({ status: 'bound', id: 'echoes/eb/after' });
   });
 
   it('revision 沒動到的 zone 維持條目層級的值', async () => {
@@ -252,28 +252,64 @@ describe('resolveEntityBinding — 條目層級的初始綁定', () => {
         'visuals',
         stateWith(['eb-basethenrev:after'])
       )
-    ).toEqual({ id: 'visuals/eb/only-art' });
+    ).toEqual({ status: 'bound', id: 'visuals/eb/only-art' });
   });
 });
 
 describe('🔒 回歸鎖：不拿內容自身的 gate 挑指向', () => {
-  it('沒有登記綁定就是 null——不會去掃同 key 的內容猜一個', async () => {
+  it('沒有登記綁定就是 unbound——不會去掃同 key 的內容猜一個', async () => {
     // 「綁著但還沒解鎖」必須表達得出來，指向與可見性是正交的兩個軸。
     // 若這條失敗，代表有人把「按 gate 通過與否挑最後一筆」的推論加了回來。
     expect(
       await resolveEntityBinding('eb-nobinding', 'echoes', stateWith())
-    ).toBeNull();
+    ).toEqual({ status: 'unbound' });
+  });
+});
+
+describe('🔒 回歸鎖：權威資料拿不到時 fail closed', () => {
+  // error 若又被壓回 unbound/orphan，呼叫端會退回 by-key 反查——而 by-key
+  // 是全表掃描命中第一筆（無 ORDER BY），同 key 多候選時會顯示任意一筆，
+  // 繞過 dossier 寫好的明確指向
+  it('索引 fetch 失敗回 error，不是 unbound', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('network down')))
+    );
+    invalidateEntityBindingCache();
+    expect(
+      await resolveEntityBinding('eb-turncoat', 'echoes', stateWith())
+    ).toEqual({ status: 'error' });
+  });
+
+  it('條目頁抓不到回 error，不是 unbound', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/api/concepts/entity-index')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ ok: true, data: { entries: INDEX } }),
+          });
+        }
+        // 索引拿得到、頁面拿不到——不能因此斷言「這個 key 沒綁定」
+        return Promise.resolve({ ok: false });
+      })
+    );
+    invalidateEntityBindingCache();
+    expect(
+      await resolveEntityBinding('eb-turncoat', 'echoes', stateWith())
+    ).toEqual({ status: 'error' });
   });
 });
 
 describe('resolveEntityBinding — 孤兒規則', () => {
-  it('沒有任何 dossier 條目 → null（孤兒）', async () => {
+  it('沒有任何 dossier 條目 → orphan', async () => {
     const result = await resolveEntityBinding(
       '完全不存在的-key',
       'echoes',
       stateWith()
     );
-    expect(result).toBeNull();
+    expect(result).toEqual({ status: 'orphan' });
   });
 
   it('只有 browser 條目仍是孤兒——browser 不能替代 dossier 的存在', async () => {
@@ -282,13 +318,13 @@ describe('resolveEntityBinding — 孤兒規則', () => {
       'echoes',
       stateWith()
     );
-    expect(result).toBeNull();
+    expect(result).toEqual({ status: 'orphan' });
   });
 
-  it('有 dossier 條目但無綁定登記 → null（非孤兒的 null）', async () => {
+  it('有 dossier 條目但無綁定登記 → unbound（不是 orphan）', async () => {
     expect(
       await resolveEntityBinding('eb-nobinding', 'echoes', stateWith())
-    ).toBeNull();
+    ).toEqual({ status: 'unbound' });
     // 與孤兒的差別：hasDossierEntry 為真
     expect(hasDossierEntry('eb-nobinding', INDEX as never)).toBe(true);
   });
@@ -303,7 +339,7 @@ describe('🔒 回歸鎖：判存在性不判可見性', () => {
       'echoes',
       stateWith()
     );
-    expect(result).toEqual({ id: 'echoes/eb/sealed-theme' });
+    expect(result).toEqual({ status: 'bound', id: 'echoes/eb/sealed-theme' });
   });
 });
 

@@ -213,9 +213,18 @@ export default function IslandHost() {
           progressRef.current
         );
         if (signal.aborted) return null;
-        const songUrl = binding
-          ? `${API_BASE}/api/echoes/song?id=${encodeURIComponent(binding.id)}`
-          : `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(entityKey)}`;
+        // ⚠️ 權威資料拿不到時 fail closed，**不可以**退回 by-key：
+        // entity-song 是全表掃描命中第一筆（無 ORDER BY），同 key 多候選
+        // 時會繞過 dossier 的明確指向、顯示任意一筆。
+        // 比照「查不到」清掉舊卡——殘留的提示卡會被誤認為與這次點擊有關
+        if (binding.status === 'error') {
+          clearEchoSuggestion();
+          return null;
+        }
+        const songUrl =
+          binding.status === 'bound'
+            ? `${API_BASE}/api/echoes/song?id=${encodeURIComponent(binding.id)}`
+            : `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(entityKey)}`;
         return Promise.all([
           fetch(songUrl, { signal }).then((response) => response.json()),
           fetchZoneProgressTree('echoes'),
@@ -325,9 +334,16 @@ export default function IslandHost() {
           progressRef.current
         );
         if (signal.aborted) return null;
-        const galleryUrl = binding
-          ? `${API_BASE}/api/visuals/gallery?id=${encodeURIComponent(binding.id)}`
-          : `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(entityKey)}`;
+        // ⚠️ 同 Echoes 分支：權威資料拿不到時 fail closed，不退回 by-key
+        // （entity-gallery 同樣是全表掃描命中第一筆，無 ORDER BY）
+        if (binding.status === 'error') {
+          clearPhantomSuggestion();
+          return null;
+        }
+        const galleryUrl =
+          binding.status === 'bound'
+            ? `${API_BASE}/api/visuals/gallery?id=${encodeURIComponent(binding.id)}`
+            : `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(entityKey)}`;
         return Promise.all([
           fetch(galleryUrl, { signal }).then((response) => response.json()),
           fetchZoneProgressTree('visuals'),
