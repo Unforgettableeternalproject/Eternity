@@ -20,6 +20,16 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { parseEntityRef } from '../embed/marks';
+import {
+  loadConceptsIndex,
+  loadConceptsPage,
+  type ConceptsIndexEntry,
+} from '../components/concepts/conceptsSource';
+import { resolveFromData } from '../components/concepts/entityBinding';
+import {
+  findEntryById,
+  type ZoneEntityIndexEntry,
+} from '../lib/zoneEntityIndex';
 import type { ProgressState } from '../progress/types';
 
 import {
@@ -28,14 +38,16 @@ import {
   type TerminalIndexEntry,
 } from './concepts/terminalCore';
 import {
-  isEchoesEntityUnlocked,
   loadEchoesEntityIndex,
   type EchoesEntityIndexEntry,
 } from './echoes/echoesEntityIndex';
+import { isSongUnlockedInZone } from '../components/echoes/echoesVisibility';
+import { isGalleryUnlockedInZone } from '../components/visuals/visualsVisibility';
 import { shouldMountIsland } from './islandRuntime';
+import { fetchZoneProgressTree } from './zoneProgressTree';
+import type { ProgressTreeAdapter } from '../progress';
 import { useDesktopIslandViewport } from './useIslands';
 import {
-  isVisualsEntityUnlocked,
   loadVisualsEntityIndex,
   type VisualsEntityIndexEntry,
 } from './visuals/visualsEntityIndex';
@@ -115,25 +127,143 @@ export function useEntityRefUnlockChecker(
     getSetting<string>('entityBinding.embedOrphanGate', 'disabled') ===
     'enabled';
 
-  // 孤兒判定的索引**不能沿用 conceptsIndex**：那份只在 concepts 島掛載時
-  // 才 fetch，沒掛載時恆為空陣列，開關一開就會把所有 entity 判成孤兒。
-  // 只在開關開啟時載入，關閉時零額外請求。
-  const [dossierIndex, setDossierIndex] = useState<TerminalIndexEntry[]>([]);
+  /**
+   * 綁定求值用的 Concepts 資料（索引 + dossier 整頁）。
+   *
+   * **不能沿用 conceptsIndex**：那份只在 concepts 島掛載時才 fetch，沒掛載
+   * 時恆為空陣列——孤兒判定會把所有 entity 誤判成孤兒，綁定求值則會誤判
+   * 成「沒有 dossier 條目」。
+   *
+   * 只在真的需要時載入（Echoes／Visuals 任一掛載，或孤兒開關開啟）。
+   * 走的是 `conceptsSource` 的共用快取，與 Terminal 島同一份——Terminal
+   * 若已載過就是零請求。
+   *
+   * dossier **整頁**也要預載：綁定指向藏在條目的 `bindings` 與 revision
+   * patch 裡，索引不帶（帶了等於公開未解鎖內容的 page id，即劇透）。
+   * 正式站 dossier 合計 10 頁 9.3 KB。
+   */
+  const needBinding = echoesMounted || visualsMounted;
+  const [dossierIndex, setDossierIndex] = useState<ConceptsIndexEntry[]>([]);
+  const [dossierPages, setDossierPages] = useState<Map<string, unknown>>(
+    () => new Map()
+  );
+  const [pagesPartial, setPagesPartial] = useState(false);
+  // ⚠️ 就緒與否要有獨立旗標，**不可用 `dossierIndex.length === 0` 代替**：
+  // 空索引是合法狀態（站上還沒有任何 Concepts 條目），那時所有 entity 都是
+  // 孤兒，但「唯一候選」仍該讓它們可點
+  const [dossierReady, setDossierReady] = useState(false);
+
+  /**
+   * zone tree（父容器 gate 繼承）。
+   *
+   * 消費端（IslandHost）一律以 tree-aware 求值判定解鎖，可點判定若只看
+   * 單頁 gate，父層被鎖住的內容就會顯示成可點、點下去卻不合格。
+   * `fetchZoneProgressTree` 自帶模組級快取，與 IslandHost 共用。
+   */
+  const [zoneTrees, setZoneTrees] = useState<
+    Partial<Record<'echoes' | 'visuals', ProgressTreeAdapter>>
+  >({});
   useEffect(() => {
-    if (!orphanGateOn) return;
     let cancelled = false;
-    void loadEntityIndex()
-      .then((entries) => {
-        if (!cancelled) setDossierIndex(entries);
-      })
-      .catch(() => {});
+    for (const zone of ['echoes', 'visuals'] as const) {
+      const mounted = zone === 'echoes' ? echoesMounted : visualsMounted;
+      if (!mounted || zoneTrees[zone]) continue;
+      void fetchZoneProgressTree(zone)
+        .then((tree) => {
+          if (!cancelled) setZoneTrees((prev) => ({ ...prev, [zone]: tree }));
+        })
+        .catch(() => {
+          /* 失敗維持 undefined——該分支保持不可點（fail closed） */
+        });
+    }
     return () => {
       cancelled = true;
     };
-  }, [orphanGateOn]);
+  }, [echoesMounted, visualsMounted, zoneTrees]);
 
-  return useMemo(
-    () => (ref: string) => {
+  useEffect(() => {
+    if (!needBinding && !orphanGateOn) return;
+    let cancelled = false;
+    void (async () => {
+      const index = await loadConceptsIndex();
+      if (cancelled) return;
+      setDossierIndex(index);
+      if (!needBinding) {
+        setDossierReady(true);
+        return;
+      }
+      const pageIds = Array.from(
+        new Set(index.filter((e) => e.stack === 'dossier').map((e) => e.pageId))
+      );
+      const loaded = await Promise.all(
+        pageIds.map(async (id) => [id, await loadConceptsPage(id)] as const)
+      );
+      if (cancelled) return;
+      const pages = new Map<string, unknown>();
+      let partial = false;
+      for (const [id, data] of loaded) {
+        if (data) pages.set(id, data);
+        else partial = true;
+      }
+      setDossierPages(pages);
+      setPagesPartial(partial);
+      setDossierReady(true);
+    })().catch(() => {
+      // 靜默：資料拿不到時各分支維持不可點（安全預設）
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [needBinding, orphanGateOn]);
+
+  return useMemo(() => {
+    /**
+     * 這個 entityKey 在該 zone 此刻**指向的那一筆**是否已解鎖。
+     *
+     * 指向用與 IslandHost 完全相同的 `resolveFromData`；解鎖判定只餵被
+     * 指向的那一筆進既有的 zone 判定函式——順帶接住「指向的內容
+     * entityKey 對不上」（資料壞掉）的情況，與消費端同樣不顯示。
+     */
+    const isBoundAndUnlocked = (
+      zone: 'echoes' | 'visuals',
+      key: string,
+      zoneEntries: ZoneEntityIndexEntry[] | null
+    ): boolean => {
+      // 資料未就緒 → 不可點（安全預設：浮島此時也查不到內容）
+      const tree = zoneTrees[zone];
+      if (!zoneEntries || !dossierReady || !tree) return false;
+      const result = resolveFromData(
+        {
+          index: dossierIndex,
+          pages: dossierPages,
+          zoneEntries,
+          partial: pagesPartial,
+        },
+        key,
+        zone,
+        progress
+      );
+      if (result.status !== 'bound') return false;
+      // ⚠️ 用 findEntryById 而非在排除 hidden 的清單裡找——明確綁定一首
+      // 隱藏的前期曲是合法用法，by-id 消費路徑也不排除 hidden
+      const entry = findEntryById(zoneEntries, result.id);
+      if (!entry) return false;
+      // 指向的內容 entityKey 必須對得上（資料壞掉時比照消費端不顯示）
+      if (entry.entityKey !== key) return false;
+      const node = {
+        id: entry.id,
+        metadata: {
+          entityKey: entry.entityKey,
+          gate: entry.gate,
+          locked: entry.locked,
+        },
+      };
+      return zone === 'echoes'
+        ? isSongUnlockedInZone(node, progress, tree)
+        : isGalleryUnlockedInZone(node, progress, tree);
+    };
+
+    return (ref: string) => {
       // 各分支額外疊 Mounted 旗標：索引一旦 fetch 過會留在 state 裡，
       // 島之後才變成不可用（resize 到手機寬度／使用者停用／視角切換）
       // 時，若只靠 Mounted 控制要不要 fetch，舊索引仍會讓已抓過的 ref
@@ -154,21 +284,33 @@ export function useEntityRefUnlockChecker(
       if (orphanGateOn && !hasDossierEntry(key, dossierIndex)) {
         return false;
       }
+      // 🔑 可點判定必須與**點下去會發生什麼**一致（2026-08-18）。
+      //
+      // 一對多開放後，「同 key 有任一筆已解鎖」不再等於「浮島查得到
+      // 內容」：同 key 多筆而 dossier 沒指明時求值回 unbound，浮島什麼
+      // 都不顯示——嵌入卻仍是可點的，變成按了沒反應。
+      //
+      // 因此這裡走與 IslandHost 完全相同的 `resolveFromData`，再疊該
+      // 內容自己的解鎖判定。資料是 Terminal 島本來就要載的那份（共用
+      // 快取），不產生額外請求。
       return (
-        (echoesMounted && isEchoesEntityUnlocked(echoesIndex, key, progress)) ||
-        (visualsMounted && isVisualsEntityUnlocked(visualsIndex, key, progress))
+        (echoesMounted && isBoundAndUnlocked('echoes', key, echoesIndex)) ||
+        (visualsMounted && isBoundAndUnlocked('visuals', key, visualsIndex))
       );
-    },
-    [
-      orphanGateOn,
-      dossierIndex,
-      conceptsMounted,
-      echoesMounted,
-      visualsMounted,
-      conceptsIndex,
-      echoesIndex,
-      visualsIndex,
-      progress,
-    ]
-  );
+    };
+  }, [
+    orphanGateOn,
+    dossierIndex,
+    dossierPages,
+    pagesPartial,
+    dossierReady,
+    zoneTrees,
+    conceptsMounted,
+    echoesMounted,
+    visualsMounted,
+    conceptsIndex,
+    echoesIndex,
+    visualsIndex,
+    progress,
+  ]);
 }

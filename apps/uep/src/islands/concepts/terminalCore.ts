@@ -41,36 +41,24 @@ import type {
   DiffEntry,
   DossierEntry,
 } from '../../components/concepts/types';
-import { getApiBase } from '../../lib/apiBase';
+import {
+  invalidateConceptsSource,
+  loadConceptsIndex,
+  loadConceptsPage,
+  type ConceptsIndexEntry,
+} from '../../components/concepts/conceptsSource';
 
 // ── 型別 ───────────────────────────────────────────────────────────
 
 export type TerminalStack = 'dossier' | 'browser' | 'chrono' | 'diff';
 
-/** 索引端點的單筆條目摘要（Worker EntityIndexEntry 的前端鏡像） */
-export interface TerminalIndexEntry {
-  name: string;
-  stack: TerminalStack;
-  pageId: string;
-  pageTitle: string;
-  entityKey?: string;
-  /** 匹配別名（S7-D-2：query / 補全的補充匹配詞） */
-  aliases?: string[];
-  /** base 解鎖條件（S7 驗收 #4：條目可見性的唯一閘門，未設 = 永遠可見） */
-  baseGate?: GateCondition | null;
-  /** 群組解鎖條件（S7 驗收 #3：dossier 群組層，未過整組隱藏） */
-  groupGate?: GateCondition | null;
-  /** revision gate 摘要——只供更動通知水位（passedRevisionCount），不影響可見性 */
-  revisionGates?: { id: string; gate: GateCondition | null }[];
-  /** 分類標籤（dossier=subcategory、diff=subcat）——ls 分組用 */
-  category?: string;
-  /** 群組標籤（dossier=group、diff=section） */
-  group?: string;
-  /** dossier variant id（era，如 'u'） */
-  variantId?: string;
-  /** chrono period 事件總數（ls clock 顯著時代排序用） */
-  eventCount?: number;
-}
+/**
+ * 索引端點的單筆條目摘要。
+ *
+ * 型別本體在 `components/concepts/conceptsSource`（與 entity 綁定求值
+ * 共用同一份資料來源）；此處保留舊名，Terminal 島各處的既有 import 不動。
+ */
+export type TerminalIndexEntry = ConceptsIndexEntry;
 
 /** 條目內容解析結果（Terminal 輸出行的資料來源） */
 export interface TerminalEntryDetail {
@@ -102,69 +90,18 @@ export const TERMINAL_STACK_LABELS: Record<TerminalStack, string> = {
   diff: 'compare',
 };
 
-// ── API 基底與快取 ─────────────────────────────────────────────────
-
-const API_BASE = getApiBase();
-
-let indexCache: Promise<TerminalIndexEntry[]> | null = null;
-const pageCache = new Map<string, Promise<ConceptsData | null>>();
+// ── 資料來源 ───────────────────────────────────────────────────────
+//
+// 索引與頁面快取集中在 components/concepts/conceptsSource——與 entity
+// 綁定求值共用同一份，避免同一個端點被兩個模組各打一次（見該檔檔頭）。
 
 /** 清空索引與頁面快取（資料端更新後手動重抓用） */
-export function invalidateTerminalCache(): void {
-  indexCache = null;
-  pageCache.clear();
-}
+export const invalidateTerminalCache = invalidateConceptsSource;
 
 /** 載入條目索引（模組級快取；失敗時清除快取讓下次重試） */
-export function loadEntityIndex(): Promise<TerminalIndexEntry[]> {
-  if (!indexCache) {
-    indexCache = (async () => {
-      const res = await fetch(`${API_BASE}/api/concepts/entity-index`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: { entries?: TerminalIndexEntry[] };
-        error?: string;
-      };
-      if (!json.ok) throw new Error(json.error || 'API returned ok=false');
-      return json.data?.entries || [];
-    })().catch((err) => {
-      indexCache = null;
-      throw err;
-    });
-  }
-  return indexCache;
-}
+export const loadEntityIndex = loadConceptsIndex;
 
-/** 抓取單頁 Concepts 結構化資料（模組級快取） */
-function loadPageData(pageId: string): Promise<ConceptsData | null> {
-  let cached = pageCache.get(pageId);
-  if (!cached) {
-    cached = (async () => {
-      const res = await fetch(`${API_BASE}/api/content/${pageId}`);
-      if (!res.ok) return null;
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: { content?: { type: string; content: string }[] };
-      };
-      if (!json.ok) return null;
-      const block = (json.data?.content || []).find(
-        (b) => b && b.type !== 'rich_text'
-      );
-      if (!block || typeof block.content !== 'string') return null;
-      try {
-        return JSON.parse(block.content) as ConceptsData;
-      } catch {
-        return null;
-      }
-    })().catch(() => {
-      pageCache.delete(pageId);
-      return null;
-    });
-    pageCache.set(pageId, cached);
-  }
-  return cached;
-}
+const loadPageData = loadConceptsPage;
 
 // ── 解鎖判定（索引層） ─────────────────────────────────────────────
 

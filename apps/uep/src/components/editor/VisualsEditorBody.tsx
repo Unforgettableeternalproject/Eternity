@@ -10,7 +10,6 @@ import {
   type AssetItem as ImagePickerItem,
 } from './editorHelpers';
 import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
-import { useBoundEntityKeys, withoutBoundKeys } from './useBoundEntityKeys';
 import GateConditionEditor from './GateConditionEditor';
 import { UploadSpinner } from './UploadSpinner';
 import { isSamePagePath } from '../../lib/pagePath';
@@ -287,6 +286,9 @@ function generateId(): string {
 // uploadAsset, fetchImageAssets, buildImageUrl, deleteAsset 已移至 editorHelpers.ts
 
 /** 三態初始狀態選項（A/B/C，設計文件 §1-2） */
+/** 實體ID 不做撞名檢查；穩定的空集合避免每次 render 產生新 props */
+const EMPTY_KEYS = new Set<string>();
+
 const IMAGE_STATE_OPTIONS: {
   value: ImageDisplayState;
   code: string;
@@ -376,55 +378,43 @@ export default function VisualsEditorBody({
     return () => controller.abort();
   }, [apiBase, galleryId, keyCheckReload]);
 
-  // 已登記多重綁定的 entityKey（同一角色轉正前後各一個畫廊之類）——
-  // 同 zone 重複是刻意的，不再警告撞名。伺服器 409 仍是權威把關。
-  const boundEntityKeys = useBoundEntityKeys(apiBase, 'visuals');
-  const takenEntityKeys = useMemo(
-    () => withoutBoundKeys(otherKeys.entityKeys, boundEntityKeys),
-    [otherKeys.entityKeys, boundEntityKeys]
-  );
-
   const validationIssues = useMemo(() => {
     const issues: string[] = [];
+    /** `taken`／`takenMessage` 省略時只驗格式，不驗唯一性 */
     const checkKey = (
       label: string,
       value: string,
-      taken: Set<string>,
-      takenMessage: string
+      unique?: { taken: Set<string>; message: string }
     ) => {
       const key = value.trim();
       if (!key) return;
       if (!ENTITY_KEY_PATTERN.test(key)) {
         issues.push(`${label}「${key}」不是合法 kebab-case`);
-      } else if (keyCheckStatus === 'loading') {
+        return;
+      }
+      if (!unique) return;
+      if (keyCheckStatus === 'loading') {
         issues.push(`正在查核${label}唯一性，請稍候`);
       } else if (keyCheckStatus === 'error') {
         issues.push(`無法查核${label}唯一性，請重試後再儲存`);
-      } else if (taken.has(key)) {
-        issues.push(takenMessage.replace('{key}', key));
+      } else if (unique.taken.has(key)) {
+        issues.push(unique.message.replace('{key}', key));
       }
     };
-    if (showEntityKey)
-      checkKey(
-        'entityKey',
-        data.entityKey,
-        takenEntityKeys,
-        'entityKey「{key}」已被其他 gallery 使用'
-      );
+    // 🔑 實體ID **沒有唯一性**（2026-08-18 定案）：同一個角色可以有多個
+    // 畫廊，此刻對應哪一個由 Concepts 的角色檔案決定。只驗格式。
+    if (showEntityKey) checkKey('實體ID', data.entityKey);
     if (showStoryKey)
-      checkKey(
-        '劇情點 key',
-        data.storyKey,
-        otherKeys.storyKeys,
-        '劇情點 key「{key}」已被其他 gallery 使用'
-      );
+      checkKey('劇情點ID', data.storyKey, {
+        taken: otherKeys.storyKeys,
+        message: '劇情點ID「{key}」已被其他 gallery 使用',
+      });
     return issues;
   }, [
     data.entityKey,
     data.storyKey,
     keyCheckStatus,
     otherKeys,
-    takenEntityKeys,
     showEntityKey,
     showStoryKey,
   ]);
@@ -1357,14 +1347,15 @@ export default function VisualsEditorBody({
             <>
               <EntityKeyField
                 value={data.entityKey || undefined}
-                existingKeys={takenEntityKeys}
+                existingKeys={EMPTY_KEYS}
                 checkOrphan
                 onChange={(entityKey) => update({ entityKey: entityKey || '' })}
-                duplicateMessage="此實體ID 已被其他 gallery 使用"
               />
               <div className="ned-gate-scope-hint">
                 實體ID 用於角色／區域嵌入反查設定圖 gallery（浮動幻影提示
-                卡）；未綁定的 gallery 不參與嵌入反查。
+                卡）；未綁定的 gallery 不參與嵌入反查。同一個角色可以掛多個
+                gallery——此刻對應哪一個由 Concepts 的角色檔案決定，
+                沒指定就不會被反查到。
               </div>
             </>
           )}

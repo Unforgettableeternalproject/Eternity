@@ -10,7 +10,6 @@ import type { GateCondition } from '../../progress';
 import { API_BASE, uploadAsset, deleteAsset } from './editorHelpers';
 import { deriveSongCategoryFromPageId } from './echoesCategory';
 import EntityKeyField, { ENTITY_KEY_PATTERN } from './EntityKeyField';
-import { useBoundEntityKeys, withoutBoundKeys } from './useBoundEntityKeys';
 import GateConditionEditor from './GateConditionEditor';
 import { UploadSpinner } from './UploadSpinner';
 
@@ -354,6 +353,9 @@ function fmtDuration(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/** 實體ID 不做撞名檢查；穩定的空集合避免每次 render 產生新 props */
+const EMPTY_KEYS = new Set<string>();
+
 const SPOILER_LEVELS = [
   { l: 0, n: '無' },
   { l: 1, n: '霧化' },
@@ -450,13 +452,6 @@ export default function EchoesEditorBody({
     'loading' | 'ready' | 'error'
   >('loading');
   const [entityKeyReload, setEntityKeyReload] = useState(0);
-  // 已登記多重綁定的 entityKey（角色轉正前後各一首主題曲之類）——
-  // 同 zone 重複是刻意的，不再警告撞名。伺服器 409 仍是權威把關。
-  const boundEntityKeys = useBoundEntityKeys(apiBase, 'echoes');
-  const takenEntityKeys = useMemo(
-    () => withoutBoundKeys(otherEntityKeys, boundEntityKeys),
-    [otherEntityKeys, boundEntityKeys]
-  );
 
   // === 刪除確認 state ===
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -503,16 +498,20 @@ export default function EchoesEditorBody({
     // 只是該歌無法互聯也無法被收藏（提示文案已在欄位旁說明）
     const isStory = data.category === 'story';
     const activeKey = isStory ? data.storyKey : data.entityKey;
-    const label = isStory ? '劇情點 key' : 'entityKey';
-    const taken = isStory ? otherStoryKeys : takenEntityKeys;
+    const label = isStory ? '劇情點ID' : '實體ID';
+    // 🔑 實體ID **沒有唯一性**（2026-08-18 定案）：同一個角色可以有多首
+    // 主題曲（轉正前後各一），此刻該給哪一首由 Concepts 的角色檔案決定。
+    // 只有劇情點ID 需要查核——劇情點與內容是一對一。
     if (activeKey && !ENTITY_KEY_PATTERN.test(activeKey)) {
       issues.push(`${label}「${activeKey}」不是合法 kebab-case`);
-    } else if (activeKey && entityKeyCheckStatus === 'loading') {
-      issues.push(`正在查核${label}唯一性，請稍候`);
-    } else if (activeKey && entityKeyCheckStatus === 'error') {
-      issues.push(`無法查核${label}唯一性，請重試後再儲存`);
-    } else if (activeKey && taken.has(activeKey)) {
-      issues.push(`${label}「${activeKey}」已被其他歌曲使用`);
+    } else if (isStory && activeKey) {
+      if (entityKeyCheckStatus === 'loading') {
+        issues.push(`正在查核${label}唯一性，請稍候`);
+      } else if (entityKeyCheckStatus === 'error') {
+        issues.push(`無法查核${label}唯一性，請重試後再儲存`);
+      } else if (otherStoryKeys.has(activeKey)) {
+        issues.push(`${label}「${activeKey}」已被其他歌曲使用`);
+      }
     }
     const levels = data.spoilerRevisions
       .map(revisionSourceLevel)
@@ -527,7 +526,6 @@ export default function EchoesEditorBody({
     data.storyKey,
     data.spoilerRevisions,
     entityKeyCheckStatus,
-    takenEntityKeys,
     otherStoryKeys,
   ]);
 
@@ -805,15 +803,18 @@ export default function EchoesEditorBody({
           </>
         ) : (
           <>
+            {/* existingKeys 給空集合：實體ID 沒有唯一性，同一個角色可以
+                掛多首歌（2026-08-18 定案） */}
             <EntityKeyField
               value={data.entityKey}
-              existingKeys={takenEntityKeys}
+              existingKeys={EMPTY_KEYS}
               checkOrphan
               onChange={(entityKey) => update({ entityKey })}
             />
             <div className="ned-gate-scope-hint">
               實體ID 用於角色／區域嵌入反查歌曲，也是收藏旗標的來源；
-              留空的歌曲不會進入收藏池。
+              留空的歌曲不會進入收藏池。同一個角色可以掛多首歌——此刻對應
+              哪一首由 Concepts 的角色檔案決定，沒指定就不會被反查到。
             </div>
           </>
         )}

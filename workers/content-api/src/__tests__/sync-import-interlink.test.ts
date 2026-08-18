@@ -315,19 +315,20 @@ describe('sync/import — 更新既有頁的 metadata', () => {
     expect(row).toBeTruthy();
   });
 
+  // storyKey 而非 entityKey——後者自 2026-08-18 起沒有唯一性
   it('更新成已被別頁佔用的 key → 擋下，metadata 不動', async () => {
     await importPages([
       page({
         id: 'echoes/imp/meta-holder',
         area: 'echoes',
         pageType: 'song',
-        metadata: { entityKey: 'imp-meta-taken', category: 'character' },
+        metadata: { storyKey: 'imp-meta-taken', category: 'story' },
       }),
       page({
         id: 'echoes/imp/meta-mover',
         area: 'echoes',
         pageType: 'song',
-        metadata: { entityKey: 'imp-meta-mine', category: 'character' },
+        metadata: { storyKey: 'imp-meta-mine', category: 'story' },
       }),
     ]);
 
@@ -337,13 +338,13 @@ describe('sync/import — 更新既有頁的 metadata', () => {
         area: 'echoes',
         pageType: 'song',
         contentHash: 'hash-echoes/imp/meta-mover-v2',
-        metadata: { entityKey: 'imp-meta-taken', category: 'character' },
+        metadata: { storyKey: 'imp-meta-taken', category: 'story' },
       }),
     ]);
 
     expect(result.conflicts).toBe(1);
     expect(result.updated).toBe(0);
-    expect((await metadataOf('echoes/imp/meta-mover')).entityKey).toBe(
+    expect((await metadataOf('echoes/imp/meta-mover')).storyKey).toBe(
       'imp-meta-mine'
     );
   });
@@ -356,7 +357,7 @@ describe('sync/import — key 唯一性把關', () => {
         id: 'echoes/imp/first-song',
         area: 'echoes',
         pageType: 'song',
-        metadata: { entityKey: 'imp-occupied', category: 'character' },
+        metadata: { storyKey: 'imp-occupied', category: 'story' },
       }),
     ]);
   });
@@ -367,20 +368,20 @@ describe('sync/import — key 唯一性把關', () => {
         id: 'echoes/imp/dup-song',
         area: 'echoes',
         pageType: 'song',
-        metadata: { entityKey: 'imp-occupied', category: 'character' },
+        metadata: { storyKey: 'imp-occupied', category: 'story' },
       }),
       page({
         id: 'echoes/imp/ok-song',
         area: 'echoes',
         pageType: 'song',
-        metadata: { entityKey: 'imp-fresh', category: 'character' },
+        metadata: { storyKey: 'imp-fresh', category: 'story' },
       }),
     ]);
 
     expect(result.conflicts).toBe(1);
     expect(result.details.conflicts[0]).toMatchObject({
       pageId: 'echoes/imp/dup-song',
-      field: 'entityKey',
+      field: 'storyKey',
       key: 'imp-occupied',
       conflictingPageId: 'echoes/imp/first-song',
     });

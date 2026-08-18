@@ -2,14 +2,14 @@
  * entityBinding.ts — entity 一對多內容綁定的求值（2026-08-15 定案）
  *
  * 一個 entityKey 在同一個 zone 可以對應多筆內容（角色轉正前後各一首主題曲），
- * 由 Concepts dossier 條目的 revision 鏈決定「此刻該給哪一個」——revision 的
- * patch 不改內容、只改指向。初始指向放在條目層級的 `bindings`，
- * revision 之後才依進度覆蓋：
+ * 由 Concepts dossier 條目決定「此刻該給哪一個」——初始指向放在條目層級的
+ * `bindings`，revision 的 patch 不改內容、只改指向：
  *
  *   entry.bindings = { echoes: '...' }                                   // 初始
  *   { id: 'xxx:turned', gate: {...}, patch: { set: { 'bindings.echoes': '...' } } }
  *
- * 只綁一個內容的實體填 `bindings` 就結束，不需要任何 revision。
+ * 只綁一個內容的實體填 `bindings` 就結束，不需要任何 revision；同 key 在該
+ * zone 只有一筆內容時連 `bindings` 都不必填（唯一候選即確定的對應）。
  *
  * 求值走既有的 `applyRevisions`（累加式，後者覆蓋前者），所以「直到下一個
  * revision 通過為止」是鏈的順序天然表達的，不需要 until 條件。
@@ -26,154 +26,39 @@
  * 反過來也一樣：**不可以拿內容自身的 gate 來挑指向**。那會讓「綁著但還沒
  * 解鎖」無法表達，等於把兩個正交的軸焊死。
  *
- * ## 為什麼不共用 terminalCore 的快取
+ * ## 同步與非同步兩個入口
  *
- * `islands/concepts/terminalCore.ts` 已有等價的索引／頁面快取，但那是
- * **islands 層**——本模組在 components 層，且消費端同時有 islands（IslandHost）
- * 與編輯器（components/editor）。讓 components 反向 import islands 會讓依賴
- * 方向不清楚，故各自持有一份輕量快取。索引 < 20kb 且兩邊都是模組級快取，
- * 重複一次 fetch 的代價遠低於依賴倒置。
+ * `resolveEntityBinding` 是 async 版（浮島點擊消費）；`resolveBindingSync`
+ * 吃預載好的資料，供**渲染期的嵌入可點判定**用——後者必須與前者結論一致，
+ * 否則會出現「看起來可點、按下去沒反應」。兩者共用 `resolveFromData`，
+ * 邏輯只有一份。
+ *
+ * 資料來源集中在 `conceptsSource` 與 `lib/zoneEntityIndex`，與 Terminal 島
+ * 共用同一份快取——可點判定要的資料就是 Terminal 本來就要載的那份，
+ * 預載因此不產生額外請求（見 conceptsSource 檔頭）。
  */
 
-import { getApiBase } from '../../lib/apiBase';
+import {
+  invalidateZoneEntityIndex,
+  loadZoneEntityIndex,
+  soleEntityCandidate,
+  type ZoneEntityIndexEntry,
+} from '../../lib/zoneEntityIndex';
 import type { ProgressState } from '../../progress/types';
 
+import {
+  loadConceptsIndex,
+  loadConceptsPage,
+  invalidateConceptsSource,
+  type ConceptsIndexEntry,
+} from './conceptsSource';
 import { applyRevisions } from './revision';
 import type { ConceptsRevision } from './types';
 
-const API_BASE = getApiBase();
-
-/** 索引端點的單筆條目摘要（只取本模組需要的欄位） */
-interface BindingIndexEntry {
-  stack: 'dossier' | 'browser' | 'chrono' | 'diff';
-  pageId: string;
-  entityKey?: string;
-}
-
-/**
- * zone 索引的單筆條目摘要。
- *
- * ⚠️ **刻意只取身分欄位，不取 gate/locked**：本模組唯一會用到 zone 索引
- * 的地方是「數同 key 有幾筆候選」，而數量與可見性無關。曾經有一版拿
- * gate 通過與否來挑指向（`defaultZoneBinding`，已於 f8ec34a 移除），
- * 那會讓「綁著但還沒解鎖」無法表達——型別上不給 gate 就是不讓它復活。
- */
-interface ZoneIndexEntry {
-  id: string;
-  entityKey?: string;
-  storyKey?: string;
-}
-
-let indexCache: Promise<BindingIndexEntry[]> | null = null;
-const pageCache = new Map<string, Promise<unknown>>();
-const zoneIndexCache: Partial<
-  Record<'echoes' | 'visuals', Promise<ZoneIndexEntry[]>>
-> = {};
-
-/** 清空快取（測試與資料端更新後重抓用） */
+/** 清空求值用到的所有快取（測試與資料端更新後重抓用） */
 export function invalidateEntityBindingCache(): void {
-  indexCache = null;
-  pageCache.clear();
-  delete zoneIndexCache.echoes;
-  delete zoneIndexCache.visuals;
-}
-
-/** 載入某個 zone 的條目索引（模組級快取；失敗時清快取讓下次重試） */
-function loadZoneIndex(zone: 'echoes' | 'visuals'): Promise<ZoneIndexEntry[]> {
-  let cached = zoneIndexCache[zone];
-  if (!cached) {
-    cached = (async () => {
-      const res = await fetch(`${API_BASE}/api/${zone}/entity-index`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: { entries?: ZoneIndexEntry[] };
-      };
-      if (!json.ok) throw new Error('API returned ok=false');
-      return json.data?.entries || [];
-    })().catch((err) => {
-      delete zoneIndexCache[zone];
-      throw err;
-    });
-    zoneIndexCache[zone] = cached;
-  }
-  return cached;
-}
-
-/**
- * 同一個 entityKey 在該 zone 的**唯一**候選——恰好一筆時對應關係已經
- * 唯一確定，不需要任何綁定登記（這正是「entity 不一定要有 binding」的
- * 實務意義）。
- *
- * 多於一筆回 `null`：由誰指向必須明確，系統不挑。零筆同理。
- *
- * ⚠️ **這不是推論**：只數數量，完全不看 gate/locked，也不看排序。
- *
- * 範圍與既有的 by-key 反查端點一致（`findEntitySong`／`findEntityGallery`
- * 與 `entity-index` **都排除 hidden**），所以拿它取代 by-key 不改變任何
- * 既有結果——只是把「D1 未指定順序命中第一筆」換成「確定唯一才用」。
- *
- * 劇情內容（有 storyKey）不列入候選：那是另一套命名空間。
- *
- * 索引拿不到時 throw，由呼叫端收斂成 `error`（fail closed）。
- */
-async function soleZoneCandidate(
-  entityKey: string,
-  zone: 'echoes' | 'visuals'
-): Promise<string | null> {
-  const entries = await loadZoneIndex(zone);
-  const hits = entries.filter((e) => e.entityKey === entityKey && !e.storyKey);
-  return hits.length === 1 ? hits[0].id : null;
-}
-
-/** 載入 Concepts 條目索引（模組級快取；失敗時清快取讓下次重試） */
-function loadIndex(): Promise<BindingIndexEntry[]> {
-  if (!indexCache) {
-    indexCache = (async () => {
-      const res = await fetch(`${API_BASE}/api/concepts/entity-index`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: { entries?: BindingIndexEntry[] };
-      };
-      if (!json.ok) throw new Error('API returned ok=false');
-      return json.data?.entries || [];
-    })().catch((err) => {
-      indexCache = null;
-      throw err;
-    });
-  }
-  return indexCache;
-}
-
-/** 抓取單頁 Concepts 結構化資料（模組級快取） */
-function loadPageData(pageId: string): Promise<unknown> {
-  let cached = pageCache.get(pageId);
-  if (!cached) {
-    cached = (async () => {
-      const res = await fetch(`${API_BASE}/api/content/${pageId}`);
-      if (!res.ok) return null;
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: { content?: { type: string; content: string }[] };
-      };
-      if (!json.ok) return null;
-      const block = (json.data?.content || []).find(
-        (b) => b && b.type !== 'rich_text'
-      );
-      if (!block || typeof block.content !== 'string') return null;
-      try {
-        return JSON.parse(block.content);
-      } catch {
-        return null;
-      }
-    })().catch(() => {
-      pageCache.delete(pageId);
-      return null;
-    });
-    pageCache.set(pageId, cached);
-  }
-  return cached;
+  invalidateConceptsSource();
+  invalidateZoneEntityIndex();
 }
 
 /**
@@ -193,7 +78,7 @@ function loadPageData(pageId: string): Promise<unknown> {
  */
 export function hasDossierEntry(
   entityKey: string,
-  index: readonly BindingIndexEntry[]
+  index: readonly ConceptsIndexEntry[]
 ): boolean {
   return index.some((e) => e.stack === 'dossier' && e.entityKey === entityKey);
 }
@@ -251,19 +136,29 @@ function findDossierEntries(
  * D1 未指定順序）。權威資料拿不到時只能 fail closed，不能猜。
  */
 export type EntityBindingResult =
-  /** dossier 明確指向這一筆 */
+  /** dossier 明確指向這一筆，或該 zone 的唯一候選 */
   | { status: 'bound'; id: string }
-  /** 有 dossier 條目，但該 zone 沒登記綁定（條目層與 revision 皆無） */
+  /** 有 dossier 條目，但該 zone 沒登記綁定且候選不只一筆 */
   | { status: 'unbound' }
   /** 沒有任何 dossier 條目——依定案這個 key 不是實體 */
   | { status: 'orphan' }
   /** 權威資料拿不到（索引／頁面 fetch 或解析失敗） */
   | { status: 'error' };
 
+/** 求值需要的全部資料（同步與非同步入口共用） */
+export interface BindingSource {
+  /** Concepts 條目索引 */
+  index: readonly ConceptsIndexEntry[];
+  /** 已載入的 dossier 頁：pageId → 整頁 JSON（抓失敗的頁不放進來） */
+  pages: ReadonlyMap<string, unknown>;
+  /** 目標 zone 的 entity 索引（唯一候選判定用） */
+  zoneEntries: readonly ZoneEntityIndexEntry[];
+  /** 有 dossier 頁抓取失敗——找不到綁定時不能斷言「沒綁」 */
+  partial?: boolean;
+}
+
 /**
- * 求出這個 entityKey 在指定 zone **此刻**該對應的內容 id。
- *
- * 三段式：dossier 的明確綁定 → 該 zone 的唯一候選 → 沒有對應。
+ * 求值核心：三段式——dossier 的明確綁定 → 該 zone 的唯一候選 → 沒有對應。
  *
  * `bound` 以外的狀態呼叫端一律不該再自行反查——**尤其不可退回 by-key
  * 端點**。同 key 多筆時 by-key 會依 D1 未指定順序命中任意一筆，那正是
@@ -281,44 +176,35 @@ export type EntityBindingResult =
  * 目前七頁都只有單一 variant（`u`），碰不到；要正確處理需要把時代脈絡
  * （History 的 zone ↔ dossier 的 variant id）傳進來。
  */
-export async function resolveEntityBinding(
+export function resolveFromData(
+  source: BindingSource,
   entityKey: string,
   zone: 'echoes' | 'visuals',
   progress: ProgressState
-): Promise<EntityBindingResult> {
+): EntityBindingResult {
   if (!entityKey) return { status: 'orphan' };
 
-  let index: BindingIndexEntry[];
-  try {
-    index = await loadIndex();
-  } catch {
-    return { status: 'error' };
-  }
+  const sole = () => {
+    const id = soleEntityCandidate(source.zoneEntries, entityKey);
+    return id ? ({ status: 'bound', id } as const) : null;
+  };
 
-  // 孤兒判定優先於一切：一筆 dossier 條目都沒有就到此為止，
-  // 不再看 browser、不再看 revisions。
-  // 但「不是實體」不代表「沒有內容」——正式站多數 Echoes entity 都是
-  // 孤兒，它們的歌照樣要能被反查到，只是走唯一候選而非綁定
-  if (!hasDossierEntry(entityKey, index)) {
-    return withSoleCandidate(entityKey, zone, 'orphan');
+  // 孤兒判定優先於一切：一筆 dossier 條目都沒有就到此為止，不再看
+  // browser、不再看 revisions。但「不是實體」不代表「沒有內容」——正式站
+  // 多數 Echoes entity 都是孤兒，它們的歌照樣要能被反查到，走唯一候選
+  if (!hasDossierEntry(entityKey, source.index)) {
+    return sole() ?? { status: 'orphan' };
   }
 
   // dossier 優先於 browser（2026-08-15 定案）：browser 只是詳細內容。
   // 正式站的 xavier-colsono 目前就同時掛在兩邊。
-  const candidatePages = index
+  const candidatePages = source.index
     .filter((e) => e.stack === 'dossier' && e.entityKey === entityKey)
     .map((e) => e.pageId);
 
-  // 任何一頁權威資料抓不到就不能斷言「沒綁」——那一頁上可能正好有綁定。
-  // 寧可 fail closed（不顯示）也不能退回 by-key 猜一筆
-  let pageLoadFailed = false;
-
   for (const pageId of Array.from(new Set(candidatePages))) {
-    const data = await loadPageData(pageId);
-    if (!data) {
-      pageLoadFailed = true;
-      continue;
-    }
+    const data = source.pages.get(pageId);
+    if (!data) continue;
 
     for (const entry of findDossierEntries(data, entityKey)) {
       const revisions = entry.revisions as ConceptsRevision[] | undefined;
@@ -337,29 +223,59 @@ export async function resolveEntityBinding(
     }
   }
 
-  if (pageLoadFailed) return { status: 'error' };
+  // 任何一頁權威資料抓不到就不能斷言「沒綁」——那一頁上可能正好有綁定。
+  // 寧可 fail closed 也不能退回猜測
+  if (source.partial) return { status: 'error' };
 
-  // 沒有登記綁定：同 key 恰好一筆時對應仍是唯一確定的
-  return withSoleCandidate(entityKey, zone, 'unbound');
+  return sole() ?? { status: 'unbound' };
+}
+
+/** 載入某個 entityKey 求值所需的全部資料（dossier 頁只抓相關的那幾頁） */
+async function loadSource(
+  entityKey: string,
+  zone: 'echoes' | 'visuals'
+): Promise<BindingSource> {
+  const [index, zoneEntries] = await Promise.all([
+    loadConceptsIndex(),
+    loadZoneEntityIndex(zone),
+  ]);
+  const pageIds = Array.from(
+    new Set(
+      index
+        .filter((e) => e.stack === 'dossier' && e.entityKey === entityKey)
+        .map((e) => e.pageId)
+    )
+  );
+  const pages = new Map<string, unknown>();
+  let partial = false;
+  await Promise.all(
+    pageIds.map(async (pageId) => {
+      const data = await loadConceptsPage(pageId);
+      if (data) pages.set(pageId, data);
+      else partial = true;
+    })
+  );
+  return { index, pages, zoneEntries, partial };
 }
 
 /**
- * 沒有明確綁定時的收尾：唯一候選視同綁定，否則回 `fallback` 狀態。
+ * 求出這個 entityKey 在指定 zone **此刻**該對應的內容 id（非同步入口）。
  *
- * 孤兒與未綁定共用——兩者的問題都是「dossier 沒說指向誰」，答案也一樣：
- * 該 zone 只有一筆就是它，不只一筆就得由 dossier 指明。
+ * 索引或 zone 資料拿不到時回 `error`——見 `EntityBindingResult` 的說明。
  */
-async function withSoleCandidate(
+export async function resolveEntityBinding(
   entityKey: string,
   zone: 'echoes' | 'visuals',
-  fallback: 'unbound' | 'orphan'
+  progress: ProgressState
 ): Promise<EntityBindingResult> {
+  if (!entityKey) return { status: 'orphan' };
+  let source: BindingSource;
   try {
-    const sole = await soleZoneCandidate(entityKey, zone);
-    return sole ? { status: 'bound', id: sole } : { status: fallback };
+    source = await loadSource(entityKey, zone);
   } catch {
     return { status: 'error' };
   }
+  return resolveFromData(source, entityKey, zone, progress);
 }
 
 /**
@@ -370,7 +286,7 @@ async function withSoleCandidate(
 export async function isOrphanEntityKey(entityKey: string): Promise<boolean> {
   if (!entityKey) return false;
   try {
-    const index = await loadIndex();
+    const index = await loadConceptsIndex();
     return !hasDossierEntry(entityKey, index);
   } catch {
     return false;
