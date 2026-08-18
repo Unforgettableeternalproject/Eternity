@@ -11,11 +11,6 @@
  */
 
 import {
-  buildConceptsBindingIndex,
-  hasValidBinding,
-  type ConceptsBindingEntry,
-} from './concepts-bindings';
-import {
   buildConceptsEntityIndex,
   collectConceptsKeyCandidates,
 } from './concepts-index';
@@ -123,12 +118,6 @@ export async function createKeyConflictChecker(
   const visuals = wanted.has('visuals')
     ? await buildVisualsEntityIndex(db, { includeHidden: true })
     : [];
-  // entity 一對多綁定的放行清單（2026-08-15 定案）：只有 Echoes/Visuals
-  // 的 zone 唯一性會被它豁免，查 Concepts 時不需要多掃一次全區。
-  const bindings: Map<string, ConceptsBindingEntry> =
-    wanted.has('echoes') || wanted.has('visuals')
-      ? await buildConceptsBindingIndex(db)
-      : new Map();
 
   return {
     async find(query: KeyConflictQuery): Promise<KeyConflict | null> {
@@ -149,35 +138,30 @@ export async function createKeyConflictChecker(
         return hit ? { pageId: hit.pageId, pageTitle: hit.pageTitle } : null;
       }
 
-      // Echoes / Visuals：整個區塊一個實例
+      // 🔑 entityKey 在 Echoes／Visuals **沒有唯一性**（2026-08-18 定案）。
+      //
+      // entityKey 是身分不是唯一識別：同一個角色本來就可以有多首主題曲、
+      // 多個畫廊（轉正前後各一），那是設計核心而不是異常。
+      //
+      // 曾經的做法是「只有 dossier 登記過綁定才放行第二筆」，但那是死胡同
+      // ——綁定的意義是「在多筆之間選一個」，只有一筆時寫綁定毫無作用，
+      // 卻被迫先寫它才能建第二筆。等於為了解鎖建立動作而寫一筆假資料。
+      //
+      // 拿掉這道關卡是安全的：多筆時「誰是此刻的對應」由 dossier 的
+      // bindings + revision 鏈決定，**沒指定就是沒有對應**（見前端的
+      // `resolveEntityBinding`：多於一筆候選又無綁定即 unbound，前台什麼
+      // 都不顯示）。所以不可能「連到錯的東西」——那正是這道 409 當初存在
+      // 的唯一理由。
+      //
+      // storyKey 不同，**維持把關**：劇情點與內容是一對一，沒有隨進度切換
+      // 的語意，撞名就是真的錯誤。
+      if (keyType === 'entity') return null;
+
+      // Echoes / Visuals 的 storyKey：整個區塊一個實例
       const entries = area === 'echoes' ? echoes : visuals;
-
-      // entity 一對多綁定例外（2026-08-15 定案）：一個角色可以有多首
-      // 主題曲／多個畫廊（例如轉正前後各一），由 Concepts dossier 的
-      // bindings + revision 鏈決定此刻該給哪一個。這個 entityKey 只要
-      // 登記過有效綁定，同區多筆就是刻意的，放行。
-      //
-      // ⚠️ 刻意**不比對要存的這一頁**：新頁尚未存檔時不可能已被 Concepts
-      // 引用（雞生蛋），要求它先出現在綁定清單裡會讓第二首歌永遠存不進去。
-      // 判定語意是「這個 entityKey 是刻意多綁定的」。
-      //
-      // 但登記過的 target 必須本身有效（存在且 entityKey 相符）——見
-      // hasValidBinding 的說明。`entries` 已含 hidden，正是驗證需要的範圍。
-      //
-      // storyKey 不適用——劇情點與內容是一對一，沒有隨進度切換的語意。
-      if (
-        keyType === 'entity' &&
-        hasValidBinding(bindings, keyValue, area, entries)
-      ) {
-        return null;
-      }
-
-      const hit = entries.find((e) => {
-        if (e.id === excludePageId) return false;
-        return keyType === 'entity'
-          ? e.entityKey === keyValue
-          : e.storyKey === keyValue;
-      });
+      const hit = entries.find(
+        (e) => e.id !== excludePageId && e.storyKey === keyValue
+      );
       if (!hit) return null;
       return { pageId: hit.id, pageTitle: await fetchPageTitle(db, hit.id) };
     },

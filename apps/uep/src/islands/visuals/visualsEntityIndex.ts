@@ -12,43 +12,27 @@
  */
 
 import { isGalleryUnlockedInZone } from '../../components/visuals/visualsVisibility';
-import { getApiBase } from '../../lib/apiBase';
+import {
+  loadZoneEntityIndex,
+  type ZoneEntityIndexEntry,
+} from '../../lib/zoneEntityIndex';
 import type { ProgressState } from '../../progress/types';
 
-/** Worker VisualsEntityIndexEntry 的前端鏡像 */
-export interface VisualsEntityIndexEntry {
-  id: string;
-  /** 陳列走廊才有；S10-1 起鑲框室插圖改掛 storyKey，故為選填 */
-  entityKey?: string;
-  /** 插圖的劇情點身分（entity 聯集判定不使用，僅為型別誠實） */
-  storyKey?: string;
-  gate?: unknown;
-  locked: boolean;
-}
+/**
+ * 索引條目摘要——型別本體在 `lib/zoneEntityIndex`（Echoes 與 Visuals
+ * 的回應形狀相同，且 entity 綁定求值也用同一份）。此處保留舊名。
+ */
+export type VisualsEntityIndexEntry = ZoneEntityIndexEntry;
 
-const API_BASE = getApiBase();
-
-let indexCache: Promise<VisualsEntityIndexEntry[]> | null = null;
-
-/** 載入 Visuals entity 索引（模組級快取；失敗時清除快取讓下次重試） */
-export function loadVisualsEntityIndex(): Promise<VisualsEntityIndexEntry[]> {
-  if (!indexCache) {
-    indexCache = (async () => {
-      const res = await fetch(`${API_BASE}/api/visuals/entity-index`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        ok: boolean;
-        data?: { entries?: VisualsEntityIndexEntry[] };
-        error?: string;
-      };
-      if (!json.ok) throw new Error(json.error || 'API returned ok=false');
-      return json.data?.entries || [];
-    })().catch((err) => {
-      indexCache = null;
-      throw err;
-    });
-  }
-  return indexCache;
+/**
+ * 載入 visuals entity 索引（模組級快取；失敗時清除快取讓下次重試）。
+ *
+ * 委派給 `lib/zoneEntityIndex` 的共用載入器——同一個端點原本在這裡、
+ * 對位的 Echoes 索引、以及 entity 綁定求值各有一份快取，
+ * 三份互相看不見（見該檔檔頭）。
+ */
+export function loadVisualsEntityIndex(): Promise<ZoneEntityIndexEntry[]> {
+  return loadZoneEntityIndex('visuals');
 }
 
 /**
@@ -63,9 +47,12 @@ export function isVisualsEntityUnlocked(
   progress: ProgressState
 ): boolean {
   if (!entries) return false;
+  // 索引自 2026-08-18 起含 hidden；此處維持既有語意——隱藏內容不算
+  // 「這個 key 有可用內容」（要指向它得由 dossier 明講）
   return entries.some(
     (e) =>
       e.entityKey === key &&
+      !e.hidden &&
       isGalleryUnlockedInZone(
         {
           id: e.id,

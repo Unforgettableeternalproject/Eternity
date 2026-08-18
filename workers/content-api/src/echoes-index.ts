@@ -28,6 +28,13 @@ export interface EchoesEntityIndexEntry {
   /** Echoes zone 收藏池 gate；舊字串 gate 不回傳為條件 */
   gate?: unknown;
   locked: boolean;
+  /**
+   * 從列表隱藏（`metadata.hidden`）——仍是合法的引用目標，故索引照收。
+   *
+   * 消費端「數同 key 有幾筆候選」時要排除它；「驗證 dossier 指向的那一筆
+   * 是否解鎖」時必須看得到（by-id 反查也刻意不排除 hidden）。
+   */
+  hidden?: boolean;
 }
 
 /** buildEchoesEntityIndex 選項 */
@@ -104,6 +111,11 @@ export async function buildEchoesEntityIndex(
         ? { gate: meta.gate }
         : {}),
       locked: meta.locked === true,
+      // hidden 一併回傳：消費端「數同 key 有幾筆候選」時要排除它（隱藏
+      // 內容不在列表出現，不該影響唯一性），但「驗證 dossier 指向的那一筆
+      // 是否解鎖」時**必須看得到**——明確綁定一首隱藏的前期曲是合法用法，
+      // by-id 消費路徑（findSongById／findGalleryById）也刻意不排除 hidden
+      ...(meta.hidden === true ? { hidden: true } : {}),
     });
   }
   return entries;

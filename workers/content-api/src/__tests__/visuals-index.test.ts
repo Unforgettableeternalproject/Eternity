@@ -135,11 +135,17 @@ describe('GET /api/visuals/entity-index', () => {
     ).toBeUndefined();
   });
 
-  it('hidden=1 的畫廊不進索引', async () => {
+  it('🔑 hidden=1 的畫廊進索引，但帶 hidden 旗標（2026-08-18）', async () => {
+    // hidden 只是不在列表顯示，仍是合法的引用目標——dossier 可以明確
+    // 綁定一首隱藏的前期曲，by-id 消費路徑也不排除它。消費端依這個旗標
+    // 自行決定：數候選時排除、驗證明確指向時接受
     const entries = await fetchIndex();
-    expect(
-      entries.find((e) => e.entityKey === 'vidx-gallery-hidden')
-    ).toBeUndefined();
+    const hidden = entries.find((e) => e.entityKey === 'vidx-gallery-hidden');
+    expect(hidden).toBeDefined();
+    expect(hidden!.hidden).toBe(true);
+    // 未隱藏的條目不帶這個旗標（不是一律 false）
+    const plain = entries.find((e) => e.entityKey !== 'vidx-gallery-hidden');
+    expect(plain!.hidden).toBeUndefined();
   });
 
   it('軟刪除的畫廊不進索引', async () => {

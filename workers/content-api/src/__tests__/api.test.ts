@@ -252,7 +252,9 @@ describe('PUT /api/content/:area/:slug — key 唯一性把關（S10-1）', () =
     },
   ];
 
-  it('Echoes 同 zone entityKey 撞名 → 409 並帶出衝突頁', async () => {
+  it('🔑 Echoes 同 zone entityKey 多筆 → 照常存入（2026-08-18 定案）', async () => {
+    // entityKey 是身分不是唯一識別：同一個角色可以有多首主題曲。
+    // 此刻對應哪一首由 Concepts dossier 決定，沒指定就是沒有對應
     const first = await putPage('echoes/uniq/song-one', {
       title: '第一首',
       pageType: 'song',
@@ -265,13 +267,7 @@ describe('PUT /api/content/:area/:slug — key 唯一性把關（S10-1）', () =
       pageType: 'song',
       metadata: { entityKey: 'uniq-clash' },
     });
-    expect(second.status).toBe(409);
-    expect(second.json.conflict).toMatchObject({
-      field: 'entityKey',
-      key: 'uniq-clash',
-      conflictingPageId: 'echoes/uniq/song-one',
-      conflictingPageTitle: '第一首',
-    });
+    expect(second.status).toBe(201);
   });
 
   it('storyKey 撞名同樣 409，且與 entityKey 分屬不同命名空間', async () => {
@@ -1114,112 +1110,5 @@ describe('PATCH /api/content/:area/:slug/metadata — 進度頁部分更新（S1
     expect(idxAfter).toEqual(idxBefore);
     expect(after!.content).toBe(before!.content);
     expect(after!.updated_at).not.toBe(before!.updated_at);
-  });
-});
-
-describe('GET /api/concepts/bound-keys — entity 一對多綁定登記（admin only）', () => {
-  beforeAll(async () => {
-    await env.CONTENT_DB.prepare(
-      `INSERT INTO pages (id, area, title, slug, sort_order, content, metadata, status, page_type, depth, deleted_at)
-       VALUES (?, 'concepts', ?, ?, 1, ?, ?, 'synced', 'page', 2, NULL)`
-    )
-      .bind(
-        'concepts/bk/records/characters',
-        '綁定端點測試檔案',
-        'bk/records/characters',
-        JSON.stringify([
-          {
-            type: 'dossier',
-            content: JSON.stringify({
-              variants: [
-                {
-                  id: 'u',
-                  subcategories: [
-                    {
-                      label: '人物',
-                      groups: [
-                        {
-                          label: '',
-                          entries: [
-                            {
-                              name: '綁定端點角色',
-                              entityKey: 'bk-turncoat',
-                              revisions: [
-                                {
-                                  id: 'base',
-                                  gate: null,
-                                  patch: {
-                                    set: { 'bindings.echoes': 'echoes/bk/one' },
-                                  },
-                                },
-                                {
-                                  id: 'bk-turncoat:turned',
-                                  gate: {
-                                    requiresFlags: ['bk-turncoat:turned'],
-                                  },
-                                  patch: {
-                                    set: { 'bindings.echoes': 'echoes/bk/two' },
-                                  },
-                                },
-                              ],
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            }),
-          },
-        ]),
-        JSON.stringify({ stack_style: 'dossier' })
-      )
-      .run();
-  });
-
-  it('未授權 → 401（綁定指向是未解鎖內容的 page id，不可公開）', async () => {
-    const res = await worker.fetch(
-      createRequest('/api/concepts/bound-keys'),
-      env,
-      ctx
-    );
-    expect(res.status).toBe(401);
-  });
-
-  it('已授權 → 200，回傳 entityKey 對各 zone 的綁定清單', async () => {
-    const res = await worker.fetch(
-      createRequest('/api/concepts/bound-keys', {
-        token: await getAdminToken(),
-      }),
-      env,
-      ctx
-    );
-    expect(res.status).toBe(200);
-    const json = (await res.json()) as {
-      ok: boolean;
-      data: {
-        bound: Record<string, { echoesIds: string[]; visualsIds: string[] }>;
-      };
-    };
-    expect(json.ok).toBe(true);
-    expect(json.data.bound['bk-turncoat']).toEqual({
-      echoesIds: ['echoes/bk/one', 'echoes/bk/two'],
-      visualsIds: [],
-    });
-  });
-
-  it('未登記綁定的 entityKey 不出現在回應中', async () => {
-    const res = await worker.fetch(
-      createRequest('/api/concepts/bound-keys', {
-        token: await getAdminToken(),
-      }),
-      env,
-      ctx
-    );
-    const json = (await res.json()) as {
-      data: { bound: Record<string, unknown> };
-    };
-    expect(json.data.bound).not.toHaveProperty('xavier-colsono');
   });
 });
