@@ -171,22 +171,39 @@ export async function buildConceptsBindingIndex(
   return index;
 }
 
+/** 驗證綁定 target 用的最小形狀（Echoes／Visuals 的 zone 索引條目即符合） */
+export interface BindingTargetEntry {
+  id: string;
+  entityKey?: string;
+}
+
 /**
- * 這個 entityKey 是否登記過**任何**綁定（不論指向哪一個 id）。
+ * 這個 entityKey 有沒有**至少一筆有效**的綁定登記。
  *
- * 撞名把關的例外判定用的就是這一條，刻意**不逐 id 比對**：新頁尚未存檔時
- * 當然不可能已經被 Concepts revision 引用（雞生蛋），要求它出現在綁定清單
- * 裡會讓第二首歌永遠存不進去。語意是「這個 entityKey 是刻意多綁定的」，
+ * 撞名把關的例外判定用的就是這一條——「這個 entityKey 是刻意多綁定的」，
  * 而不是「這一頁已經被登記」。
+ *
+ * ⚠️ **不比對「要存的這一頁」**：新頁尚未存檔時當然不可能已經被 Concepts
+ * 引用（雞生蛋），要求它先出現在綁定清單裡會讓第二首歌永遠存不進去。
+ *
+ * ⚠️ 但**必須驗證登記過的那些 target 本身有效**（存在、且 entityKey 相符）。
+ * 只看「字串非空」的話，一筆指向已刪頁面或打錯 id 的殘留綁定就能永久開啟
+ * 這個 key 的撞名豁免，之後同 key 想塞幾筆都行——而那些內容誰都綁不到，
+ * 求值端只會回 unbound，讀者實際看到的是 by-key 反查的任意一筆。
+ *
+ * `targets` 由呼叫端提供（撞名檢查器本來就建好了 zone 索引），不另查 D1。
+ * 索引須含 hidden 頁：切換後隱藏的劇情期歌曲仍是合法的綁定對象。
  */
-export function hasRegisteredBinding(
+export function hasValidBinding(
   index: Map<string, ConceptsBindingEntry>,
   entityKey: string,
-  area: 'echoes' | 'visuals'
+  area: 'echoes' | 'visuals',
+  targets: readonly BindingTargetEntry[]
 ): boolean {
   const bucket = index.get(entityKey);
   if (!bucket) return false;
-  return area === 'echoes'
-    ? bucket.echoesIds.length > 0
-    : bucket.visualsIds.length > 0;
+  const ids = area === 'echoes' ? bucket.echoesIds : bucket.visualsIds;
+  return ids.some((id) =>
+    targets.some((t) => t.id === id && t.entityKey === entityKey)
+  );
 }

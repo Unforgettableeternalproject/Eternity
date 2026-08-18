@@ -694,6 +694,55 @@ describe('findKeyConflict — entity 一對多綁定例外（2026-08-15 定案�
     expect(conflict!.pageId).toBe('visuals/bindx/gal-a');
   });
 
+  it('🔒 綁定的 target 不存在時 409 恢復把關（殘留綁定不算豁免）', async () => {
+    // 只看「登記過字串」的話，一筆指向已刪頁面的殘留綁定就能永久開啟這個
+    // key 的撞名豁免，同 key 想塞幾筆都行——而那些內容誰都綁不到，
+    // 求值端只會回 unbound，讀者看到的是 by-key 反查的任意一筆
+    await insertConceptsPage(
+      'concepts/bindx/records/ghost',
+      '殘留綁定檔案',
+      'dossier',
+      {
+        variants: [
+          {
+            id: 'u',
+            subcategories: [
+              {
+                label: '人物',
+                groups: [
+                  {
+                    label: '',
+                    entries: [
+                      {
+                        name: '殘留角色',
+                        entityKey: 'bindx-ghost',
+                        // 指向一個從來不存在的頁面
+                        bindings: { echoes: 'echoes/bindx/deleted-song' },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }
+    );
+    await insertKeyPage('echoes', 'echoes/bindx/ghost-a', '殘留甲', {
+      entityKey: 'bindx-ghost',
+    });
+
+    const conflict = await findKeyConflict(env.CONTENT_DB, {
+      keyType: 'entity',
+      keyValue: 'bindx-ghost',
+      area: 'echoes',
+      scope: ZONE_SCOPE,
+      excludePageId: 'echoes/bindx/ghost-b',
+    });
+    expect(conflict).not.toBeNull();
+    expect(conflict!.pageId).toBe('echoes/bindx/ghost-a');
+  });
+
   it('storyKey 不適用綁定例外（劇情點與內容是一對一）', async () => {
     await insertKeyPage('echoes', 'echoes/bindx/story-a', '劇情曲甲', {
       storyKey: 'bindx-turncoat',

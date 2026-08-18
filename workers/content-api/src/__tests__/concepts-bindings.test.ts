@@ -3,7 +3,7 @@ import { env } from 'cloudflare:workers';
 
 import {
   buildConceptsBindingIndex,
-  hasRegisteredBinding,
+  hasValidBinding,
 } from '../concepts-bindings';
 
 /**
@@ -296,18 +296,57 @@ describe('buildConceptsBindingIndex', () => {
   });
 });
 
-describe('hasRegisteredBinding', () => {
+describe('hasValidBinding', () => {
+  /** 撞名檢查器實際傳進來的是 zone 索引；這裡給等價的最小形狀 */
+  const ECHOES_TARGETS = [
+    { id: 'echoes/bind/villain-theme', entityKey: 'bind-turncoat' },
+    { id: 'echoes/bind/hero-theme', entityKey: 'bind-turncoat' },
+    { id: 'echoes/bind/nested-theme', entityKey: 'bind-nested' },
+    { id: 'echoes/bind/only-theme', entityKey: 'bind-baseonly' },
+  ];
+
   it('未登記的 entityKey 回 false', async () => {
     const index = await buildConceptsBindingIndex(env.CONTENT_DB);
-    expect(hasRegisteredBinding(index, 'bind-plain', 'echoes')).toBe(false);
-    expect(hasRegisteredBinding(index, '完全不存在的-key', 'echoes')).toBe(
+    expect(hasValidBinding(index, 'bind-plain', 'echoes', ECHOES_TARGETS)).toBe(
       false
     );
+    expect(
+      hasValidBinding(index, '完全不存在的-key', 'echoes', ECHOES_TARGETS)
+    ).toBe(false);
   });
 
   it('依 area 分別判定——只綁 echoes 的 key 不放行 visuals', async () => {
     const index = await buildConceptsBindingIndex(env.CONTENT_DB);
-    expect(hasRegisteredBinding(index, 'bind-nested', 'echoes')).toBe(true);
-    expect(hasRegisteredBinding(index, 'bind-nested', 'visuals')).toBe(false);
+    expect(
+      hasValidBinding(index, 'bind-nested', 'echoes', ECHOES_TARGETS)
+    ).toBe(true);
+    expect(hasValidBinding(index, 'bind-nested', 'visuals', [])).toBe(false);
+  });
+
+  it('🔒 target 不存在的殘留綁定不放行（頁面被刪後 id 留在 dossier）', async () => {
+    // 只看「登記過字串」的話，一筆指向已刪頁面的殘留綁定就能永久開啟
+    // 這個 key 的撞名豁免，而那些內容誰都綁不到
+    const index = await buildConceptsBindingIndex(env.CONTENT_DB);
+    expect(hasValidBinding(index, 'bind-turncoat', 'echoes', [])).toBe(false);
+  });
+
+  it('🔒 target 的 entityKey 對不上不放行（指到別人的歌）', async () => {
+    const index = await buildConceptsBindingIndex(env.CONTENT_DB);
+    expect(
+      hasValidBinding(index, 'bind-turncoat', 'echoes', [
+        // id 對得上，但這首歌掛的是另一個實體
+        { id: 'echoes/bind/villain-theme', entityKey: 'someone-else' },
+      ])
+    ).toBe(false);
+  });
+
+  it('多筆登記中只要有一筆有效就放行', async () => {
+    const index = await buildConceptsBindingIndex(env.CONTENT_DB);
+    expect(
+      hasValidBinding(index, 'bind-turncoat', 'echoes', [
+        // 第一筆已被刪，第二筆仍在
+        { id: 'echoes/bind/hero-theme', entityKey: 'bind-turncoat' },
+      ])
+    ).toBe(true);
   });
 });

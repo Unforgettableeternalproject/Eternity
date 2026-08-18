@@ -225,14 +225,16 @@ export default function IslandHost() {
           binding.status === 'bound'
             ? `${API_BASE}/api/echoes/song?id=${encodeURIComponent(binding.id)}`
             : `${API_BASE}/api/echoes/entity-song?key=${encodeURIComponent(entityKey)}`;
+        const viaBinding = binding.status === 'bound';
         return Promise.all([
           fetch(songUrl, { signal }).then((response) => response.json()),
           fetchZoneProgressTree('echoes'),
+          Promise.resolve(viaBinding),
         ]);
       })()
         .then((resolved) => {
           if (!resolved) return;
-          const [payload, zoneTree] = resolved;
+          const [payload, zoneTree, viaBinding] = resolved;
           // async 落地後重驗——等待期間可能登出/停用 Echoes，此時不得
           // 再推提示或展開島
           if (!shouldMountIsland(progressRef.current, 'echoes')) return;
@@ -240,6 +242,15 @@ export default function IslandHost() {
           // 查不到／不合格時清掉舊提示卡——否則上一張 RELATED ECHO
           // 會殘留，誤導使用者以為與這次點擊的 entity 有關
           if (!payload?.ok || !song) {
+            clearEchoSuggestion();
+            return;
+          }
+          // 明確綁定必須指到**同一個實體**的內容。picker 的候選本來就只列
+          // 同 entityKey 的曲目，不一致代表資料已經壞掉（target 被刪、
+          // entityKey 被改、或載入失敗時手填打錯），此時寧可不顯示也不能
+          // 把別人的歌掛到這個角色頭上。
+          // by-key 路徑不必檢查——它本來就是按 key 查出來的
+          if (viaBinding && song.entityKey !== entityKey) {
             clearEchoSuggestion();
             return;
           }
@@ -344,20 +355,28 @@ export default function IslandHost() {
           binding.status === 'bound'
             ? `${API_BASE}/api/visuals/gallery?id=${encodeURIComponent(binding.id)}`
             : `${API_BASE}/api/visuals/entity-gallery?key=${encodeURIComponent(entityKey)}`;
+        const viaBinding = binding.status === 'bound';
         return Promise.all([
           fetch(galleryUrl, { signal }).then((response) => response.json()),
           fetchZoneProgressTree('visuals'),
+          Promise.resolve(viaBinding),
         ]);
       })()
         .then((resolved) => {
           if (!resolved) return;
-          const [payload, zoneTree] = resolved;
+          const [payload, zoneTree, viaBinding] = resolved;
           // async 落地後重驗——等待期間可能登出/停用 Visuals
           if (!shouldMountIsland(progressRef.current, 'visuals')) return;
           const gallery = payload?.data?.gallery;
           // 查不到／不合格時清掉舊提示卡——否則上一張 RELATED VISUAL
           // 會殘留，誤導使用者以為與這次點擊的 entity 有關
           if (!payload?.ok || !gallery) {
+            clearPhantomSuggestion();
+            return;
+          }
+          // 同 Echoes 分支：明確綁定必須指到同一個實體的畫廊，
+          // 不一致代表資料壞了，寧可不顯示
+          if (viaBinding && gallery.entityKey !== entityKey) {
             clearPhantomSuggestion();
             return;
           }

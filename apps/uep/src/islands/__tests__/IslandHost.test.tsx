@@ -590,6 +590,63 @@ describe('IslandHost — entity 一對多綁定接線', () => {
     );
   });
 
+  it('🔒 綁定指到別人的歌 → 不顯示（entityKey 不一致）', async () => {
+    // picker 的候選本來就只列同 entityKey 的曲目，會不一致代表資料壞了
+    // （target 被刪、entityKey 被改、載入失敗時手填打錯）
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        requested.push(url);
+        if (url.includes('/api/concepts/entity-index')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                data: {
+                  entries: [
+                    {
+                      stack: 'dossier',
+                      pageId: 'concepts/t8/records',
+                      entityKey: 't8-turncoat',
+                    },
+                  ],
+                },
+              }),
+          });
+        }
+        if (url.includes('/api/content/concepts/t8/records')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                data: {
+                  content: [
+                    { type: 'dossier', content: JSON.stringify(DOSSIER_PAGE) },
+                  ],
+                },
+              }),
+          });
+        }
+        // by-id 回來的歌掛在另一個實體身上
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              data: { song: { ...BOUND_SONG, entityKey: 'someone-else' } },
+            }),
+        });
+      })
+    );
+    invalidateEntityBindingCache();
+    render(<IslandHost />);
+    await activate('t8-turncoat');
+
+    expect(hasEchoSuggestion()).toBe(false);
+  });
+
   it('🔒 權威資料拿不到 → fail closed，不退回 by-key', async () => {
     // by-key 是全表掃描命中第一筆（無 ORDER BY），同 key 多候選時會顯示
     // 任意一筆，繞過 dossier 寫好的明確指向。索引暫時抓不到寧可什麼都不推
