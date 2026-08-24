@@ -248,11 +248,18 @@ function setupCSSProtection(): void {
       user-select: text;
     }
 
-    /* Reader 頁面防止圖片拖曳下載 */
+    /* Reader 頁面防止圖片拖曳下載
+
+       ⚠️ 這裡絕不可加 pointer-events。pointer-events 是**繼承屬性**，
+       站上有多層「整層不吃事件」的疊層（zone boot 立繪、退場中的遮罩、
+       裝飾層）靠的正是在容器上寫一次 none 讓整棵子樹跟著失效。在這條
+       全 Reader 生效的規則裡把 img 撈回 auto，等於讓那些疊層裡的圖片
+       單獨復活成命中目標：它們多半 position:absolute 且落在畫面中央，
+       於是蓋掉底下的按鈕，觸控也因為滾動鏈接不到真正的捲動容器而捲不動。
+       拖曳保護由 user-drag 負責，與命中測試無關。 */
     body[data-reader-page="true"] img {
       -webkit-user-drag: none;
       user-drag: none;
-      pointer-events: auto;
     }
   `;
   document.head.appendChild(style);
