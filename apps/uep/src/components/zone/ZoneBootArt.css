@@ -23,6 +23,10 @@
   position: absolute;
   left: 50%;
   top: 50%;
+  /* 父層 `.is-ready` 的 none 會繼承下來，這裡是明講一次的第二道：她是純
+     裝飾，boot 收掉後仍留在 DOM，一旦被誰撈回 auto 就會蓋住畫面中央的
+     按鈕、並讓觸控滾動鏈接不到 Reader 的捲動容器 */
+  pointer-events: none;
   /* 高度當基準而不是寬度：五張構圖寬窄差很多（單人到雙人），
      統一高度份量才會相當 */
   height: min(40vh, 46vw);
