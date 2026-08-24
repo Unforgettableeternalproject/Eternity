@@ -375,6 +375,13 @@
     scroll-snap-type: y proximity;
   }
 
+  /* Hero 與 Atlas 也吃基礎規則的 always，而它們是進站看到的頭兩屏——
+     漏掉這一條的話，最先被「一格一格卡住」的正是第一次滑動。Hero 本身
+     還比視窗高（實測 1076 vs 789），always 會在讀完它之前就把手勢收掉 */
+  .snap-section {
+    scroll-snap-stop: normal;
+  }
+
   .journey-scene {
     min-height: calc(100dvh - var(--topbar-h, 0px));
     padding: 60px 20px 48px;
