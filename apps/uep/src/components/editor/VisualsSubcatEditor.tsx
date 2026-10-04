@@ -1,9 +1,16 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
+  applyPendingOrder,
   beginRowDrag,
   getDialog,
   getToast,
-  reorderPages,
+  sameOrder,
 } from './editorHelpers';
 
 interface GalleryItem {
@@ -22,6 +29,10 @@ interface VisualsSubcatEditorProps {
   accent: string;
   onDirty: () => void;
   refreshKey?: number;
+  /** 暫存中尚未儲存的排序（id 陣列）；null 表示與伺服器一致 */
+  pendingOrder: string[] | null;
+  /** 回報暫存排序；與伺服器順序一致時回報 null */
+  onPendingOrderChange: (order: string[] | null) => void;
 }
 
 export default function VisualsSubcatEditor({
@@ -32,8 +43,15 @@ export default function VisualsSubcatEditor({
   accent,
   onDirty,
   refreshKey,
+  pendingOrder,
+  onPendingOrderChange,
 }: VisualsSubcatEditorProps) {
-  const [galleries, setGalleries] = useState<GalleryItem[]>([]);
+  const [serverGalleries, setServerGalleries] = useState<GalleryItem[]>([]);
+  // 顯示順序 = 伺服器清單套用暫存排序；拖曳只改暫存，儲存時才送出
+  const galleries = useMemo(
+    () => applyPendingOrder(serverGalleries, pendingOrder),
+    [serverGalleries, pendingOrder]
+  );
   const [loading, setLoading] = useState(true);
 
   // 新增畫廊表單
@@ -72,7 +90,7 @@ export default function VisualsSubcatEditor({
         const galleryChildren = (node.children || [])
           .filter((c: any) => c.pageType === 'gallery')
           .sort((a: GalleryItem, b: GalleryItem) => a.sortOrder - b.sortOrder);
-        setGalleries(galleryChildren);
+        setServerGalleries(galleryChildren);
       }
     } catch (err) {
       console.error('載入畫廊清單失敗:', err);
@@ -84,6 +102,23 @@ export default function VisualsSubcatEditor({
   useEffect(() => {
     void fetchGalleries();
   }, [fetchGalleries, refreshKey]);
+
+  // 重抓後校正暫存：新增項目已接在尾端、刪除項目已略過；
+  // 結果與伺服器一致就清除暫存
+  useEffect(() => {
+    if (loading || !pendingOrder) return;
+    const ids = galleries.map((item) => item.id);
+    if (
+      sameOrder(
+        ids,
+        serverGalleries.map((item) => item.id)
+      )
+    ) {
+      onPendingOrderChange(null);
+    } else if (!sameOrder(ids, pendingOrder)) {
+      onPendingOrderChange(ids);
+    }
+  }, [loading, galleries, serverGalleries, pendingOrder, onPendingOrderChange]);
 
   // 新增畫廊
   const handleAddGallery = async () => {
@@ -144,28 +179,24 @@ export default function VisualsSubcatEditor({
     setDropIdx(idx);
   };
 
-  const handleDrop = async () => {
+  const handleDrop = () => {
     const from = dragFromRef.current;
     dragFromRef.current = null;
     setDragIdx(null);
     setDropIdx(null);
     if (from === null || dropIdx === null || from === dropIdx) return;
 
-    const reordered = [...galleries];
+    const reordered = galleries.map((item) => item.id);
     const [moved] = reordered.splice(from, 1);
     reordered.splice(dropIdx, 0, moved);
-    setGalleries(reordered);
-
-    const result = await reorderPages(
-      apiBase,
-      area,
-      pageId,
-      reordered.map((item) => item.id)
+    onPendingOrderChange(
+      sameOrder(
+        reordered,
+        serverGalleries.map((item) => item.id)
+      )
+        ? null
+        : reordered
     );
-    if (!result.ok) {
-      getToast().error(`排序儲存失敗: ${result.error ?? '未知錯誤'}`);
-    }
-    await fetchGalleries();
   };
 
   // 刪除畫廊
@@ -228,7 +259,7 @@ export default function VisualsSubcatEditor({
                 onDrop={(e) => {
                   // 拖曳帶 text/plain，未擋預設行為時 Firefox 會把它當網址開啟
                   e.preventDefault();
-                  void handleDrop();
+                  handleDrop();
                 }}
                 onDragEnd={() => {
                   dragFromRef.current = null;

@@ -1,9 +1,16 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
+  applyPendingOrder,
   beginRowDrag,
   getDialog,
   getToast,
-  reorderPages,
+  sameOrder,
 } from './editorHelpers';
 
 interface SongItem {
@@ -22,6 +29,10 @@ interface EchoesSubcatEditorProps {
   accent: string;
   onDirty: () => void;
   refreshKey?: number;
+  /** 暫存中尚未儲存的排序（id 陣列）；null 表示與伺服器一致 */
+  pendingOrder: string[] | null;
+  /** 回報暫存排序；與伺服器順序一致時回報 null */
+  onPendingOrderChange: (order: string[] | null) => void;
 }
 
 export default function EchoesSubcatEditor({
@@ -32,8 +43,15 @@ export default function EchoesSubcatEditor({
   accent,
   onDirty,
   refreshKey,
+  pendingOrder,
+  onPendingOrderChange,
 }: EchoesSubcatEditorProps) {
-  const [songs, setSongs] = useState<SongItem[]>([]);
+  const [serverSongs, setServerSongs] = useState<SongItem[]>([]);
+  // 顯示順序 = 伺服器清單套用暫存排序；拖曳只改暫存，儲存時才送出
+  const songs = useMemo(
+    () => applyPendingOrder(serverSongs, pendingOrder),
+    [serverSongs, pendingOrder]
+  );
   const [loading, setLoading] = useState(true);
 
   // 新增歌曲表單
@@ -73,7 +91,7 @@ export default function EchoesSubcatEditor({
         const songChildren = (node.children || [])
           .filter((c: any) => c.pageType === 'song')
           .sort((a: SongItem, b: SongItem) => a.sortOrder - b.sortOrder);
-        setSongs(songChildren);
+        setServerSongs(songChildren);
       }
     } catch (err) {
       console.error('載入歌曲清單失敗:', err);
@@ -85,6 +103,23 @@ export default function EchoesSubcatEditor({
   useEffect(() => {
     void fetchSongs();
   }, [fetchSongs, refreshKey]);
+
+  // 重抓後校正暫存：新增項目已接在尾端、刪除項目已略過；
+  // 結果與伺服器一致就清除暫存
+  useEffect(() => {
+    if (loading || !pendingOrder) return;
+    const ids = songs.map((item) => item.id);
+    if (
+      sameOrder(
+        ids,
+        serverSongs.map((item) => item.id)
+      )
+    ) {
+      onPendingOrderChange(null);
+    } else if (!sameOrder(ids, pendingOrder)) {
+      onPendingOrderChange(ids);
+    }
+  }, [loading, songs, serverSongs, pendingOrder, onPendingOrderChange]);
 
   // 新增歌曲
   const handleAddSong = async () => {
@@ -151,28 +186,24 @@ export default function EchoesSubcatEditor({
     setDropIdx(idx);
   };
 
-  const handleDrop = async () => {
+  const handleDrop = () => {
     const from = dragFromRef.current;
     dragFromRef.current = null;
     setDragIdx(null);
     setDropIdx(null);
     if (from === null || dropIdx === null || from === dropIdx) return;
 
-    const reordered = [...songs];
+    const reordered = songs.map((item) => item.id);
     const [moved] = reordered.splice(from, 1);
     reordered.splice(dropIdx, 0, moved);
-    setSongs(reordered);
-
-    const result = await reorderPages(
-      apiBase,
-      area,
-      pageId,
-      reordered.map((item) => item.id)
+    onPendingOrderChange(
+      sameOrder(
+        reordered,
+        serverSongs.map((item) => item.id)
+      )
+        ? null
+        : reordered
     );
-    if (!result.ok) {
-      getToast().error(`排序儲存失敗: ${result.error ?? '未知錯誤'}`);
-    }
-    await fetchSongs();
   };
 
   // 刪除歌曲
@@ -235,7 +266,7 @@ export default function EchoesSubcatEditor({
                 onDrop={(e) => {
                   // 拖曳帶 text/plain，未擋預設行為時 Firefox 會把它當網址開啟
                   e.preventDefault();
-                  void handleDrop();
+                  handleDrop();
                 }}
                 onDragEnd={() => {
                   dragFromRef.current = null;

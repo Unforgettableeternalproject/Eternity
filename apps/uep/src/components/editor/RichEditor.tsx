@@ -54,6 +54,8 @@ import {
   formatInterlinkKey,
   htmlToMarkdown,
   resolveProgressToggles,
+  commitPendingReorder,
+  type PendingReorder,
 } from './editorHelpers';
 import {
   resolveEditorMode,
@@ -227,7 +229,14 @@ export default function RichEditor({
   const [dirtyTiptap, setDirtyTiptap] = useState(false);
   const [dirtyMetadata, setDirtyMetadata] = useState(false);
   const [dirtyStructured, setDirtyStructured] = useState(false);
-  const isDirty = dirtyTitle || dirtyTiptap || dirtyMetadata || dirtyStructured;
+  // 子頁拖曳排序的暫存：儲存時才送出，不隨 resetDirty 清除——
+  // 頁面本體已存而排序失敗時，必須維持未儲存讓使用者重試
+  const [pendingReorder, setPendingReorder] = useState<PendingReorder | null>(
+    null
+  );
+  const isPageDirty =
+    dirtyTitle || dirtyTiptap || dirtyMetadata || dirtyStructured;
+  const isDirty = isPageDirty || pendingReorder !== null;
 
   function resetDirty() {
     setDirtyTitle(false);
@@ -536,6 +545,32 @@ export default function RichEditor({
   // Save handler
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
+
+    // 送出暫存排序；成功才清除，儲存途中又拖曳產生的新暫存保留
+    const commitReorder = async () => {
+      if (!pendingReorder) return true;
+      const committed = pendingReorder;
+      const ok = await commitPendingReorder(apiBase, area, committed);
+      if (ok) setPendingReorder((cur) => (cur === committed ? null : cur));
+      return ok;
+    };
+    const finishSave = (ok: boolean) => {
+      setTreeRefreshKey((k) => k + 1);
+      if (ok) {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } else {
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      }
+    };
+
+    // 只有排序待存：不重送頁面本體，也不讓頁面資料驗證擋下排序
+    if (!isPageDirty) {
+      setSaveStatus('saving');
+      finishSave(await commitReorder());
+      return;
+    }
     if (editorMode.needsTipTap && !editor) return;
 
     // entityKey 硬驗證（S7-B 驗收回饋）：輸入層只警告不阻擋打字，
@@ -740,9 +775,9 @@ export default function RichEditor({
       gateExemptTouchedRef.current = false;
       window.dispatchEvent(new Event('concepts-editor-saved'));
       resetDirty();
-      setSaveStatus('saved');
-      setTreeRefreshKey((k) => k + 1);
-      setTimeout(() => setSaveStatus('idle'), 2000);
+      // 頁面本體先存、排序後送：排序失敗不連帶擋下內容，
+      // 且只留下排序的未儲存狀態
+      finishSave(await commitReorder());
     } catch {
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 3000);
@@ -750,6 +785,8 @@ export default function RichEditor({
   }, [
     editor,
     isDirty,
+    isPageDirty,
+    pendingReorder,
     modeId,
     echoesData,
     visualsData,
@@ -843,6 +880,13 @@ export default function RichEditor({
     if (ok) dirtyRef.current = false; // bypass 後續 beforeunload
     return ok;
   }, []);
+
+  const handlePendingOrderChange = useCallback(
+    (order: string[] | null) => {
+      setPendingReorder(order ? { parentId: currentPageId, order } : null);
+    },
+    [currentPageId]
+  );
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -3126,6 +3170,8 @@ export default function RichEditor({
                         accent={accentMain}
                         onDirty={() => setMetaDirty(true)}
                         refreshKey={treeRefreshKey}
+                        pendingOrder={pendingReorder?.order ?? null}
+                        onPendingOrderChange={handlePendingOrderChange}
                       />
                     )}
                     {isVisualsSubcat && (
@@ -3137,6 +3183,8 @@ export default function RichEditor({
                         accent={accentMain}
                         onDirty={() => setMetaDirty(true)}
                         refreshKey={treeRefreshKey}
+                        pendingOrder={pendingReorder?.order ?? null}
+                        onPendingOrderChange={handlePendingOrderChange}
                       />
                     )}
                     {isZone && (

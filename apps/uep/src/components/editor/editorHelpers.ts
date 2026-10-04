@@ -61,6 +61,61 @@ export function reorderPages(
   });
 }
 
+/** 編輯器暫存中、尚未送出的子頁排序 */
+export interface PendingReorder {
+  parentId: string;
+  order: string[];
+}
+
+/**
+ * 送出暫存排序；失敗時提示並回傳 false，呼叫端應保留暫存以便重試。
+ */
+export async function commitPendingReorder(
+  apiBase: string,
+  area: string,
+  pending: PendingReorder
+): Promise<boolean> {
+  const result = await reorderPages(
+    apiBase,
+    area,
+    pending.parentId,
+    pending.order
+  );
+  if (!result.ok) {
+    getToast().error(`排序儲存失敗: ${result.error ?? '未知錯誤'}`);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * 依暫存排序排列伺服器清單：暫存中仍存在的項目依暫存順序，
+ * 暫存之後新增的項目依伺服器順序接在後面，已刪除的項目略過。
+ */
+export function applyPendingOrder<T extends { id: string }>(
+  items: T[],
+  pendingOrder: string[] | null
+): T[] {
+  if (!pendingOrder) return items;
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const ordered: T[] = [];
+  for (const id of pendingOrder) {
+    const item = byId.get(id);
+    if (item) {
+      ordered.push(item);
+      byId.delete(id);
+    }
+  }
+  for (const item of items) {
+    if (byId.has(item.id)) ordered.push(item);
+  }
+  return ordered;
+}
+
+export function sameOrder(a: readonly string[], b: readonly string[]) {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
 /**
  * 清單列拖曳起手：以整列為拖曳影像並寫入 dataTransfer（Firefox 沒有
  * setData 不會啟動拖曳）。呼叫端的 is-dragging 樣式要延到下一幀再套，
