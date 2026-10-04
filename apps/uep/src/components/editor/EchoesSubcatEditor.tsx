@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { getDialog, getToast } from './editorHelpers';
+import {
+  beginRowDrag,
+  getDialog,
+  getToast,
+  reorderPages,
+} from './editorHelpers';
 
 interface SongItem {
   id: string;
@@ -40,6 +45,8 @@ export default function EchoesSubcatEditor({
   // 拖曳
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
+  // 拖曳來源以 ref 記錄：is-dragging 樣式延一幀才套，drop 判定不能等它
+  const dragFromRef = useRef<number | null>(null);
 
   // 載入子歌曲
   const fetchSongs = useCallback(async () => {
@@ -131,7 +138,13 @@ export default function EchoesSubcatEditor({
   };
 
   // 拖曳排序
-  const handleDragStart = (idx: number) => setDragIdx(idx);
+  const handleDragStart = (e: React.DragEvent<HTMLElement>, idx: number) => {
+    beginRowDrag(e, idx);
+    dragFromRef.current = idx;
+    requestAnimationFrame(() => {
+      if (dragFromRef.current === idx) setDragIdx(idx);
+    });
+  };
 
   const handleDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
@@ -139,32 +152,27 @@ export default function EchoesSubcatEditor({
   };
 
   const handleDrop = async () => {
-    if (dragIdx === null || dropIdx === null || dragIdx === dropIdx) {
-      setDragIdx(null);
-      setDropIdx(null);
-      return;
-    }
-
-    // 重新排列
-    const newSongs = [...songs];
-    const [moved] = newSongs.splice(dragIdx, 1);
-    newSongs.splice(dropIdx, 0, moved);
-    setSongs(newSongs);
+    const from = dragFromRef.current;
+    dragFromRef.current = null;
     setDragIdx(null);
     setDropIdx(null);
+    if (from === null || dropIdx === null || from === dropIdx) return;
 
-    // 更新每首歌的 sortOrder
-    for (let i = 0; i < newSongs.length; i++) {
-      const song = newSongs[i];
-      if (song.sortOrder !== i) {
-        const songSlug = song.id.replace(`${area}/`, '');
-        await fetch(`${apiBase}/api/content/${area}/${songSlug}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sortOrder: i }),
-        });
-      }
+    const reordered = [...songs];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(dropIdx, 0, moved);
+    setSongs(reordered);
+
+    const result = await reorderPages(
+      apiBase,
+      area,
+      pageId,
+      reordered.map((item) => item.id)
+    );
+    if (!result.ok) {
+      getToast().error(`排序儲存失敗: ${result.error ?? '未知錯誤'}`);
     }
+    await fetchSongs();
   };
 
   // 刪除歌曲
@@ -222,10 +230,15 @@ export default function EchoesSubcatEditor({
                 key={song.id}
                 className={`ned-subcat-song-row ${isDragging ? 'is-dragging' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
                 draggable
-                onDragStart={() => handleDragStart(i)}
+                onDragStart={(e) => handleDragStart(e, i)}
                 onDragOver={(e) => handleDragOver(e, i)}
-                onDrop={handleDrop}
+                onDrop={(e) => {
+                  // 拖曳帶 text/plain，未擋預設行為時 Firefox 會把它當網址開啟
+                  e.preventDefault();
+                  void handleDrop();
+                }}
                 onDragEnd={() => {
+                  dragFromRef.current = null;
                   setDragIdx(null);
                   setDropIdx(null);
                 }}

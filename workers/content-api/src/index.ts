@@ -788,6 +788,127 @@ async function upsertPage(
   );
 }
 
+/**
+ * PUT /api/content/:area/reorder — 同層子頁批次排序
+ *
+ * 逐筆 PUT sortOrder 每次都會觸發 upsertPage 的 reindexChildren，中間
+ * 暫態出現同號時被 created_at tie-break 拉回原順序，最終排序存不住。
+ * 這裡一次算出最終順序、以單一 db.batch 寫入，不經逐筆 reindex。
+ *
+ * order 可以只是該層的子集合（編輯器清單會依 pageType 過濾）：列出的頁
+ * 依序填回它們原本佔用的位置，未列出的頁維持原位，最後整層歸一化為
+ * 0..n-1。order 內出現不屬於該 area／parent、已軟刪除或重複的 id → 400。
+ *
+ * 只有 sort_order 實際改變的列才更新 updated_at（sync 靠它判方向）；
+ * status 比照 upsertPage 純 sortOrder 更新的行為不動。
+ */
+async function reorderPages(
+  area: string,
+  request: Request,
+  db: D1Database,
+  cors: Record<string, string>
+): Promise<Response> {
+  const noStore = { ...cors, 'Cache-Control': 'private, no-store' };
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse(
+      { ok: false, error: 'Invalid JSON body' },
+      400,
+      noStore
+    );
+  }
+  const { parentId, order } = (body ?? {}) as {
+    parentId?: unknown;
+    order?: unknown;
+  };
+  if (parentId !== null && typeof parentId !== 'string') {
+    return jsonResponse(
+      { ok: false, error: 'parentId must be a string or null' },
+      400,
+      noStore
+    );
+  }
+  if (
+    !Array.isArray(order) ||
+    order.length === 0 ||
+    order.some((id) => typeof id !== 'string')
+  ) {
+    return jsonResponse(
+      { ok: false, error: 'order must be a non-empty array of page ids' },
+      400,
+      noStore
+    );
+  }
+  const orderIds = order as string[];
+  if (new Set(orderIds).size !== orderIds.length) {
+    return jsonResponse(
+      { ok: false, error: 'order contains duplicate ids' },
+      400,
+      noStore
+    );
+  }
+
+  const siblings = (
+    parentId === null
+      ? await db
+          .prepare(
+            'SELECT id, sort_order FROM pages WHERE area = ? AND parent_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
+          )
+          .bind(area)
+          .all<{ id: string; sort_order: number }>()
+      : await db
+          .prepare(
+            'SELECT id, sort_order FROM pages WHERE area = ? AND parent_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC'
+          )
+          .bind(area, parentId)
+          .all<{ id: string; sort_order: number }>()
+  ).results;
+
+  const siblingIds = new Set(siblings.map((s) => s.id));
+  const foreign = orderIds.filter((id) => !siblingIds.has(id));
+  if (foreign.length > 0) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: `Not children of ${parentId ?? '(root)'} in ${area}: ${foreign.join(', ')}`,
+      },
+      400,
+      noStore
+    );
+  }
+
+  // 列出的頁依序填回它們原本佔用的位置
+  const listed = new Set(orderIds);
+  let next = 0;
+  const finalIds = siblings.map((s) =>
+    listed.has(s.id) ? orderIds[next++] : s.id
+  );
+
+  const now = new Date().toISOString();
+  const current = new Map(siblings.map((s) => [s.id, s.sort_order]));
+  const statements = finalIds
+    .map((id, index) => ({ id, index }))
+    .filter(({ id, index }) => current.get(id) !== index)
+    .map(({ id, index }) =>
+      db
+        .prepare('UPDATE pages SET sort_order = ?, updated_at = ? WHERE id = ?')
+        .bind(index, now, id)
+    );
+  if (statements.length > 0) await db.batch(statements);
+
+  return jsonResponse(
+    {
+      ok: true,
+      data: { order: finalIds, updated: statements.length },
+    },
+    200,
+    noStore
+  );
+}
+
 /** DELETE /api/content/:area/:slug — 軟刪除頁面（標記 deleted_at） */
 async function deletePage(
   area: string,
@@ -2851,6 +2972,15 @@ export default {
         env.CONTENT_DB,
         cors
       );
+    }
+
+    // ---- 同層子頁批次排序 ----
+    // ⚠️ 必須排在 contentMatch 之前，否則 `reorder` 會被當成 slug 走
+    // upsertPage。比照 `/tree` 保留字的既有做法；寫入授權已由上方
+    // isWriteMethod 檢查擋下。
+    const reorderMatch = path.match(/^\/api\/content\/([a-z]+)\/reorder$/);
+    if (reorderMatch && request.method === 'PUT') {
+      return reorderPages(reorderMatch[1], request, env.CONTENT_DB, cors);
     }
 
     // ---- 內容 CRUD 路由 ----

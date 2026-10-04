@@ -3,6 +3,8 @@
  */
 /* global RequestInit */
 
+import type { DragEvent as ReactDragEvent } from 'react';
+
 import type { uepDialog as UepDialogType } from '../ui/UepDialog';
 import type { uepToast as UepToastType } from '../ui/UepToast';
 // Singleton fallback：island hydration 順序不保證，全域 manager 可能尚未掛載
@@ -41,6 +43,39 @@ export async function apiFetch<T>(
   } catch (e) {
     return { ok: false, error: String(e) };
   }
+}
+
+/**
+ * 同層子頁批次排序：一次送出最終順序。逐筆 PUT sortOrder 會讓後端每次
+ * 重排同層，中間暫態同號被拉回原順序，排序存不住。
+ */
+export function reorderPages(
+  apiBase: string,
+  area: string,
+  parentId: string | null,
+  order: string[]
+): Promise<{ ok: boolean; error?: string }> {
+  return apiFetch(`${apiBase}/api/content/${area}/reorder`, {
+    method: 'PUT',
+    body: JSON.stringify({ parentId, order }),
+  });
+}
+
+/**
+ * 清單列拖曳起手：以整列為拖曳影像並寫入 dataTransfer（Firefox 沒有
+ * setData 不會啟動拖曳）。呼叫端的 is-dragging 樣式要延到下一幀再套，
+ * 否則瀏覽器截取拖曳影像時會連同變淡的樣式一起拍進去。
+ */
+export function beginRowDrag(e: ReactDragEvent<HTMLElement>, idx: number) {
+  const row = e.currentTarget;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(idx));
+  const rect = row.getBoundingClientRect();
+  e.dataTransfer.setDragImage(
+    row,
+    Math.max(0, e.clientX - rect.left),
+    Math.max(0, e.clientY - rect.top)
+  );
 }
 
 // ── Asset URL 工具 ──────────────────────────────────────────

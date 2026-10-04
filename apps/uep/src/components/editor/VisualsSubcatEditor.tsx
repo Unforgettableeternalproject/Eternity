@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { getDialog, getToast } from './editorHelpers';
+import {
+  beginRowDrag,
+  getDialog,
+  getToast,
+  reorderPages,
+} from './editorHelpers';
 
 interface GalleryItem {
   id: string;
@@ -40,6 +45,8 @@ export default function VisualsSubcatEditor({
   // 拖曳
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
+  // 拖曳來源以 ref 記錄：is-dragging 樣式延一幀才套，drop 判定不能等它
+  const dragFromRef = useRef<number | null>(null);
 
   // 載入子畫廊頁面
   const fetchGalleries = useCallback(async () => {
@@ -124,7 +131,13 @@ export default function VisualsSubcatEditor({
   };
 
   // 拖曳排序
-  const handleDragStart = (idx: number) => setDragIdx(idx);
+  const handleDragStart = (e: React.DragEvent<HTMLElement>, idx: number) => {
+    beginRowDrag(e, idx);
+    dragFromRef.current = idx;
+    requestAnimationFrame(() => {
+      if (dragFromRef.current === idx) setDragIdx(idx);
+    });
+  };
 
   const handleDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
@@ -132,30 +145,27 @@ export default function VisualsSubcatEditor({
   };
 
   const handleDrop = async () => {
-    if (dragIdx === null || dropIdx === null || dragIdx === dropIdx) {
-      setDragIdx(null);
-      setDropIdx(null);
-      return;
-    }
-
-    const newGalleries = [...galleries];
-    const [moved] = newGalleries.splice(dragIdx, 1);
-    newGalleries.splice(dropIdx, 0, moved);
-    setGalleries(newGalleries);
+    const from = dragFromRef.current;
+    dragFromRef.current = null;
     setDragIdx(null);
     setDropIdx(null);
+    if (from === null || dropIdx === null || from === dropIdx) return;
 
-    for (let i = 0; i < newGalleries.length; i++) {
-      const g = newGalleries[i];
-      if (g.sortOrder !== i) {
-        const gSlug = g.id.replace(`${area}/`, '');
-        await fetch(`${apiBase}/api/content/${area}/${gSlug}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sortOrder: i }),
-        });
-      }
+    const reordered = [...galleries];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(dropIdx, 0, moved);
+    setGalleries(reordered);
+
+    const result = await reorderPages(
+      apiBase,
+      area,
+      pageId,
+      reordered.map((item) => item.id)
+    );
+    if (!result.ok) {
+      getToast().error(`排序儲存失敗: ${result.error ?? '未知錯誤'}`);
     }
+    await fetchGalleries();
   };
 
   // 刪除畫廊
@@ -213,10 +223,15 @@ export default function VisualsSubcatEditor({
                 key={gallery.id}
                 className={`ned-subcat-song-row ${isDragging ? 'is-dragging' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
                 draggable
-                onDragStart={() => handleDragStart(i)}
+                onDragStart={(e) => handleDragStart(e, i)}
                 onDragOver={(e) => handleDragOver(e, i)}
-                onDrop={handleDrop}
+                onDrop={(e) => {
+                  // 拖曳帶 text/plain，未擋預設行為時 Firefox 會把它當網址開啟
+                  e.preventDefault();
+                  void handleDrop();
+                }}
                 onDragEnd={() => {
+                  dragFromRef.current = null;
                   setDragIdx(null);
                   setDropIdx(null);
                 }}
