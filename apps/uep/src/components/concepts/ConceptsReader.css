@@ -1337,6 +1337,18 @@
 .conc-dossier-entry-card:hover {
   background: color-mix(in srgb, var(--concepts-main) 4%, transparent);
 }
+/* 群組可見但尚無可見條目時的「尚未知」佔位（非實體、不可互動） */
+.conc-dossier-entry-card--unknown {
+  opacity: 0.55;
+}
+.conc-dossier-entry-card--unknown:hover {
+  background: transparent;
+}
+.conc-dossier-entry-card--unknown .conc-dossier-entry-name {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ink-mute);
+}
 .conc-dossier-entry-header {
   display: flex;
   align-items: center;

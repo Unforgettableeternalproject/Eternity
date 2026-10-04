@@ -39,6 +39,7 @@ import {
   type TerminalIndexEntry,
 } from '../../islands/concepts/terminalCore';
 import { formatAliasLine } from './aliases';
+import { buildDossierView, DOSSIER_UNKNOWN_PLACEHOLDER } from './dossierView';
 import BrowserDetailButton from './BrowserDetailButton';
 import ConceptsTerminalBadge from './ConceptsTerminalBadge';
 import InterlinkTriggerButton from './InterlinkTriggerButton';
@@ -220,7 +221,7 @@ function normalizeDossierVariants(data: unknown): DossierVariant[] {
 // 子元件：ReaderDossier（records stack）
 // 接收已選定 variant 的 subcategories；variant 切換由父層控制
 // ──────────────────────────────────────────────────────────────────
-function ReaderDossier({
+export function ReaderDossier({
   subcategories,
   onOpenBrowserDetail,
 }: {
@@ -260,16 +261,11 @@ function ReaderDossier({
     };
   }, []);
 
-  // effective view 過濾後可能留下空群組/空分類（條目全部未解鎖）——
-  // 一律不渲染（含預設「未分類」群組），整頁無可見條目時走 empty fallback
+  // 群組 gate 已在 effective view 移除未通過的群組；可見但無可見條目的
+  // 具名群組以「尚未知」佔位顯示，無名稱的空群組與空分類不渲染。
+  // 沒有任何可顯示群組時走 empty fallback
   const visibleSubcats = useMemo(
-    () =>
-      subcategories
-        .map((sc) => ({
-          ...sc,
-          groups: sc.groups.filter((g) => g.entries.length > 0),
-        }))
-        .filter((sc) => sc.groups.length > 0),
+    () => buildDossierView(subcategories),
     [subcategories]
   );
 
@@ -368,51 +364,72 @@ function ReaderDossier({
                   {currentGroup.entries.length} records
                 </span>
               </div>
-              <div
-                className="conc-dossier-entries-body"
-                {...entityDrag.handlers}
-              >
-                {currentGroup.entries.map((entry, i) => (
+              {currentGroup.showUnknown ? (
+                <div className="conc-dossier-entries-body">
                   <div
-                    key={i}
-                    className="conc-dossier-entry-card"
-                    data-entity-key={entry.entityKey}
+                    className="conc-dossier-entry-card conc-dossier-entry-card--unknown"
+                    data-dossier-unknown=""
                   >
                     <div className="conc-dossier-entry-header">
-                      <span className="conc-dossier-entry-idx">
-                        {String(i + 1).padStart(2, '0')}
+                      <span
+                        className="conc-dossier-entry-idx"
+                        aria-hidden="true"
+                      >
+                        {DOSSIER_UNKNOWN_PLACEHOLDER.mark}
                       </span>
                       <span className="conc-dossier-entry-name">
-                        {entry.name}
+                        {DOSSIER_UNKNOWN_PLACEHOLDER.name}
                       </span>
-                      <InterlinkTriggerButton
-                        entityKey={entry.entityKey}
-                        label={entry.name}
-                      />
-                      <BrowserDetailButton
-                        entityKey={entry.entityKey}
-                        label={entry.name}
-                        index={entityIndex}
-                        onNavigate={onOpenBrowserDetail}
-                      />
                     </div>
-                    {formatAliasLine(entry.aliases) && (
-                      <div className="conc-dossier-entry-aliases">
-                        {formatAliasLine(entry.aliases)}
-                      </div>
-                    )}
-                    {entry.content_html && (
-                      <>
-                        {renderHtmlWithUep(
-                          entry.content_html,
-                          entry.name,
-                          'conc-dossier-entry-content'
-                        )}
-                      </>
-                    )}
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div
+                  className="conc-dossier-entries-body"
+                  {...entityDrag.handlers}
+                >
+                  {currentGroup.entries.map((entry, i) => (
+                    <div
+                      key={i}
+                      className="conc-dossier-entry-card"
+                      data-entity-key={entry.entityKey}
+                    >
+                      <div className="conc-dossier-entry-header">
+                        <span className="conc-dossier-entry-idx">
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <span className="conc-dossier-entry-name">
+                          {entry.name}
+                        </span>
+                        <InterlinkTriggerButton
+                          entityKey={entry.entityKey}
+                          label={entry.name}
+                        />
+                        <BrowserDetailButton
+                          entityKey={entry.entityKey}
+                          label={entry.name}
+                          index={entityIndex}
+                          onNavigate={onOpenBrowserDetail}
+                        />
+                      </div>
+                      {formatAliasLine(entry.aliases) && (
+                        <div className="conc-dossier-entry-aliases">
+                          {formatAliasLine(entry.aliases)}
+                        </div>
+                      )}
+                      {entry.content_html && (
+                        <>
+                          {renderHtmlWithUep(
+                            entry.content_html,
+                            entry.name,
+                            'conc-dossier-entry-content'
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <div className="conc-dossier-detail-empty">選擇一個分類</div>
