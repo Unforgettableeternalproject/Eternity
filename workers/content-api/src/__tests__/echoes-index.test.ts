@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { env } from 'cloudflare:workers';
 import worker from '../index';
+import { signJwt } from '../auth';
 
 import type { EchoesEntityIndexEntry } from '../echoes-index';
 
@@ -83,9 +84,27 @@ describe('GET /api/echoes/entity-index', () => {
     });
   });
 
+  /** 管理員視角：靜態鎖條目照收（既有欄位形狀的斷言以此為準） */
+  async function adminToken(): Promise<string> {
+    const now = Math.floor(Date.now() / 1000);
+    return signJwt(
+      {
+        sub: 'idx-admin',
+        role: 'super_admin',
+        display_name: 'Admin',
+        iat: now,
+        exp: now + 3600,
+        jti: 'idx-admin',
+      },
+      'test-jwt-secret'
+    );
+  }
+
   async function fetchIndex(): Promise<EchoesEntityIndexEntry[]> {
     const res = await worker.fetch(
-      createRequest('/api/echoes/entity-index'),
+      createRequest('/api/echoes/entity-index', {
+        headers: { Authorization: `Bearer ${await adminToken()}` },
+      }),
       env,
       ctx
     );
@@ -161,6 +180,34 @@ describe('GET /api/echoes/entity-index', () => {
     expect(
       entries.find((e) => e.entityKey === 'eidx-song-gated')
     ).toBeDefined();
+  });
+
+  it('訪客視角：靜態鎖條目不進索引，未鎖條目照收', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/echoes/entity-index'),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toContain('public');
+    expect(res.headers.get('Vary')).toBe('Authorization');
+    const json = (await res.json()) as {
+      data: { entries: { entityKey?: string }[] };
+    };
+    const keys = json.data.entries.map((e) => e.entityKey);
+    expect(keys).not.toContain('eidx-song-gated');
+    expect(keys.length).toBeGreaterThan(0);
+  });
+
+  it('管理員回應不可進共用快取', async () => {
+    const res = await worker.fetch(
+      createRequest('/api/echoes/entity-index', {
+        headers: { Authorization: `Bearer ${await adminToken()}` },
+      }),
+      env,
+      ctx
+    );
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
   });
 
   it('路由不被 contentMatch 吸走：/api/content/echoes/entity-index 是頁面查詢', async () => {

@@ -22,8 +22,6 @@ import { useEffect, useState } from 'react';
 
 import type { EntityBindings } from '../concepts/types';
 
-import { getApiBase } from '../../lib/apiBase';
-
 /**
  * 「不指定」選項的 `<select>` value。
  *
@@ -47,9 +45,10 @@ interface BindingOption {
  * 快取的是**全區清單**、篩選在渲染時做：不同 entityKey 的 picker 共用
  * 同一份資料，依 key 分別快取會退化成逐條目 fetch。
  *
- * 走 `getApiBase()` 直接打 worker 而非同源 proxy：echoes/visuals 前綴
- * 沒有 Astro proxy 路由，而這兩個 entity-index 是公開 GET（有 CORS），
- * 前台各處本來就直接打。test mode cookie 由 getApiBase 自己解析。
+ * 走同源 proxy（`pages/api/{echoes,visuals}/[...path].ts`）而非直打
+ * worker：entity-index 對訪客會排除封存（metadata.locked）內容，編輯器
+ * 必須帶管理員 JWT 才看得到全部候選，而 JWT 在 httpOnly cookie 裡只能由
+ * server 轉發。test mode cookie 由 proxy 端的 getApiBase 解析。
  */
 const bindingOptionCache: Partial<
   Record<'echoes' | 'visuals', Promise<BindingOption[]>>
@@ -61,7 +60,7 @@ function loadBindingOptions(
   let cached = bindingOptionCache[zone];
   if (!cached) {
     cached = (async () => {
-      const res = await fetch(`${getApiBase()}/api/${zone}/entity-index`);
+      const res = await fetch(`/api/${zone}/entity-index`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as {
         ok?: boolean;

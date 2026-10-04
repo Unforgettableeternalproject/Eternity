@@ -30,6 +30,16 @@ describe('normalizeGateObject', () => {
     ).toEqual({ requiresFlags: ['x'], pristineOnly: true });
   });
 
+  it('保留 alwaysLocked；單獨成立也是有效條件', () => {
+    expect(normalizeGateObject({ alwaysLocked: true })).toEqual({
+      alwaysLocked: true,
+    });
+    expect(
+      normalizeGateObject({ requiresFlags: ['x'], alwaysLocked: true })
+    ).toEqual({ requiresFlags: ['x'], alwaysLocked: true });
+    expect(normalizeGateObject({ alwaysLocked: false })).toBeNull();
+  });
+
   it('字串/陣列/空條件/非物件 → null', () => {
     expect(normalizeGateObject('讀完第一章解鎖')).toBeNull();
     expect(normalizeGateObject(['x'])).toBeNull();
@@ -298,5 +308,29 @@ describe('describeImageChain — 8 案行為鏈描述（V-B.17）', () => {
     const r = describeImageChain('unlocked', true, true);
     expect(r.text).toContain('永遠解鎖');
     expect(r.warn).toBe(false);
+  });
+
+  it('恆鎖定的閘標註為停住，不描述成可前進', () => {
+    expect(
+      describeImageChain('locked', true, true, { lock: true }).text
+    ).toContain('永遠鎖定（鎖定條件為恆鎖定）');
+    expect(
+      describeImageChain('locked', true, true, { partial: true }).text
+    ).toContain('部分條件為恆鎖定，停在此態');
+    expect(
+      describeImageChain('partial', false, true, { partial: true }).text
+    ).toContain('永遠部分解鎖（離開條件為恆鎖定）');
+    // 初始 B 無 partialGate：lockGate 代位為離開條件
+    expect(
+      describeImageChain('partial', true, false, { lock: true }).text
+    ).toContain('永遠部分解鎖');
+    // 初始 B 有 partialGate：lockGate 不生效，其恆鎖定不影響鏈
+    expect(
+      describeImageChain('partial', true, true, { lock: true }).text
+    ).toContain('→(部分條件)→ 解鎖');
+    // 初始 C：條件全不生效
+    expect(
+      describeImageChain('unlocked', true, true, { lock: true }).text
+    ).toContain('永遠解鎖');
   });
 });

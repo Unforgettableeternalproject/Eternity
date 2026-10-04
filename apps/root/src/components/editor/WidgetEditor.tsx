@@ -11,6 +11,7 @@ import {
   Input,
   Toggle,
   OutlineRow,
+  SortButtons,
 } from './editorPrimitives';
 import RootMediaLibrary from './RootMediaLibrary';
 import { UploadSpinner } from './UploadSpinner';
@@ -96,6 +97,22 @@ function isEnabledValue(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') return value.toLowerCase() === 'true';
   return false;
+}
+
+/** 清單項目 from 移到 to */
+function moveListItem<T>(arr: T[], from: number, to: number): T[] {
+  const next = [...arr];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+/** 項目 from 移到 to 之後，原本位於 idx 的項目的新位置 */
+function remapIndexAfterMove(idx: number, from: number, to: number): number {
+  if (idx === from) return to;
+  if (from < idx && idx <= to) return idx - 1;
+  if (to <= idx && idx < from) return idx + 1;
+  return idx;
 }
 
 function withWidgetDefaults(
@@ -318,9 +335,12 @@ function MusicEditor({
   /** 正在上傳的曲目 index——每首各自顯示 spinner */
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
 
-  const updateTrack = (idx: number, field: string, value: string) => {
+  const updateTrack = (
+    idx: number,
+    patch: Partial<{ title: string; artist: string; url: string }>
+  ) => {
     const next = [...tracks];
-    next[idx] = { ...next[idx], [field]: value };
+    next[idx] = { ...next[idx], ...patch };
     updateField('tracks', next);
   };
 
@@ -334,6 +354,13 @@ function MusicEditor({
       tracks.filter((_, i) => i !== idx)
     );
     if (showPicker === idx) setShowPicker(null);
+  };
+
+  const moveTrack = (from: number, to: number) => {
+    updateField('tracks', moveListItem(tracks, from, to));
+    // 展開中的媒體庫 picker 跟著曲目移動
+    if (showPicker !== null)
+      setShowPicker(remapIndexAfterMove(showPicker, from, to));
   };
 
   /** 上傳音檔到 R2 */
@@ -352,12 +379,14 @@ function MusicEditor({
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
       const json = (await res.json()) as { ok: boolean; data: { key: string } };
       if (json.ok) {
-        updateTrack(idx, 'url', `/api/root/assets/${json.data.key}`);
-        // 自動填入標題（如果還沒填）
-        if (!tracks[idx]?.title) {
-          const name = file.name.replace(/\.[^.]+$/, '');
-          updateTrack(idx, 'title', name);
-        }
+        // url 與自動標題要一次寫入，分兩次會讓後一次以舊陣列覆蓋前一次
+        updateTrack(idx, {
+          url: `/api/root/assets/${json.data.key}`,
+          // 自動填入標題（如果還沒填）
+          ...(tracks[idx]?.title
+            ? {}
+            : { title: file.name.replace(/\.[^.]+$/, '') }),
+        });
       }
     } catch (err) {
       console.error('Audio upload error:', err);
@@ -368,17 +397,20 @@ function MusicEditor({
 
   /** 從媒體庫選擇 */
   const handlePickFromLibrary = (idx: number, key: string) => {
-    updateTrack(idx, 'url', `/api/root/assets/${key}`);
     setShowPicker(null);
-    // 自動填入標題
-    if (!tracks[idx]?.title) {
-      const name =
-        key
-          .split('/')
-          .pop()
-          ?.replace(/\.[^.]+$/, '') || '';
-      updateTrack(idx, 'title', name);
-    }
+    updateTrack(idx, {
+      url: `/api/root/assets/${key}`,
+      // 自動填入標題
+      ...(tracks[idx]?.title
+        ? {}
+        : {
+            title:
+              key
+                .split('/')
+                .pop()
+                ?.replace(/\.[^.]+$/, '') || '',
+          }),
+    });
   };
 
   return (
@@ -403,52 +435,61 @@ function MusicEditor({
             }}
           >
             <Mono v="navy">#{i + 1}</Mono>
-            <button
-              onClick={() => removeTrack(i)}
-              style={{
-                padding: '3px 10px',
-                fontSize: 10,
-                fontFamily: "'JetBrains Mono', monospace",
-                letterSpacing: '0.06em',
-                color: 'var(--q-ink-mute)',
-                border: '1px solid var(--q-line)',
-                borderRadius: 4,
-                background: 'transparent',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'var(--q-coral)';
-                e.currentTarget.style.borderColor = 'var(--q-coral)';
-                e.currentTarget.style.background = 'rgba(214,68,46,0.06)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--q-ink-mute)';
-                e.currentTarget.style.borderColor = 'var(--q-line)';
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              ✕ 刪除
-            </button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <SortButtons
+                idx={i}
+                total={tracks.length}
+                onMove={moveTrack}
+                // 上傳完成時以 index 寫回，上傳中換位會寫到別首
+                disabled={uploadingIdx !== null}
+              />
+              <button
+                onClick={() => removeTrack(i)}
+                style={{
+                  padding: '3px 10px',
+                  fontSize: 10,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: '0.06em',
+                  color: 'var(--q-ink-mute)',
+                  border: '1px solid var(--q-line)',
+                  borderRadius: 4,
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--q-coral)';
+                  e.currentTarget.style.borderColor = 'var(--q-coral)';
+                  e.currentTarget.style.background = 'rgba(214,68,46,0.06)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--q-ink-mute)';
+                  e.currentTarget.style.borderColor = 'var(--q-line)';
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                ✕ 刪除
+              </button>
+            </div>
           </div>
           <Field label="title">
             <Input
               value={t.title}
-              onChange={(v) => updateTrack(i, 'title', v)}
+              onChange={(v) => updateTrack(i, { title: v })}
               placeholder="曲名"
             />
           </Field>
           <Field label="artist">
             <Input
               value={t.artist}
-              onChange={(v) => updateTrack(i, 'artist', v)}
+              onChange={(v) => updateTrack(i, { artist: v })}
               placeholder="演出者"
             />
           </Field>
           <Field label="url">
             <Input
               value={t.url}
-              onChange={(v) => updateTrack(i, 'url', v)}
+              onChange={(v) => updateTrack(i, { url: v })}
               placeholder="/music/track.mp3"
               mono
             />
@@ -980,6 +1021,10 @@ function StatusEditor({
     );
   };
 
+  const moveItem = (from: number, to: number) => {
+    updateField('items', moveListItem(items, from, to));
+  };
+
   return (
     <>
       <Divider label="狀態項目" />
@@ -1002,31 +1047,34 @@ function StatusEditor({
             }}
           >
             <Mono v="navy">#{i + 1}</Mono>
-            <button
-              onClick={() => removeItem(i)}
-              style={{
-                padding: '3px 10px',
-                fontSize: 10,
-                fontFamily: "'JetBrains Mono', monospace",
-                letterSpacing: '0.06em',
-                color: 'var(--q-ink-mute)',
-                border: '1px solid var(--q-line)',
-                borderRadius: 4,
-                background: 'transparent',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'var(--q-coral)';
-                e.currentTarget.style.borderColor = 'var(--q-coral)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--q-ink-mute)';
-                e.currentTarget.style.borderColor = 'var(--q-line)';
-              }}
-            >
-              ✕ 刪除
-            </button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <SortButtons idx={i} total={items.length} onMove={moveItem} />
+              <button
+                onClick={() => removeItem(i)}
+                style={{
+                  padding: '3px 10px',
+                  fontSize: 10,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: '0.06em',
+                  color: 'var(--q-ink-mute)',
+                  border: '1px solid var(--q-line)',
+                  borderRadius: 4,
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--q-coral)';
+                  e.currentTarget.style.borderColor = 'var(--q-coral)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--q-ink-mute)';
+                  e.currentTarget.style.borderColor = 'var(--q-line)';
+                }}
+              >
+                ✕ 刪除
+              </button>
+            </div>
           </div>
           <Field label="key（標籤名）">
             <Input

@@ -310,3 +310,55 @@ export function abortOnAuthFailure(res, what, apiBase) {
   );
   process.exit(1);
 }
+
+/**
+ * 讀取內容 API 並在任何失敗時丟錯（不回空值）。
+ *
+ * 文件站的頁面清單與單頁讀取曾經在 `!res.ok` 時回 `[]`／`null`，
+ * 讀不到會被當成「遠端是空的」，差異表接著要求用本地整份覆蓋遠端。
+ * content-api 對未認證的 `include_deleted=true` 回 401、對未認證的
+ * 封存頁回存根，所以讀取必須帶認證，而失敗必須中止整個同步。
+ *
+ * @param {string} url
+ * @param {object} options
+ * @param {Record<string, string>} [options.headers] 認證 header
+ * @param {string} options.what 正在讀什麼（訊息用）
+ * @param {typeof fetch} [options.fetchImpl] 測試注入用
+ * @returns {Promise<unknown>} 回應的 `data` 欄位
+ */
+export async function readContentOrThrow(
+  url,
+  { headers = {}, what, fetchImpl = fetch }
+) {
+  let res;
+  try {
+    res = await fetchImpl(url, { headers });
+  } catch (e) {
+    throw new Error(
+      `讀取${what}失敗：無法連線 ${url}（${e instanceof Error ? e.message : e}）`
+    );
+  }
+  if (res.status === 401 || res.status === 403) {
+    const hasAuth = Object.keys(headers).some(
+      (k) => k.toLowerCase() === 'authorization'
+    );
+    throw new Error(
+      `讀取${what}時授權失敗（${res.status}）：${url}\n` +
+        (hasAuth
+          ? '   token 被拒絕——確認 API_TOKEN 與 worker secret 一致，或重新登入。'
+          : '   請求未帶認證——設定 API_TOKEN（根目錄 .env）後重跑；' +
+            'dry-run 也需要 token 才能讀遠端完整資料。') +
+        '\n   同步已中止：讀不到不等於遠端沒有，繼續會誤判成要整份覆蓋。'
+    );
+  }
+  if (!res.ok) {
+    throw new Error(`讀取${what}失敗（HTTP ${res.status}）：${url}`);
+  }
+  const json = await safeJson(res);
+  if (!json?.ok) {
+    throw new Error(
+      `讀取${what}失敗：回應不是預期的 JSON（${json?.error ?? '無法解析'}）：${url}`
+    );
+  }
+  return json.data;
+}

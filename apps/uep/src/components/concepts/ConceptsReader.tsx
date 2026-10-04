@@ -26,6 +26,8 @@ import type {
 } from './types';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import { ZoneEmptyOverlay } from '../zone/ZoneEmptyOverlay';
+import { resolveZoneEmptyState } from '../zone/zoneEmptyState';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
@@ -37,6 +39,7 @@ import {
   type TerminalIndexEntry,
 } from '../../islands/concepts/terminalCore';
 import { formatAliasLine } from './aliases';
+import { buildDossierView, DOSSIER_UNKNOWN_PLACEHOLDER } from './dossierView';
 import BrowserDetailButton from './BrowserDetailButton';
 import ConceptsTerminalBadge from './ConceptsTerminalBadge';
 import InterlinkTriggerButton from './InterlinkTriggerButton';
@@ -218,7 +221,7 @@ function normalizeDossierVariants(data: unknown): DossierVariant[] {
 // 子元件：ReaderDossier（records stack）
 // 接收已選定 variant 的 subcategories；variant 切換由父層控制
 // ──────────────────────────────────────────────────────────────────
-function ReaderDossier({
+export function ReaderDossier({
   subcategories,
   onOpenBrowserDetail,
 }: {
@@ -258,16 +261,11 @@ function ReaderDossier({
     };
   }, []);
 
-  // effective view 過濾後可能留下空群組/空分類（條目全部未解鎖）——
-  // 一律不渲染（含預設「未分類」群組），整頁無可見條目時走 empty fallback
+  // 群組 gate 已在 effective view 移除未通過的群組；可見但無可見條目的
+  // 具名群組以「尚未知」佔位顯示，無名稱的空群組與空分類不渲染。
+  // 沒有任何可顯示群組時走 empty fallback
   const visibleSubcats = useMemo(
-    () =>
-      subcategories
-        .map((sc) => ({
-          ...sc,
-          groups: sc.groups.filter((g) => g.entries.length > 0),
-        }))
-        .filter((sc) => sc.groups.length > 0),
+    () => buildDossierView(subcategories),
     [subcategories]
   );
 
@@ -366,51 +364,72 @@ function ReaderDossier({
                   {currentGroup.entries.length} records
                 </span>
               </div>
-              <div
-                className="conc-dossier-entries-body"
-                {...entityDrag.handlers}
-              >
-                {currentGroup.entries.map((entry, i) => (
+              {currentGroup.showUnknown ? (
+                <div className="conc-dossier-entries-body">
                   <div
-                    key={i}
-                    className="conc-dossier-entry-card"
-                    data-entity-key={entry.entityKey}
+                    className="conc-dossier-entry-card conc-dossier-entry-card--unknown"
+                    data-dossier-unknown=""
                   >
                     <div className="conc-dossier-entry-header">
-                      <span className="conc-dossier-entry-idx">
-                        {String(i + 1).padStart(2, '0')}
+                      <span
+                        className="conc-dossier-entry-idx"
+                        aria-hidden="true"
+                      >
+                        {DOSSIER_UNKNOWN_PLACEHOLDER.mark}
                       </span>
                       <span className="conc-dossier-entry-name">
-                        {entry.name}
+                        {DOSSIER_UNKNOWN_PLACEHOLDER.name}
                       </span>
-                      <InterlinkTriggerButton
-                        entityKey={entry.entityKey}
-                        label={entry.name}
-                      />
-                      <BrowserDetailButton
-                        entityKey={entry.entityKey}
-                        label={entry.name}
-                        index={entityIndex}
-                        onNavigate={onOpenBrowserDetail}
-                      />
                     </div>
-                    {formatAliasLine(entry.aliases) && (
-                      <div className="conc-dossier-entry-aliases">
-                        {formatAliasLine(entry.aliases)}
-                      </div>
-                    )}
-                    {entry.content_html && (
-                      <>
-                        {renderHtmlWithUep(
-                          entry.content_html,
-                          entry.name,
-                          'conc-dossier-entry-content'
-                        )}
-                      </>
-                    )}
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div
+                  className="conc-dossier-entries-body"
+                  {...entityDrag.handlers}
+                >
+                  {currentGroup.entries.map((entry, i) => (
+                    <div
+                      key={i}
+                      className="conc-dossier-entry-card"
+                      data-entity-key={entry.entityKey}
+                    >
+                      <div className="conc-dossier-entry-header">
+                        <span className="conc-dossier-entry-idx">
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <span className="conc-dossier-entry-name">
+                          {entry.name}
+                        </span>
+                        <InterlinkTriggerButton
+                          entityKey={entry.entityKey}
+                          label={entry.name}
+                        />
+                        <BrowserDetailButton
+                          entityKey={entry.entityKey}
+                          label={entry.name}
+                          index={entityIndex}
+                          onNavigate={onOpenBrowserDetail}
+                        />
+                      </div>
+                      {formatAliasLine(entry.aliases) && (
+                        <div className="conc-dossier-entry-aliases">
+                          {formatAliasLine(entry.aliases)}
+                        </div>
+                      )}
+                      {entry.content_html && (
+                        <>
+                          {renderHtmlWithUep(
+                            entry.content_html,
+                            entry.name,
+                            'conc-dossier-entry-content'
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <div className="conc-dossier-detail-empty">選擇一個分類</div>
@@ -1696,6 +1715,11 @@ export default function ConceptsReader() {
         !isHidden(child) &&
         evaluateGate(progress, parseGateCondition(child.metadata))
     );
+    // 空狀態：gate 未過與 static locked 都算「存在但未解鎖」
+    const stackEmptyKind = resolveZoneEmptyState(
+      children,
+      (child) => !isLocked(child, progress)
+    );
 
     // 從 D1 載入的 stackPage 取得動態內容
     const stackTitle = stackPage?.title || stackDef.label;
@@ -1731,86 +1755,95 @@ export default function ConceptsReader() {
         {stackDesc && <p className="conc-reading-desc">{stackDesc}</p>}
         <div className="conc-gradient-line" />
 
-        {/* 從 D1 讀取的 stack 介紹內容，若無則 fallback 到硬編碼 */}
-        {stackContentHtml ? (
-          <>
-            {renderHtmlWithUep(
-              stackContentHtml,
-              'stack-intro',
-              'conc-stack-intro conc-prose'
-            )}
-          </>
-        ) : (
-          <p className="conc-stack-intro">
-            <span className="conc-drop-cap">{stackDef.intro[0]}</span>
-            {stackDef.intro.slice(1)}
-          </p>
-        )}
+        {/* 空狀態告示牌蓋住標題以下的主內容區（介紹、對話、目錄列表） */}
+        <ZoneEmptyOverlay
+          kind={stackEmptyKind}
+          seed={`concepts:${stackNode.id}`}
+          accent="var(--concepts-main)"
+        >
+          {/* 從 D1 讀取的 stack 介紹內容，若無則 fallback 到硬編碼 */}
+          {stackContentHtml ? (
+            <>
+              {renderHtmlWithUep(
+                stackContentHtml,
+                'stack-intro',
+                'conc-stack-intro conc-prose'
+              )}
+            </>
+          ) : (
+            <p className="conc-stack-intro">
+              <span className="conc-drop-cap">{stackDef.intro[0]}</span>
+              {stackDef.intro.slice(1)}
+            </p>
+          )}
 
-        <div className="conc-stack-uep">
-          <UepDialogue
-            side="left"
-            effects={['shimmer', 'halo'] as never[]}
-            text={stackDef.uepNote}
-          />
-        </div>
+          <div className="conc-stack-uep">
+            <UepDialogue
+              side="left"
+              effects={['shimmer', 'halo'] as never[]}
+              text={stackDef.uepNote}
+            />
+          </div>
 
-        {/* 終端目錄列表 */}
-        <div className="conc-dir-listing">
-          <div className="conc-dir-bar">
-            <span>$ ls ./{stackDef.slug.split('/').pop()} --long</span>
-            <span>{visibleChildren.length} entries</span>
-          </div>
-          <div className="conc-dir-header-row">
-            <span>#</span>
-            <span>name</span>
-            <span>identifier</span>
-            <span>state</span>
-            <span />
-          </div>
-          {visibleChildren.map((child, i) => {
-            const locked = isLocked(child);
-            return (
-              <button
-                key={child.id}
-                className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${locked ? 'locked' : ''}`}
-                onClick={() => !locked && navigateToPage(child.slug)}
-              >
-                <span className="conc-dir-num">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <div className="conc-dir-name-cell">
-                  <div className="conc-dir-name">{child.title}</div>
-                  <div className="conc-dir-hint">
-                    {locked
-                      ? ''
-                      : typeof child.metadata?.description === 'string'
-                        ? (child.metadata.description as string).slice(0, 50)
-                        : ''}
-                  </div>
-                </div>
-                <span className="conc-dir-en">
-                  {locked ? '—' : child.slug.split('/').pop()}
-                </span>
-                <span
-                  className={`conc-dir-state ${locked ? 'sealed' : 'sync'}`}
+          {/* 終端目錄列表 */}
+          <div className="conc-dir-listing">
+            <div className="conc-dir-bar">
+              <span>$ ls ./{stackDef.slug.split('/').pop()} --long</span>
+              <span>{visibleChildren.length} entries</span>
+            </div>
+            <div className="conc-dir-header-row">
+              <span>#</span>
+              <span>name</span>
+              <span>identifier</span>
+              <span>state</span>
+              <span />
+            </div>
+            {visibleChildren.map((child, i) => {
+              const locked = isLocked(child);
+              return (
+                <button
+                  key={child.id}
+                  className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${locked ? 'locked' : ''}`}
+                  onClick={() => !locked && navigateToPage(child.slug)}
                 >
-                  <span className="conc-mod-dot" />
-                  {locked ? 'sealed' : 'sync'}
-                </span>
-                <span className="conc-dir-arrow">{locked ? 'LOCK' : '›'}</span>
-              </button>
-            );
-          })}
-          <div className="conc-dir-tip">
-            <span className="conc-dir-tip-prompt">$</span>
-            <span>
-              tip — 被標記為 <span className="conc-hl">sealed</span>{' '}
-              的類別會隨著故事進度自動解鎖
-            </span>
-            <span className="conc-cursor" />
+                  <span className="conc-dir-num">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <div className="conc-dir-name-cell">
+                    <div className="conc-dir-name">{child.title}</div>
+                    <div className="conc-dir-hint">
+                      {locked
+                        ? ''
+                        : typeof child.metadata?.description === 'string'
+                          ? (child.metadata.description as string).slice(0, 50)
+                          : ''}
+                    </div>
+                  </div>
+                  <span className="conc-dir-en">
+                    {locked ? '—' : child.slug.split('/').pop()}
+                  </span>
+                  <span
+                    className={`conc-dir-state ${locked ? 'sealed' : 'sync'}`}
+                  >
+                    <span className="conc-mod-dot" />
+                    {locked ? 'sealed' : 'sync'}
+                  </span>
+                  <span className="conc-dir-arrow">
+                    {locked ? 'LOCK' : '›'}
+                  </span>
+                </button>
+              );
+            })}
+            <div className="conc-dir-tip">
+              <span className="conc-dir-tip-prompt">$</span>
+              <span>
+                tip — 被標記為 <span className="conc-hl">sealed</span>{' '}
+                的類別會隨著故事進度自動解鎖
+              </span>
+              <span className="conc-cursor" />
+            </div>
           </div>
-        </div>
+        </ZoneEmptyOverlay>
 
         <div className="conc-back-bar">
           <button className="conc-back-btn" onClick={() => navigateToLanding()}>

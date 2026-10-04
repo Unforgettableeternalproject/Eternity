@@ -253,6 +253,65 @@ describe('resolveImageState — 觀測者/純潔者語意（沿 evaluateGate）'
     );
   });
 
+  it('只有 alwaysLocked 的 lockGate 視為有閘：探索者停在 locked', () => {
+    const always: GateCondition = { alwaysLocked: true };
+    expect(
+      resolveImageState(
+        { initialState: 'locked', lockGate: always },
+        false,
+        PASS_BOTH
+      )
+    ).toBe('locked');
+  });
+
+  it('alwaysLocked 的 partialGate：探索者通過 lockGate 後恆停在 partial', () => {
+    const always: GateCondition = { alwaysLocked: true };
+    expect(
+      resolveImageState(
+        { initialState: 'locked', lockGate: LOCK_GATE, partialGate: always },
+        false,
+        PASS_BOTH
+      )
+    ).toBe('partial');
+    // 初始 B 且無 partialGate：lockGate 的恆鎖定代位為 partialGate
+    expect(
+      resolveImageState(
+        { initialState: 'partial', lockGate: always },
+        false,
+        PASS_BOTH
+      )
+    ).toBe('partial');
+  });
+
+  it('觀測者 bypass alwaysLocked：鎖定與部分條件皆直達 unlocked', () => {
+    const always: GateCondition = { alwaysLocked: true };
+    expect(
+      resolveImageState(
+        { initialState: 'locked', lockGate: always, partialGate: always },
+        false,
+        OBSERVER
+      )
+    ).toBe('unlocked');
+    expect(
+      resolveImageState(
+        { initialState: 'partial', lockGate: always },
+        false,
+        OBSERVER
+      )
+    ).toBe('unlocked');
+  });
+
+  it('alwaysLocked + pristineOnly：觀測者仍被 pristineOnly 擋下', () => {
+    const gate: GateCondition = { alwaysLocked: true, pristineOnly: true };
+    expect(
+      resolveImageState(
+        { initialState: 'locked', lockGate: gate },
+        false,
+        OBSERVER
+      )
+    ).toBe('locked');
+  });
+
   it('pristineOnly 閘：觀測者/有印記者不通過', () => {
     const pristineGate: GateCondition = { pristineOnly: true };
     expect(

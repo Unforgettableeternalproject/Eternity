@@ -20,6 +20,8 @@ import { useScrollMemory } from '../zone/useScrollMemory';
 import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import { ZoneEmptyOverlay } from '../zone/ZoneEmptyOverlay';
+import { resolveZoneEmptyState } from '../zone/zoneEmptyState';
 import {
   useZoneRouter,
   pushUrl as zonePushUrl,
@@ -1692,6 +1694,33 @@ export default function HistoryReader() {
       .filter(Boolean) as PageTreeNode[];
   }, [activeZoneTabIdx, zoneTabsData, flatPages]);
 
+  // 頁面空狀態：以全部分頁的項目合計判定——任一分頁有可見項目就不蓋，
+  // 告示牌會連分頁列一起蓋住，只在所有分頁都沒東西可看時出現。
+  // hidden 項目在 flatPages 已被剔除（視同不存在），進度鏈隱藏的項目仍屬
+  // 「存在但未解鎖」。
+  const zoneTabEmptyKind = useMemo(() => {
+    if (treeLoading || contentLoading || contentError || !currentPage)
+      return null;
+    if (zoneTabsData.length === 0) return null;
+    const ids = new Set(zoneTabsData.flatMap((tab) => tab?.items || []));
+    const items = [...ids]
+      .map((id) => flatPages.find((p) => p.id === id))
+      .filter(Boolean) as PageTreeNode[];
+    return resolveZoneEmptyState(
+      items,
+      (child) => getLockKind(child, progress, child.id, progressTree) === null
+    );
+  }, [
+    treeLoading,
+    contentLoading,
+    contentError,
+    currentPage,
+    zoneTabsData,
+    flatPages,
+    progress,
+    progressTree,
+  ]);
+
   return (
     <ReaderShell zoneId="history" className="history-reader">
       {/* 休息提醒：判定全在 hook 內，這裡只是讓它落在提示層的 context 範圍
@@ -2017,190 +2046,200 @@ export default function HistoryReader() {
                   bordered
                 />
 
-                <article className="history-article">
-                  {contentLoading && (
-                    <ZoneStateDisplay
-                      kind="loading"
-                      message="正在讀取內容..."
-                      large
-                    />
-                  )}
-                  {contentError && (
-                    <ZoneStateDisplay
-                      kind="error"
-                      message={`內容讀取失敗：${contentError}`}
-                      onRetry={
-                        currentId
-                          ? () => {
-                              const node = flatPages.find(
-                                (page) => page.id === currentId
-                              );
-                              if (node) void loadPage(node);
-                            }
-                          : undefined
-                      }
-                      large
-                    />
-                  )}
-                  {!contentLoading && !contentError && currentPage && (
-                    <>
-                      <header className="history-article-head">
-                        <h2 className="history-article-title">
-                          {renderIcon(
-                            currentPage.metadata?.icon as string,
-                            24,
-                            'history-article-icon'
-                          )}
-                          {currentPage.title}
-                        </h2>
-                        {typeof currentPage.metadata?.description ===
-                          'string' && <p>{currentPage.metadata.description}</p>}
-                      </header>
-                      <div
-                        ref={contentRef}
-                        onClick={onArticleClick}
-                        onKeyDown={onArticleKeyDown}
-                        {...entityDrag.handlers}
-                      >
-                        {renderInteractiveHtml(
-                          articleHtml ||
-                            '<p class="empty-notice">這篇內容目前是空的。</p>',
-                          progress,
-                          'article',
-                          'history-prose',
-                          isEntityRefUnlocked
-                        )}
-                      </div>
-                      {entityDrag.ghost}
-                      {/* 掃描線文末哨兵：通過 = 讀完整篇 */}
-                      <div
-                        ref={scanSentinelRef}
-                        className="history-scan-sentinel"
-                        aria-hidden="true"
+                {/* 空狀態告示牌蓋住麵包屑以下的主內容區（文章與分頁目錄），
+                    前後篇導航留在外面 */}
+                <ZoneEmptyOverlay
+                  kind={zoneTabEmptyKind}
+                  seed={`history:${currentPage?.id ?? ''}`}
+                  accent="var(--history-main)"
+                >
+                  <article className="history-article">
+                    {contentLoading && (
+                      <ZoneStateDisplay
+                        kind="loading"
+                        message="正在讀取內容..."
+                        large
                       />
-                      {/* Chapter 頁自動時間軸目錄（列出 arc 子項依進度狀態呈現）。
+                    )}
+                    {contentError && (
+                      <ZoneStateDisplay
+                        kind="error"
+                        message={`內容讀取失敗：${contentError}`}
+                        onRetry={
+                          currentId
+                            ? () => {
+                                const node = flatPages.find(
+                                  (page) => page.id === currentId
+                                );
+                                if (node) void loadPage(node);
+                              }
+                            : undefined
+                        }
+                        large
+                      />
+                    )}
+                    {!contentLoading && !contentError && currentPage && (
+                      <>
+                        <header className="history-article-head">
+                          <h2 className="history-article-title">
+                            {renderIcon(
+                              currentPage.metadata?.icon as string,
+                              24,
+                              'history-article-icon'
+                            )}
+                            {currentPage.title}
+                          </h2>
+                          {typeof currentPage.metadata?.description ===
+                            'string' && (
+                            <p>{currentPage.metadata.description}</p>
+                          )}
+                        </header>
+                        <div
+                          ref={contentRef}
+                          onClick={onArticleClick}
+                          onKeyDown={onArticleKeyDown}
+                          {...entityDrag.handlers}
+                        >
+                          {renderInteractiveHtml(
+                            articleHtml ||
+                              '<p class="empty-notice">這篇內容目前是空的。</p>',
+                            progress,
+                            'article',
+                            'history-prose',
+                            isEntityRefUnlocked
+                          )}
+                        </div>
+                        {entityDrag.ghost}
+                        {/* 掃描線文末哨兵：通過 = 讀完整篇 */}
+                        <div
+                          ref={scanSentinelRef}
+                          className="history-scan-sentinel"
+                          aria-hidden="true"
+                        />
+                        {/* Chapter 頁自動時間軸目錄（列出 arc 子項依進度狀態呈現）。
                           arc 頁本身已是故事段落層，section 目錄由左側 tree 處理，
                           不再重複注入目錄——2026-07-03 修 #12。 */}
-                      {currentPage.pageType === 'chapter' &&
-                        (() => {
-                          const containerNode = pagesById.get(currentPage.id);
-                          if (!containerNode) return null;
-                          return (
-                            <ChapterTimeline
-                              containerNode={containerNode}
-                              childType="arc"
-                              progress={progress}
-                              progressTree={progressTree}
-                              resolvePageById={resolvePageById}
-                              onNavigate={(child) =>
-                                void loadPage(child as PageTreeNode)
-                              }
-                              currentId={currentId}
-                            />
-                          );
-                        })()}
-                    </>
-                  )}
-                </article>
+                        {currentPage.pageType === 'chapter' &&
+                          (() => {
+                            const containerNode = pagesById.get(currentPage.id);
+                            if (!containerNode) return null;
+                            return (
+                              <ChapterTimeline
+                                containerNode={containerNode}
+                                childType="arc"
+                                progress={progress}
+                                progressTree={progressTree}
+                                resolvePageById={resolvePageById}
+                                onNavigate={(child) =>
+                                  void loadPage(child as PageTreeNode)
+                                }
+                                currentId={currentId}
+                              />
+                            );
+                          })()}
+                      </>
+                    )}
+                  </article>
 
-                {/* Zone 分頁目錄（從 metadata 讀取） */}
-                {zoneTabsData.length > 0 && (
-                  <div className="history-zone-tabs">
-                    <div className="history-zone-tabs-bar">
-                      {zoneTabsData.map((tab, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className={`history-zone-tab ${activeZoneTabIdx === i ? 'active' : ''}`}
-                          onClick={() => setZoneActiveTab(i)}
-                        >
-                          {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="history-zone-tabs-body">
-                      {zoneTabItems.length === 0 ? (
-                        <div className="history-zone-tabs-empty">
-                          此分頁下尚無內容
-                        </div>
-                      ) : (
-                        <ul className="history-zone-tab-list">
-                          {zoneTabItems
-                            .filter(
-                              (child) =>
-                                !isProgressionChainHidden(
+                  {/* Zone 分頁目錄（從 metadata 讀取） */}
+                  {zoneTabsData.length > 0 && (
+                    <div className="history-zone-tabs">
+                      <div className="history-zone-tabs-bar">
+                        {zoneTabsData.map((tab, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            className={`history-zone-tab ${activeZoneTabIdx === i ? 'active' : ''}`}
+                            onClick={() => setZoneActiveTab(i)}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="history-zone-tabs-body">
+                        {zoneTabItems.length === 0 ? (
+                          <div className="history-zone-tabs-empty">
+                            此分頁下尚無內容
+                          </div>
+                        ) : (
+                          <ul className="history-zone-tab-list">
+                            {zoneTabItems
+                              .filter(
+                                (child) =>
+                                  !isProgressionChainHidden(
+                                    child,
+                                    progress,
+                                    resolvePageById,
+                                    child.id,
+                                    progressTree
+                                  )
+                              )
+                              .map((child) => {
+                                const childKind = getLockKind(
                                   child,
                                   progress,
-                                  resolvePageById,
                                   child.id,
                                   progressTree
-                                )
-                            )
-                            .map((child) => {
-                              const childKind = getLockKind(
-                                child,
-                                progress,
-                                child.id,
-                                progressTree
-                              );
-                              const childLocked = childKind !== null;
-                              return (
-                                <li key={child.id}>
-                                  <button
-                                    type="button"
-                                    className="history-zone-tab-link"
-                                    style={
-                                      childKind === 'static'
-                                        ? {
-                                            opacity: 0.45,
-                                            cursor: 'not-allowed',
-                                          }
-                                        : childLocked
-                                          ? { cursor: 'not-allowed' }
-                                          : undefined
-                                    }
-                                    disabled={childLocked}
-                                    onClick={() => void loadPage(child)}
-                                  >
-                                    {childLocked ? (
-                                      <span className="history-zone-tab-link-icon">
-                                        {childKind === 'static'
-                                          ? '🔒'
-                                          : childKind === 'progression'
-                                            ? '◌'
-                                            : '❖'}
-                                      </span>
-                                    ) : (
-                                      renderIcon(
-                                        child.metadata?.icon as string,
-                                        14,
-                                        'history-zone-tab-link-icon'
-                                      ) || null
-                                    )}
-                                    {childKind === 'flag' ? (
-                                      <span className="history-tree-title--veiled">
-                                        ？？？
-                                      </span>
-                                    ) : (
-                                      <span
-                                        className={
-                                          childKind === 'progression'
-                                            ? 'history-tree-title--blurred'
+                                );
+                                const childLocked = childKind !== null;
+                                return (
+                                  <li key={child.id}>
+                                    <button
+                                      type="button"
+                                      className="history-zone-tab-link"
+                                      style={
+                                        childKind === 'static'
+                                          ? {
+                                              opacity: 0.45,
+                                              cursor: 'not-allowed',
+                                            }
+                                          : childLocked
+                                            ? { cursor: 'not-allowed' }
                                             : undefined
-                                        }
-                                      >
-                                        {child.title}
-                                      </span>
-                                    )}
-                                  </button>
-                                </li>
-                              );
-                            })}
-                        </ul>
-                      )}
+                                      }
+                                      disabled={childLocked}
+                                      onClick={() => void loadPage(child)}
+                                    >
+                                      {childLocked ? (
+                                        <span className="history-zone-tab-link-icon">
+                                          {childKind === 'static'
+                                            ? '🔒'
+                                            : childKind === 'progression'
+                                              ? '◌'
+                                              : '❖'}
+                                        </span>
+                                      ) : (
+                                        renderIcon(
+                                          child.metadata?.icon as string,
+                                          14,
+                                          'history-zone-tab-link-icon'
+                                        ) || null
+                                      )}
+                                      {childKind === 'flag' ? (
+                                        <span className="history-tree-title--veiled">
+                                          ？？？
+                                        </span>
+                                      ) : (
+                                        <span
+                                          className={
+                                            childKind === 'progression'
+                                              ? 'history-tree-title--blurred'
+                                              : undefined
+                                          }
+                                        >
+                                          {child.title}
+                                        </span>
+                                      )}
+                                    </button>
+                                  </li>
+                                );
+                              })}
+                          </ul>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </ZoneEmptyOverlay>
 
                 <ZonePrevNext
                   prev={

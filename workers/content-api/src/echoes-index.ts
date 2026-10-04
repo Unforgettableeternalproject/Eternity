@@ -15,6 +15,8 @@
  * 命名空間，同一首歌依 songType 只會有其中一種。
  */
 
+import { isExcludedRow, isStaticallyLocked } from './visibility';
+
 /** 索引中的單筆條目摘要 */
 export interface EchoesEntityIndexEntry {
   /** Echoes 歌曲頁 id（`echoes/...`） */
@@ -51,12 +53,19 @@ export interface BuildEchoesEntityIndexOptions {
    * 撞名檢查若看不到 hidden 頁，兩首隱藏歌就能共用同一個 key 而無人攔阻。
    */
   includeHidden?: boolean;
+  /**
+   * 訪客視角（非管理員）：草稿與靜態鎖頁不進索引。索引以 key 為檢索
+   * 單位，剝掉 entityKey／storyKey 的存根沒有用途，直接排除。
+   * 唯一性把關等內部呼叫不可開啟。
+   */
+  publicView?: boolean;
 }
 
 interface EchoesIndexRow {
   id: string;
   title: string;
   metadata: string;
+  status?: string;
 }
 
 /**
@@ -78,7 +87,7 @@ export async function buildEchoesEntityIndex(
 ): Promise<EchoesEntityIndexEntry[]> {
   const result = await db
     .prepare(
-      `SELECT id, title, metadata FROM pages
+      `SELECT id, title, metadata, status FROM pages
        WHERE area = 'echoes' AND page_type = 'song' AND deleted_at IS NULL
        ORDER BY sort_order ASC`
     )
@@ -93,6 +102,9 @@ export async function buildEchoesEntityIndex(
       continue;
     }
     if (!opts.includeHidden && meta.hidden === true) continue;
+    if (opts.publicView && (isExcludedRow(row) || isStaticallyLocked(meta))) {
+      continue;
+    }
     const entityKey =
       typeof meta.entityKey === 'string' && meta.entityKey
         ? meta.entityKey

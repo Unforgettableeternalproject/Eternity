@@ -113,10 +113,12 @@ export function normalizeGateObject(value: unknown): GateCondition | null {
       )
     : [];
   const pristineOnly = raw.pristineOnly === true;
-  if (requiresFlags.length === 0 && !pristineOnly) return null;
+  const alwaysLocked = raw.alwaysLocked === true;
+  if (requiresFlags.length === 0 && !pristineOnly && !alwaysLocked) return null;
   const gate: GateCondition = {};
   if (requiresFlags.length > 0) gate.requiresFlags = requiresFlags;
   if (pristineOnly) gate.pristineOnly = true;
+  if (alwaysLocked) gate.alwaysLocked = true;
   return gate;
 }
 
@@ -182,12 +184,36 @@ export function serializeVisualsData(data: VisualsData): Record<string, any> {
  * 依 8 案狀態機（設計文件 §1-3）描述當前組合的行為鏈，
  * 讓編輯者所見即所得。warn = 案 8（partialGate 形同虛設，
  * 拍板：提示不阻擋）。
+ *
+ * `always` 標出哪個閘含恆鎖定：該閘永遠不通過，鏈會停在它之前的狀態。
+ * 不標的話「鎖定 →(鎖定條件)→ 解鎖」會被讀成條件設好就能前進。
  */
 export function describeImageChain(
   initialState: ImageDisplayState,
   hasLockGate: boolean,
-  hasPartialGate: boolean
+  hasPartialGate: boolean,
+  always: { lock?: boolean; partial?: boolean } = {}
 ): { text: string; warn: boolean } {
+  if (initialState === 'partial') {
+    // 生效的離開閘：partialGate 優先，缺席時 lockGate 代位
+    const exitAlways = hasPartialGate
+      ? always.partial
+      : hasLockGate && always.lock;
+    if (exitAlways) {
+      return { text: '永遠部分解鎖（離開條件為恆鎖定）', warn: false };
+    }
+  }
+  if (initialState === 'locked' && hasLockGate) {
+    if (always.lock) {
+      return { text: '永遠鎖定（鎖定條件為恆鎖定）', warn: false };
+    }
+    if (hasPartialGate && always.partial) {
+      return {
+        text: '鎖定 →(鎖定條件)→ 部分解鎖（部分條件為恆鎖定，停在此態）',
+        warn: false,
+      };
+    }
+  }
   if (initialState === 'unlocked') {
     // 案 7
     return { text: '永遠解鎖——條件全部不生效', warn: false };
@@ -1215,10 +1241,18 @@ export default function VisualsEditorBody({
                             img.initialState === 'partial'
                               ? img.initialState
                               : 'unlocked';
+                          const lockGate = normalizeGateObject(img.lockGate);
+                          const partialGate = normalizeGateObject(
+                            img.partialGate
+                          );
                           const chain = describeImageChain(
                             effectiveInitial,
-                            !!normalizeGateObject(img.lockGate),
-                            !!normalizeGateObject(img.partialGate)
+                            !!lockGate,
+                            !!partialGate,
+                            {
+                              lock: lockGate?.alwaysLocked === true,
+                              partial: partialGate?.alwaysLocked === true,
+                            }
                           );
                           return (
                             <div style={{ marginTop: 12 }}>
@@ -1286,6 +1320,7 @@ export default function VisualsEditorBody({
                                     apiBase={apiBase}
                                     accent={accent}
                                     showScopeHint={false}
+                                    showAlwaysLocked
                                   />
                                   <label className="ned-field-label ned-field-label--sm">
                                     部分條件（離開 B 的閘）
@@ -1298,6 +1333,7 @@ export default function VisualsEditorBody({
                                     apiBase={apiBase}
                                     accent={accent}
                                     showScopeHint={false}
+                                    showAlwaysLocked
                                   />
                                 </>
                               )}

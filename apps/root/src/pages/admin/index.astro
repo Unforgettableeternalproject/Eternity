@@ -47,7 +47,8 @@ const [
   pageContactEn,
   cards,
 ] = await Promise.all([
-  getProjects(apiBase),
+  // 帶 JWT 讀取：私人 repo 的 github 只回給管理員，未帶會在存檔時被清空
+  getProjects(apiBase, token),
   getUpdates(undefined, apiBase),
   getLinks(apiBase),
   getSingleton('homepage-zh', apiBase),

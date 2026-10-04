@@ -257,6 +257,38 @@ describe('contentVisibility', () => {
       expect(getLockKind(node, createInitialState())).toBe(null);
     });
 
+    /**
+     * 恆鎖定是「後期內容先鎖著不讓人看到」：必須走 flag 的完全遮蔽，
+     * 不可落到 progression 露出模糊標題，也不參與循序漸進隱藏。
+     */
+    it('只有 alwaysLocked → 探索者 flag；觀測者 bypass 不鎖', () => {
+      const node = { metadata: { gate: { alwaysLocked: true } } };
+      expect(getLockKind(node, createInitialState())).toBe('flag');
+      expect(
+        getLockKind(node, stateWith({ view: 'observer', observerEver: true }))
+      ).toBe(null);
+    });
+
+    it('alwaysLocked + 純 completed:* 且已全數完成 → 仍是 flag', () => {
+      const node = {
+        metadata: {
+          gate: {
+            requiresFlags: ['completed:history/1-4'],
+            alwaysLocked: true,
+          },
+        },
+      };
+      expect(
+        getLockKind(node, stateWith({ flags: ['completed:history/1-4'] }))
+      ).toBe('flag');
+      expect(getLockKind(node, createInitialState())).toBe('flag');
+    });
+
+    it('static + alwaysLocked → flag 優先（gate 恆不通過，static 無從生效）', () => {
+      const node = { metadata: { locked: true, gate: { alwaysLocked: true } } };
+      expect(getLockKind(node, createInitialState())).toBe('flag');
+    });
+
     it('不傳 progress 時動態閘門不生效', () => {
       const node = {
         metadata: { gate: { requiresFlags: ['completed:history/1-4'] } },

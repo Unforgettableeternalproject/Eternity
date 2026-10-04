@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { assetUrl, t } from './api';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { assetUrl, getProjects, t } from './api';
 
 describe('assetUrl', () => {
   const base = 'http://localhost:8788/api/root/assets';
@@ -55,5 +55,57 @@ describe('t', () => {
     expect(t(item, 'en', 'title')).toBe('English title');
     expect(t(item, 'zh-tw', 'desc')).toBe('繁中描述');
     expect(t(item, 'en', 'desc')).toBe('English description');
+  });
+});
+
+describe('getProjects', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubFetch(github: string | null) {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            data: [{ id: 'p', isPrivateRepo: true, links: { github } }],
+          }),
+          { status: 200 }
+        )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('帶 token 時送出 Authorization，且不與公開讀取共用快取', async () => {
+    const base = 'http://api.test-get-projects';
+
+    const publicFetch = stubFetch(null);
+    const publicResult = await getProjects(base);
+    expect(publicResult[0].links.github).toBeNull();
+    const publicInit = publicFetch.mock.calls[0] as unknown[];
+    expect(publicInit[1]).toBeUndefined();
+
+    const adminFetch = stubFetch('https://github.com/example/secret');
+    const adminResult = await getProjects(base, 'admin-jwt');
+    expect(adminFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = adminFetch.mock.calls[0] as unknown as [
+      string,
+      { headers?: Record<string, string> },
+    ];
+    expect(url).toBe(`${base}/api/root/projects`);
+    expect(new Headers(init.headers).get('Authorization')).toBe(
+      'Bearer admin-jwt'
+    );
+    expect(adminResult[0].links.github).toBe(
+      'https://github.com/example/secret'
+    );
+
+    // 公開讀取仍命中先前的公開快取，不會拿到管理員的完整資料
+    const afterFetch = stubFetch('https://github.com/example/leak');
+    const again = await getProjects(base);
+    expect(afterFetch).not.toHaveBeenCalled();
+    expect(again[0].links.github).toBeNull();
   });
 });

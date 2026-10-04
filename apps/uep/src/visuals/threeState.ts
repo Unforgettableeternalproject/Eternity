@@ -56,7 +56,8 @@ function hasGate(
   if (!gate || typeof gate !== 'object') return false;
   return (
     (Array.isArray(gate.requiresFlags) && gate.requiresFlags.length > 0) ||
-    gate.pristineOnly === true
+    gate.pristineOnly === true ||
+    gate.alwaysLocked === true
   );
 }
 

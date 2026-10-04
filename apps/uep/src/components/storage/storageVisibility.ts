@@ -20,7 +20,7 @@
  * 因此這裡只傳 progress，不傳 nodeId/tree。
  */
 
-import { getLockKind } from '../zone/contentVisibility';
+import { getLockKind, isHidden } from '../zone/contentVisibility';
 import type { ProgressState } from '../../progress';
 
 interface HasMetadata {
@@ -41,6 +41,18 @@ export function isGateBlocked(
 }
 
 /**
+ * 對讀者完全不存在：`metadata.hidden`（全站共通的不公開語意）或 gate 未通過。
+ *
+ * 列表、計數與網址直達共用這一條；解鎖通知只關心 gate，仍用 `isGateBlocked`。
+ */
+export function isHiddenFromReader(
+  node: HasMetadata,
+  progress: ProgressState | null | undefined
+): boolean {
+  return isHidden(node) || isGateBlocked(node, progress);
+}
+
+/**
  * 過濾出讀者看得到的條目。列表與計數分母共用同一份結果——
  * 分開算會讓「5/12」從數字洩漏出被藏起來的條目數量。
  */
@@ -48,5 +60,37 @@ export function visibleEntries<T extends HasMetadata>(
   nodes: T[],
   progress: ProgressState | null | undefined
 ): T[] {
-  return nodes.filter((n) => !isGateBlocked(n, progress));
+  return nodes.filter((n) => !isHiddenFromReader(n, progress));
+}
+
+interface ClearingLike extends HasMetadata {
+  slug: string;
+  children?: ClearingLike[] | null;
+}
+
+/**
+ * clearing 本身被設為 hidden 時，整區連同底下條目對讀者都不存在。
+ *
+ * @returns 指定 slug 是 hidden clearing，或是 hidden clearing 底下的條目
+ */
+export function isInHiddenClearing(
+  clearings: readonly ClearingLike[],
+  slug: string
+): boolean {
+  return clearings.some(
+    (c) =>
+      isHidden(c) &&
+      (c.slug === slug || (c.children || []).some((ch) => ch.slug === slug))
+  );
+}
+
+/**
+ * 首頁房間地圖的入口：排除對應 clearing 為 hidden 的房間。
+ * 地圖上找不到對應 clearing 節點的房間維持原樣（由 clearing 頁回 not-found）。
+ */
+export function visibleRoomAreas<A extends { slug: string }>(
+  areas: readonly A[],
+  clearings: readonly ClearingLike[]
+): A[] {
+  return areas.filter((a) => !isInHiddenClearing(clearings, a.slug));
 }

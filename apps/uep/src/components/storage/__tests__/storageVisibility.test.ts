@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { isGateBlocked, visibleEntries } from '../storageVisibility';
+import {
+  isGateBlocked,
+  isHiddenFromReader,
+  isInHiddenClearing,
+  visibleEntries,
+  visibleRoomAreas,
+} from '../storageVisibility';
 import type { ProgressState } from '../../../progress';
 
 function makeProgress(partial: Partial<ProgressState> = {}): ProgressState {
@@ -86,5 +92,74 @@ describe('visibleEntries', () => {
     expect(visibleEntries(entries, makeProgress())).toHaveLength(1);
     const unlocked = makeProgress({ flags: ['uep:a', 'uep:b'] });
     expect(visibleEntries(entries, unlocked)).toHaveLength(3);
+  });
+});
+
+describe('hidden 條目', () => {
+  it('isHiddenFromReader：hidden 或 gate 未過都視同不存在', () => {
+    expect(isHiddenFromReader(node({ hidden: true }), makeProgress())).toBe(
+      true
+    );
+    expect(
+      isHiddenFromReader(
+        node({ gate: { requiresFlags: ['uep:tea-party'] } }),
+        makeProgress()
+      )
+    ).toBe(true);
+    expect(isHiddenFromReader(node({ locked: true }), makeProgress())).toBe(
+      false
+    );
+    expect(isHiddenFromReader(node({}), makeProgress())).toBe(false);
+  });
+
+  it('hidden 不受進度與觀測者影響', () => {
+    const observer = makeProgress({
+      view: 'observer',
+      flags: ['uep:tea-party'],
+    });
+    expect(isHiddenFromReader(node({ hidden: true }), observer)).toBe(true);
+    expect(isHiddenFromReader(node({ hidden: true }), null)).toBe(true);
+  });
+
+  it('isGateBlocked 不因 hidden 改變（解鎖通知只看 gate）', () => {
+    expect(isGateBlocked(node({ hidden: true }), makeProgress())).toBe(false);
+  });
+
+  it('visibleEntries 排除 hidden，計數分母一併扣除', () => {
+    const entries = [node({}), node({ hidden: true }), node({ locked: true })];
+    const result = visibleEntries(entries, makeProgress());
+    expect(result).toEqual([entries[0], entries[2]]);
+  });
+});
+
+describe('hidden clearing', () => {
+  const clearings = [
+    {
+      slug: 'storage/boxes',
+      metadata: {},
+      children: [{ slug: 'storage/boxes/a', metadata: {} }],
+    },
+    {
+      slug: 'storage/extras',
+      metadata: { hidden: true },
+      children: [{ slug: 'storage/extras/b', metadata: {} }],
+    },
+  ];
+
+  it('isInHiddenClearing：hidden clearing 本身與底下條目都擋', () => {
+    expect(isInHiddenClearing(clearings, 'storage/extras')).toBe(true);
+    expect(isInHiddenClearing(clearings, 'storage/extras/b')).toBe(true);
+    expect(isInHiddenClearing(clearings, 'storage/boxes')).toBe(false);
+    expect(isInHiddenClearing(clearings, 'storage/boxes/a')).toBe(false);
+    expect(isInHiddenClearing(clearings, 'storage/unknown')).toBe(false);
+  });
+
+  it('visibleRoomAreas：房間地圖排除 hidden clearing，找不到節點的房間保留', () => {
+    const areas = [
+      { slug: 'storage/boxes' },
+      { slug: 'storage/extras' },
+      { slug: 'storage/changelog' },
+    ];
+    expect(visibleRoomAreas(areas, clearings)).toEqual([areas[0], areas[2]]);
   });
 });

@@ -15,6 +15,8 @@
  * 互斥：陳列走廊綁 entityKey、鑲框室綁 storyKey。
  */
 
+import { isExcludedRow, isStaticallyLocked } from './visibility';
+
 /** 索引中的單筆條目摘要 */
 export interface VisualsEntityIndexEntry {
   /** Visuals gallery 頁 id（`visuals/...`） */
@@ -48,12 +50,19 @@ export interface BuildVisualsEntityIndexOptions {
    * key 仍然是有效的引用目標，撞名檢查必須看得到。
    */
   includeHidden?: boolean;
+  /**
+   * 訪客視角（非管理員）：草稿與靜態鎖頁不進索引。索引以 key 為檢索
+   * 單位，剝掉 entityKey／storyKey 的存根沒有用途，直接排除。
+   * 唯一性把關等內部呼叫不可開啟。
+   */
+  publicView?: boolean;
 }
 
 interface VisualsIndexRow {
   id: string;
   title: string;
   metadata: string;
+  status?: string;
 }
 
 /**
@@ -75,7 +84,7 @@ export async function buildVisualsEntityIndex(
 ): Promise<VisualsEntityIndexEntry[]> {
   const result = await db
     .prepare(
-      `SELECT id, title, metadata FROM pages
+      `SELECT id, title, metadata, status FROM pages
        WHERE area = 'visuals' AND page_type = 'gallery' AND deleted_at IS NULL
        ORDER BY sort_order ASC`
     )
@@ -90,6 +99,9 @@ export async function buildVisualsEntityIndex(
       continue;
     }
     if (!opts.includeHidden && meta.hidden === true) continue;
+    if (opts.publicView && (isExcludedRow(row) || isStaticallyLocked(meta))) {
+      continue;
+    }
     const entityKey =
       typeof meta.entityKey === 'string' && meta.entityKey
         ? meta.entityKey

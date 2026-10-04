@@ -206,15 +206,21 @@ export function sanitizeSeedPage(page) {
 /**
  * 從 prod 讀取 pages 表的骨架資料。
  * 策略：leaf blacklist — 明確跳過已知葉子，其他中間層 + homepage 全搬。
+ *
+ * 必須帶認證：content-api 對未認證讀取的封存頁（metadata.locked）只回
+ * 存根，seed 進 test 的會是剝掉標題與內容的殼。
+ *
+ * @param {string} token admin JWT 或 API_TOKEN
  */
-export async function fetchSeedPages() {
+export async function fetchSeedPages(token) {
   const seedPages = [];
   const seen = new Set();
 
   for (const zone of ZONES) {
     // 取得該 zone 的全部頁面清單（含層級資訊）
-    const listResp = await prodGet(
-      `/api/content/${zone}?include_deleted=false`
+    const listResp = await prodGetAuthed(
+      `/api/content/${zone}?include_deleted=false`,
+      token
     );
     const pages = listResp.data || [];
     const pagesById = new Map(pages.map((page) => [page.id, page]));
@@ -247,7 +253,10 @@ export async function fetchSeedPages() {
 
       // 其餘（homepage / zone / chapter / arc / cluster / subcategory / division /
       //       clearing / stack）通通搬——這是 zone 導覽骨架
-      const full = await prodGet(`/api/content/${zone}/${page.slug}`);
+      const full = await prodGetAuthed(
+        `/api/content/${zone}/${page.slug}`,
+        token
+      );
       if (full.data) {
         seedPages.push(sanitizeSeedPage(full.data));
         seen.add(page.id);
@@ -257,7 +266,10 @@ export async function fetchSeedPages() {
     // 條件三：history/index 首頁（特殊 slug）
     if (zone === 'history') {
       try {
-        const histIdx = await prodGet('/api/content/history/index');
+        const histIdx = await prodGetAuthed(
+          '/api/content/history/index',
+          token
+        );
         if (histIdx.data && !seen.has(histIdx.data.id)) {
           seedPages.push(histIdx.data);
           seen.add(histIdx.data.id);
@@ -356,9 +368,17 @@ async function fetchSeedLinks() {
   return resp.data || [];
 }
 
-/** 從 prod 讀取 root_projects。 */
-async function fetchSeedProjects() {
-  const resp = await prodGet('/api/root/projects');
+/**
+ * 從 prod 讀取 root_projects。
+ *
+ * 必須帶認證：未授權讀者拿到的私人 repo 專案 github 已剝除為 null，
+ * 種進 test 會讓 test 後台看不到網址、存檔時寫回 null。
+ * 錯誤的 token 在這個公開端點不會 401（只是當成訪客）；由同一輪的
+ * fetchSeedFlags（`/api/flags` 需授權，拒絕即 401 中止）把關，且所有讀取
+ * 都在第一筆寫入之前。
+ */
+async function fetchSeedProjects(token) {
+  const resp = await prodGetAuthed('/api/root/projects', token);
   return resp.data || [];
 }
 
@@ -502,6 +522,7 @@ async function writeProject(project, token) {
     status: project.status,
     image: project.image,
     links: project.links,
+    isPrivateRepo: project.isPrivateRepo,
     startDate: project.startDate,
     endDate: project.endDate,
     updatedAt: project.updatedAt,
@@ -598,7 +619,7 @@ async function main() {
 
   // ── 1. 讀取 prod 骨架 pages ──
   console.log('[ 1/4 ] 從 prod 讀取骨架 pages...');
-  const seedPages = await fetchSeedPages();
+  const seedPages = await fetchSeedPages(token);
   console.log(`  找到 ${seedPages.length} 筆 pages`);
 
   const byType = {};
@@ -626,7 +647,7 @@ async function main() {
 
   // ── 5. 讀取 root_projects ──
   console.log('\n[ 5/6 ] 從 prod 讀取 root_projects...');
-  const projects = await fetchSeedProjects();
+  const projects = await fetchSeedProjects(token);
   console.log(`  找到 ${projects.length} 筆 projects`);
 
   // ── 6. 讀取 root_updates ──

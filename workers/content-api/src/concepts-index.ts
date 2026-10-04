@@ -19,6 +19,8 @@
  * - diff:    subcategories[*].sections[*].entries
  */
 
+import { isExcludedRow, isHiddenMeta, isStaticallyLocked } from './visibility';
+
 // ===== 回應形狀 =====
 
 /** 單一 revision 的 gate 摘要（不含 patch） */
@@ -358,6 +360,12 @@ export interface BuildConceptsEntityIndexOptions {
    * 統計保持一致（hidden/locked 一律不算）。
    */
   publicOnly?: boolean;
+  /**
+   * 訪客視角（`/api/concepts/entity-index` 的非管理員請求）：草稿與靜態鎖
+   * 頁不進索引，hidden 頁照收（前端自行處理）。publicOnly 已涵蓋此口徑。
+   * 唯一性把關、定義反查等內部呼叫不可開啟。
+   */
+  publicView?: boolean;
 }
 
 /**
@@ -377,11 +385,17 @@ export async function buildConceptsEntityIndex(
   // 的壞資料打掉整個索引（S8 驗收 #2 教訓）。判定結果與原 SQL 相同。
   const result = await db
     .prepare(
-      `SELECT id, title, content, metadata FROM pages
+      `SELECT id, title, content, metadata, status FROM pages
        WHERE area = 'concepts' AND deleted_at IS NULL
        ORDER BY sort_order ASC`
     )
-    .all<{ id: string; title: string; content: string; metadata: string }>();
+    .all<{
+      id: string;
+      title: string;
+      content: string;
+      metadata: string;
+      status: string;
+    }>();
 
   const entries: EntityIndexEntry[] = [];
   for (const row of result.results || []) {
@@ -391,16 +405,13 @@ export async function buildConceptsEntityIndex(
     } catch {
       continue;
     }
-    // 原 SQL 的 COALESCE(...,0)!=1 語意：值為 1/true 才排除
     if (
-      opts.publicOnly &&
-      (metadata?.hidden === true ||
-        metadata?.hidden === 1 ||
-        metadata?.locked === true ||
-        metadata?.locked === 1)
+      (opts.publicOnly || opts.publicView) &&
+      (isExcludedRow(row) || isStaticallyLocked(metadata))
     ) {
       continue;
     }
+    if (opts.publicOnly && isHiddenMeta(metadata)) continue;
     const stack = metadata?.stack_style;
     if (
       typeof stack !== 'string' ||

@@ -22,6 +22,48 @@ export function Mono({
   );
 }
 
+/** 清單項目上移／下移按鈕；陣列順序即前台顯示順序 */
+export function SortButtons({
+  idx,
+  total,
+  onMove,
+  disabled = false,
+}: {
+  idx: number;
+  total: number;
+  onMove: (from: number, to: number) => void;
+  disabled?: boolean;
+}) {
+  const upDisabled = disabled || idx === 0;
+  const downDisabled = disabled || idx === total - 1;
+  return (
+    // 常放在可點擊的卡片標題列內，點排序不該連帶切換展開
+    <div
+      style={{ display: 'flex', gap: 4 }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        className="qe-topbar__btn"
+        style={{ padding: '3px 8px', opacity: upDisabled ? 0.3 : 1 }}
+        disabled={upDisabled}
+        onClick={() => onMove(idx, idx - 1)}
+        title="上移"
+      >
+        <Mono>↑</Mono>
+      </button>
+      <button
+        className="qe-topbar__btn"
+        style={{ padding: '3px 8px', opacity: downDisabled ? 0.3 : 1 }}
+        disabled={downDisabled}
+        onClick={() => onMove(idx, idx + 1)}
+        title="下移"
+      >
+        <Mono>↓</Mono>
+      </button>
+    </div>
+  );
+}
+
 export function Divider({ label }: { label?: string }) {
   return (
     <div className="qe-divider">

@@ -1,5 +1,17 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { getDialog, getToast } from './editorHelpers';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  applyPendingOrder,
+  beginRowDrag,
+  getDialog,
+  getToast,
+  sameOrder,
+} from './editorHelpers';
 
 interface SongItem {
   id: string;
@@ -17,6 +29,10 @@ interface EchoesSubcatEditorProps {
   accent: string;
   onDirty: () => void;
   refreshKey?: number;
+  /** 暫存中尚未儲存的排序（id 陣列）；null 表示與伺服器一致 */
+  pendingOrder: string[] | null;
+  /** 回報暫存排序；與伺服器順序一致時回報 null */
+  onPendingOrderChange: (order: string[] | null) => void;
 }
 
 export default function EchoesSubcatEditor({
@@ -27,8 +43,15 @@ export default function EchoesSubcatEditor({
   accent,
   onDirty,
   refreshKey,
+  pendingOrder,
+  onPendingOrderChange,
 }: EchoesSubcatEditorProps) {
-  const [songs, setSongs] = useState<SongItem[]>([]);
+  const [serverSongs, setServerSongs] = useState<SongItem[]>([]);
+  // 顯示順序 = 伺服器清單套用暫存排序；拖曳只改暫存，儲存時才送出
+  const songs = useMemo(
+    () => applyPendingOrder(serverSongs, pendingOrder),
+    [serverSongs, pendingOrder]
+  );
   const [loading, setLoading] = useState(true);
 
   // 新增歌曲表單
@@ -40,6 +63,8 @@ export default function EchoesSubcatEditor({
   // 拖曳
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
+  // 拖曳來源以 ref 記錄：is-dragging 樣式延一幀才套，drop 判定不能等它
+  const dragFromRef = useRef<number | null>(null);
 
   // 載入子歌曲
   const fetchSongs = useCallback(async () => {
@@ -66,7 +91,7 @@ export default function EchoesSubcatEditor({
         const songChildren = (node.children || [])
           .filter((c: any) => c.pageType === 'song')
           .sort((a: SongItem, b: SongItem) => a.sortOrder - b.sortOrder);
-        setSongs(songChildren);
+        setServerSongs(songChildren);
       }
     } catch (err) {
       console.error('載入歌曲清單失敗:', err);
@@ -78,6 +103,23 @@ export default function EchoesSubcatEditor({
   useEffect(() => {
     void fetchSongs();
   }, [fetchSongs, refreshKey]);
+
+  // 重抓後校正暫存：新增項目已接在尾端、刪除項目已略過；
+  // 結果與伺服器一致就清除暫存
+  useEffect(() => {
+    if (loading || !pendingOrder) return;
+    const ids = songs.map((item) => item.id);
+    if (
+      sameOrder(
+        ids,
+        serverSongs.map((item) => item.id)
+      )
+    ) {
+      onPendingOrderChange(null);
+    } else if (!sameOrder(ids, pendingOrder)) {
+      onPendingOrderChange(ids);
+    }
+  }, [loading, songs, serverSongs, pendingOrder, onPendingOrderChange]);
 
   // 新增歌曲
   const handleAddSong = async () => {
@@ -131,40 +173,37 @@ export default function EchoesSubcatEditor({
   };
 
   // 拖曳排序
-  const handleDragStart = (idx: number) => setDragIdx(idx);
+  const handleDragStart = (e: React.DragEvent<HTMLElement>, idx: number) => {
+    beginRowDrag(e, idx);
+    dragFromRef.current = idx;
+    requestAnimationFrame(() => {
+      if (dragFromRef.current === idx) setDragIdx(idx);
+    });
+  };
 
   const handleDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
     setDropIdx(idx);
   };
 
-  const handleDrop = async () => {
-    if (dragIdx === null || dropIdx === null || dragIdx === dropIdx) {
-      setDragIdx(null);
-      setDropIdx(null);
-      return;
-    }
-
-    // 重新排列
-    const newSongs = [...songs];
-    const [moved] = newSongs.splice(dragIdx, 1);
-    newSongs.splice(dropIdx, 0, moved);
-    setSongs(newSongs);
+  const handleDrop = () => {
+    const from = dragFromRef.current;
+    dragFromRef.current = null;
     setDragIdx(null);
     setDropIdx(null);
+    if (from === null || dropIdx === null || from === dropIdx) return;
 
-    // 更新每首歌的 sortOrder
-    for (let i = 0; i < newSongs.length; i++) {
-      const song = newSongs[i];
-      if (song.sortOrder !== i) {
-        const songSlug = song.id.replace(`${area}/`, '');
-        await fetch(`${apiBase}/api/content/${area}/${songSlug}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sortOrder: i }),
-        });
-      }
-    }
+    const reordered = songs.map((item) => item.id);
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(dropIdx, 0, moved);
+    onPendingOrderChange(
+      sameOrder(
+        reordered,
+        serverSongs.map((item) => item.id)
+      )
+        ? null
+        : reordered
+    );
   };
 
   // 刪除歌曲
@@ -222,10 +261,15 @@ export default function EchoesSubcatEditor({
                 key={song.id}
                 className={`ned-subcat-song-row ${isDragging ? 'is-dragging' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
                 draggable
-                onDragStart={() => handleDragStart(i)}
+                onDragStart={(e) => handleDragStart(e, i)}
                 onDragOver={(e) => handleDragOver(e, i)}
-                onDrop={handleDrop}
+                onDrop={(e) => {
+                  // 拖曳帶 text/plain，未擋預設行為時 Firefox 會把它當網址開啟
+                  e.preventDefault();
+                  handleDrop();
+                }}
                 onDragEnd={() => {
+                  dragFromRef.current = null;
                   setDragIdx(null);
                   setDropIdx(null);
                 }}

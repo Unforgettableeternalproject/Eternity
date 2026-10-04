@@ -31,7 +31,7 @@
 | 🌟 **Main Site** | [unforgettableeternalproject.com](https://unforgettableeternalproject.com)         | Portfolio, projects, updates, links — Quartz design |
 | 📚 **UEP Docs**  | [uep.unforgettableeternalproject.com](https://uep.unforgettableeternalproject.com) | World-building documentation with 5 themed zones    |
 
-> **Current Version: v1.0.0** — First stable release. Epic 2 (progress system) complete: reader accounts, dual perspectives, scanline reading tracker, content gates, interactive embeds, five zone islands, and cross-zone interlinking.
+> **Current Version: v1.0.1** — Content visibility patch: sealed content is withheld server-side, empty-state signboards, and editor ordering fixes. v1.0.0 was the first stable release. Epic 2 (progress system) complete: reader accounts, dual perspectives, scanline reading tracker, content gates, interactive embeds, five zone islands, and cross-zone interlinking.
 
 ## Project Structure
 

@@ -62,6 +62,7 @@ interface RootProject {
     github?: string | null;
     website?: string | null;
   };
+  isPrivateRepo?: boolean;
   startDate: string | null;
   endDate: string | null;
   createdAt: string;
@@ -1051,7 +1052,10 @@ function ProjectsEditor({
               placeholder="https://..."
             />
           </Field>
-          <Field label="github">
+          <Field
+            label="github"
+            hint={p.isPrivateRepo ? '私人 repo：前台不公開此網址' : undefined}
+          >
             <Input
               value={p.links?.github || ''}
               onChange={(v) => up({ links: { ...p.links, github: v || null } })}
@@ -1059,6 +1063,11 @@ function ProjectsEditor({
               placeholder="https://..."
             />
           </Field>
+          <Toggle
+            label="私人 repo (前台隱藏 GitHub 連結)"
+            checked={!!p.isPrivateRepo}
+            onChange={(v) => up({ isPrivateRepo: v })}
+          />
           <Field label="website">
             <Input
               value={p.links?.website || ''}
@@ -1440,7 +1449,7 @@ function UpdatesEditor({
             />
           </Field>
           <Toggle
-            label="featured"
+            label="featured (首頁精選)"
             checked={u.featured}
             onChange={(v) => up({ featured: v })}
           />

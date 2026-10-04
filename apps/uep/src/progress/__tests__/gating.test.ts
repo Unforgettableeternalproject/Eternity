@@ -122,14 +122,20 @@ describe('evaluateGate — 組合條件（番外情境）', () => {
 });
 
 describe('evaluateGate — alwaysLocked（恆鎖定）', () => {
-  it('三種身分一律不可見', () => {
+  it('探索者一律不可見；觀測者 bypass', () => {
     const cond = { alwaysLocked: true };
     expect(evaluateGate(pristineExplorer, cond)).toBe(false);
     expect(evaluateGate(markedExplorer, cond)).toBe(false);
-    expect(evaluateGate(observer, cond)).toBe(false);
+    expect(evaluateGate(observer, cond)).toBe(true);
   });
 
-  it('一票否決：其餘條件全數滿足也不可見', () => {
+  it('與 pristineOnly 並存：觀測者仍被 pristineOnly 擋下', () => {
+    const cond = { alwaysLocked: true, pristineOnly: true };
+    expect(evaluateGate(observer, cond)).toBe(false);
+    expect(evaluateGate(pristineExplorer, cond)).toBe(false);
+  });
+
+  it('一票否決：其餘條件全數滿足的探索者也不可見', () => {
     const state = makeState({ flags: ['arc1:done'] });
     expect(
       evaluateGate(state, { requiresFlags: ['arc1:done'], alwaysLocked: true })

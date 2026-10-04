@@ -755,6 +755,52 @@ function setupProtectionOverlay(): void {
 let overlayTimer: number | null = null;
 let restoreTimer: number | null = null;
 
+/**
+ * 遮罩出現時被暫停的曲目 id；null 表示遮罩出現當下本來就沒在播，
+ * 退場時不得自動播放。
+ */
+let suspendedSongId: string | null = null;
+
+/** 失焦遮蔽在場：此時遮罩等 focus 回來才退場，短遮罩不得把它改成自動退場 */
+let stickyActive = false;
+
+/**
+ * 失焦遮蔽出現：正在播放的音訊一併暫停，並記下曲目以便退場時續播。
+ * PrintScreen 的短遮罩不走這裡——一閃而過的遮罩不值得打斷播放。
+ * 已有暫停紀錄時播放器本來就停著，重覆呼叫不會覆寫紀錄。
+ * 走 `window.__uepAudio` bridge——音訊島沒載入時 bridge 不存在，代表沒東西在播。
+ */
+export function suspendAudioForProtection(): void {
+  const audio = window.__uepAudio;
+  if (!audio) return;
+  const s = audio.getState();
+  if (!s.isPlaying || !s.currentSongId) return;
+  suspendedSongId = s.currentSongId;
+  audio.pause();
+}
+
+/**
+ * 遮罩退場：遮罩出現前在播的曲目從暫停位置續播。
+ * 期間曲目已被換掉或清除（登出、reset）就不續播；
+ * play() 被 autoplay 政策拒絕時 store 會把 isPlaying 留在 false，這裡不另外處理。
+ */
+export function resumeAudioAfterProtection(): void {
+  const songId = suspendedSongId;
+  suspendedSongId = null;
+  if (!songId) return;
+  const audio = window.__uepAudio;
+  if (!audio) return;
+  const s = audio.getState();
+  if (s.isPlaying || s.currentSongId !== songId || !s.currentUrl) return;
+  void audio.play(
+    songId,
+    s.currentUrl,
+    s.currentTitle ?? undefined,
+    s.currentAccent ?? undefined,
+    false
+  );
+}
+
 /** 顯示遮罩的共用起點：清掉退場狀態，避免上一次還原尚未走完就重新遮蔽 */
 function markOverlayVisible(overlay: HTMLElement, forced?: string): void {
   if (restoreTimer !== null) {
@@ -780,6 +826,8 @@ function showProtectionOverlay(forced?: string): void {
   if (!overlay) return;
 
   markOverlayVisible(overlay, forced);
+  // 失焦遮蔽期間維持到 focus 回來，不排自動退場
+  if (stickyActive) return;
 
   if (overlayTimer !== null) {
     window.clearTimeout(overlayTimer);
@@ -800,6 +848,9 @@ function showProtectionOverlaySticky(): void {
     overlayTimer = null;
   }
   markOverlayVisible(overlay);
+  stickyActive = true;
+  // 短遮罩在場時升級成失焦遮蔽也要暫停
+  suspendAudioForProtection();
 }
 
 /** 隱藏保護遮罩——走「重新接上訊號」的退場（雜訊 + 灰階還原） */
@@ -812,12 +863,15 @@ function hideProtectionOverlay(): void {
     overlayTimer = null;
   }
 
+  stickyActive = false;
   const wasVisible = overlay.getAttribute('data-visible') === 'true';
   overlay.setAttribute('data-visible', 'false');
   overlay.setAttribute('aria-hidden', 'true');
 
   /* 本來就不可見（例如重覆 focus 事件）不必再演一次還原 */
   if (!wasVisible) return;
+
+  resumeAudioAfterProtection();
 
   overlay.setAttribute('data-restoring', 'true');
   if (restoreTimer !== null) window.clearTimeout(restoreTimer);

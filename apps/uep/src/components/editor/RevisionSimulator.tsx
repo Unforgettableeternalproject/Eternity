@@ -164,7 +164,7 @@ export default function RevisionSimulator({
           checked={observer}
           onChange={(e) => setObserver(e.target.checked)}
         />
-        <span>觀測者視角（bypass 旗標條件）</span>
+        <span>觀測者視角（bypass 旗標條件與恆鎖定）</span>
       </label>
 
       <div className="ced-rev-section-title">求值結果</div>
