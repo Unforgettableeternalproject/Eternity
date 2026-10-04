@@ -19,11 +19,18 @@ import { useScrollMemory } from '../zone/useScrollMemory';
 import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
 import { useZoneRouter, pushUrl, clearUrl } from '../zone/useZoneRouter';
-import { isLocked } from '../zone/contentVisibility';
-import { isGateBlocked, visibleEntries } from './storageVisibility';
+import { isHidden, isLocked } from '../zone/contentVisibility';
+import {
+  isHiddenFromReader,
+  isInHiddenClearing,
+  visibleEntries,
+  visibleRoomAreas,
+} from './storageVisibility';
 import { useProgress } from '../../progress';
 import { useReaderAuth } from '../../auth';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import { ZoneEmptyOverlay } from '../zone/ZoneEmptyOverlay';
+import { resolveZoneEmptyState } from '../zone/zoneEmptyState';
 import {
   type HomepageBlock,
   type ZoneHeaderData,
@@ -486,6 +493,12 @@ export default function StorageReader() {
   async function navigateToClearing(clearingSlug: string, push = true) {
     saveScroll(currentScrollKey());
     clearingSlug = canonicalizePagePath(clearingSlug);
+    // hidden clearing 連網址直接進也擋掉，與條目的擋門一致
+    if (isInHiddenClearing(clearingNodes, clearingSlug)) {
+      navigateToLanding();
+      setBootNavPending(false);
+      return;
+    }
     setActiveClearingId(clearingSlug);
     setActivePageId(null);
     setReadingPage(null);
@@ -502,11 +515,14 @@ export default function StorageReader() {
   async function navigateToPage(pageSlug: string, push = true) {
     saveScroll(currentScrollKey());
     pageSlug = canonicalizePagePath(pageSlug);
-    // gate 未通過的頁面連網址直接進也擋掉——列表藏起來但 URL 讀得到，
+    // hidden 與 gate 未通過的頁面連網址直接進也擋掉——列表藏起來但 URL 讀得到，
     // 等於沒藏。tree 尚未就緒時 node 找不到（deep link 有 treeReady 保證，
     // 這裡只是保守），漏過去的交給 renderReading 的渲染層防禦兜底。
     const targetNode = flatNodes.find((n) => n.slug === pageSlug);
-    if (targetNode && isGateBlocked(targetNode, progress)) {
+    if (
+      (targetNode && isHiddenFromReader(targetNode, progress)) ||
+      isInHiddenClearing(clearingNodes, pageSlug)
+    ) {
       navigateToLanding();
       setBootNavPending(false);
       return;
@@ -577,7 +593,11 @@ export default function StorageReader() {
         );
       }
       case 'storage-room-map': {
-        const { areas } = block.data as { areas: StorageRoomArea[] };
+        // hidden clearing 的房間不上地圖；連接線依剩下的房間數決定
+        const areas = visibleRoomAreas(
+          (block.data as { areas: StorageRoomArea[] }).areas || [],
+          clearingNodes
+        );
         const positions = [
           { gridArea: 'a', x: 25, y: 20 },
           { gridArea: 'b', x: 75, y: 20 },
@@ -702,7 +722,7 @@ export default function StorageReader() {
   // ══════════════════════════════════════════════════════════════════
   function renderClearing() {
     const cNode = clearingNodes.find((n) => n.slug === activeClearingId);
-    if (!cNode)
+    if (!cNode || isHidden(cNode))
       return <ZoneStateDisplay kind="not-found" message="找不到此區域" large />;
     const meta = cNode.metadata || {};
     const clearingDef = CLEARINGS.find((c) => c.slug === activeClearingId);
@@ -712,6 +732,11 @@ export default function StorageReader() {
       (cNode.children || []).filter((c) => c.pageType === 'stuff'),
       progress
     ).sort((a, b) => a.sortOrder - b.sortOrder);
+    // 空狀態以未過濾的條目判定：gate 未過與 static locked 都算「存在但未解鎖」
+    const clearingEmptyKind = resolveZoneEmptyState(
+      (cNode.children || []).filter((c) => c.pageType === 'stuff'),
+      (e) => !isLocked(e, progress)
+    );
 
     // 從 clearing metadata 讀取 subcategory 定義
     interface SubcatDef {
@@ -770,89 +795,96 @@ export default function StorageReader() {
 
         <div className="sto-gradient-line" />
 
-        {/* 從 D1 載入的 clearing 介紹內容，若無則 fallback 到靜態定義 */}
-        {clearingStyle === 'blog' && (
-          <>
-            <div className="sto-extras-intro-grid">
-              <WindowSvg />
+        {/* 空狀態告示牌蓋住標題以下的主內容區（介紹、對話、條目列表、底部提示） */}
+        <ZoneEmptyOverlay
+          kind={clearingEmptyKind}
+          seed={`storage:${cNode.id}`}
+          accent="var(--storage-main)"
+        >
+          {/* 從 D1 載入的 clearing 介紹內容，若無則 fallback 到靜態定義 */}
+          {clearingStyle === 'blog' && (
+            <>
+              <div className="sto-extras-intro-grid">
+                <WindowSvg />
+                {clearingContentHtml ? (
+                  <div className="sto-clearing-intro-text">
+                    {renderHtmlWithUep(
+                      clearingContentHtml,
+                      'cl-intro',
+                      'sto-prose'
+                    )}
+                  </div>
+                ) : (
+                  <p className="sto-clearing-intro-text">
+                    {clearingDef?.intro || ''}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          {(clearingStyle === 'dialogue' || clearingStyle === 'log') && (
+            <>
               {clearingContentHtml ? (
                 <div className="sto-clearing-intro-text">
                   {renderHtmlWithUep(
                     clearingContentHtml,
-                    'cl-intro',
+                    'cl-intro-dl',
                     'sto-prose'
                   )}
                 </div>
-              ) : (
+              ) : clearingDef?.intro ? (
                 <p className="sto-clearing-intro-text">
-                  {clearingDef?.intro || ''}
+                  <span className="sto-drop-cap">{clearingDef.intro[0]}</span>
+                  {clearingDef.intro.slice(1)}
                 </p>
-              )}
-            </div>
-          </>
-        )}
+              ) : null}
+            </>
+          )}
 
-        {(clearingStyle === 'dialogue' || clearingStyle === 'log') && (
-          <>
-            {clearingContentHtml ? (
-              <div className="sto-clearing-intro-text">
-                {renderHtmlWithUep(
-                  clearingContentHtml,
-                  'cl-intro-dl',
-                  'sto-prose'
-                )}
+          {/* UEP 對話：D1 metadata 優先，靜態定義 fallback */}
+          {(() => {
+            const uepText =
+              typeof meta.uepNote === 'string'
+                ? meta.uepNote
+                : clearingDef?.uepNote;
+            return uepText ? (
+              <div style={{ margin: '24px 0 8px' }}>
+                <UepDialogue side="left" text={uepText} />
               </div>
-            ) : clearingDef?.intro ? (
-              <p className="sto-clearing-intro-text">
-                <span className="sto-drop-cap">{clearingDef.intro[0]}</span>
-                {clearingDef.intro.slice(1)}
-              </p>
-            ) : null}
-          </>
-        )}
+            ) : null;
+          })()}
 
-        {/* UEP 對話：D1 metadata 優先，靜態定義 fallback */}
-        {(() => {
-          const uepText =
-            typeof meta.uepNote === 'string'
-              ? meta.uepNote
-              : clearingDef?.uepNote;
-          return uepText ? (
-            <div style={{ margin: '24px 0 8px' }}>
-              <UepDialogue side="left" text={uepText} />
-            </div>
-          ) : null;
-        })()}
-
-        {/* 條目列表 — 根據 clearing style 用不同卡片 */}
-        <div className="sto-entries-header">
-          <span>
-            ·{' '}
-            {clearingStyle === 'dialogue'
-              ? '撿到的對話'
-              : clearingStyle === 'log'
-                ? '桌上的紙條 (時序由近至遠)'
-                : '整理好的字條'}{' '}
-            ·
-          </span>
-        </div>
-        {clearingStyle === 'dialogue' &&
-          (hasSubcats
-            ? renderBoxesGrouped(subcatDefs, entries)
-            : renderBoxesEntries(entries))}
-        {clearingStyle === 'log' && renderLogEntries(entries)}
-        {clearingStyle === 'blog' &&
-          (hasSubcats
-            ? renderExtrasGrouped(subcatDefs, entries)
-            : renderExtrasEntries(entries))}
-
-        {/* 底部提示 */}
-        {clearingDef?.footerHint && (
-          <div className="sto-clearing-footer-hint">
-            <span className="sto-footer-hint-icon">ⓘ</span>
-            {clearingDef.footerHint}
+          {/* 條目列表 — 根據 clearing style 用不同卡片 */}
+          <div className="sto-entries-header">
+            <span>
+              ·{' '}
+              {clearingStyle === 'dialogue'
+                ? '撿到的對話'
+                : clearingStyle === 'log'
+                  ? '桌上的紙條 (時序由近至遠)'
+                  : '整理好的字條'}{' '}
+              ·
+            </span>
           </div>
-        )}
+          {clearingStyle === 'dialogue' &&
+            (hasSubcats
+              ? renderBoxesGrouped(subcatDefs, entries)
+              : renderBoxesEntries(entries))}
+          {clearingStyle === 'log' && renderLogEntries(entries)}
+          {clearingStyle === 'blog' &&
+            (hasSubcats
+              ? renderExtrasGrouped(subcatDefs, entries)
+              : renderExtrasEntries(entries))}
+
+          {/* 底部提示 */}
+          {clearingDef?.footerHint && (
+            <div className="sto-clearing-footer-hint">
+              <span className="sto-footer-hint-icon">ⓘ</span>
+              {clearingDef.footerHint}
+            </div>
+          )}
+        </ZoneEmptyOverlay>
 
         {/* 返回按鈕 */}
         <div className="sto-back-bar">
@@ -1264,7 +1296,10 @@ export default function StorageReader() {
     const readingNode = flatNodes.find(
       (n) => n.slug === (activePageId ?? readingPage.slug)
     );
-    if (readingNode && isGateBlocked(readingNode, progress))
+    if (
+      (readingNode && isHiddenFromReader(readingNode, progress)) ||
+      isInHiddenClearing(clearingNodes, activePageId ?? readingPage.slug)
+    )
       return <ZoneStateDisplay kind="not-found" large />;
     const cNode = clearingNodes.find((n) => n.slug === activeClearingId);
     const meta = cNode?.metadata || {};

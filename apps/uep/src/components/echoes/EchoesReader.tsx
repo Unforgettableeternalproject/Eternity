@@ -16,6 +16,8 @@ import EchoesRipple from './EchoesRipple';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZonePrevNext } from '../zone/ZonePrevNext';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import { ZoneEmptyOverlay } from '../zone/ZoneEmptyOverlay';
+import { resolveZoneEmptyState } from '../zone/zoneEmptyState';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
@@ -1576,6 +1578,16 @@ function EchoesReaderInner() {
     const totalSongs = clusterNode
       ? countSongs(clusterNode, progress, progressTree)
       : 0;
+    // tree 尚未載入時不判定，避免先閃一下「建設中」
+    const clusterEmptyKind =
+      treeLoading || tree.length === 0
+        ? null
+        : resolveZoneEmptyState(
+            (clusterNode?.children || []).filter(
+              (n) => n.pageType !== 'song' && n.pageType !== 'page'
+            ),
+            (n) => isContentNodeViewable(n, progress, progressTree)
+          );
 
     return (
       <section className="echoes-cluster-page">
@@ -1610,99 +1622,118 @@ function EchoesReaderInner() {
             }}
           />
 
-          {/* 敘事段落 (drop-cap) */}
-          <p className="echoes-narrative">
-            <span className="echoes-drop-cap" style={{ color: cluster.color }}>
-              {cluster.intro[0]}
-            </span>
-            {cluster.intro.slice(1)}
-          </p>
+          {/* 空狀態告示牌蓋住標題以下的主內容區（敘事、對話、子分類、反叛群組） */}
+          <ZoneEmptyOverlay
+            kind={clusterEmptyKind}
+            seed={`echoes:${cluster.id}`}
+            accent={cluster.color}
+          >
+            {/* 敘事段落 (drop-cap) */}
+            <p className="echoes-narrative">
+              <span
+                className="echoes-drop-cap"
+                style={{ color: cluster.color }}
+              >
+                {cluster.intro[0]}
+              </span>
+              {cluster.intro.slice(1)}
+            </p>
 
-          {/* UEP 對話 */}
-          <div className="echoes-uep-inline">
-            <UepDialogue text={cluster.uepNote} effects={['shimmer', 'halo']} />
-          </div>
+            {/* UEP 對話 */}
+            <div className="echoes-uep-inline">
+              <UepDialogue
+                text={cluster.uepNote}
+                effects={['shimmer', 'halo']}
+              />
+            </div>
 
-          <p className="echoes-instruction">
-            還好有一些看上去像是範例的文字寫在字條的背面，你把它們一個個的列出來了：
-          </p>
+            <p className="echoes-instruction">
+              還好有一些看上去像是範例的文字寫在字條的背面，你把它們一個個的列出來了：
+            </p>
 
-          {/* 子分類卡片列表 — 從 tree 讀取 */}
-          <div className="echoes-subcat-list">
-            {subcatNodes.map((subcatNode, i) => {
-              const songCount = countSongs(subcatNode, progress, progressTree);
-              const subcatLocked = !isContentNodeViewable(
-                subcatNode,
-                progress,
-                progressTree
-              );
-              const inaccessible = subcatLocked;
-              return (
-                <button
-                  key={subcatNode.id}
-                  type="button"
-                  className="echoes-subcat-card"
-                  disabled={inaccessible}
-                  style={{
-                    borderLeftColor: inaccessible
-                      ? 'var(--line)'
-                      : cluster.color,
-                    opacity: inaccessible ? 0.5 : 1,
-                    fontStyle: inaccessible ? 'italic' : 'normal',
-                    cursor: inaccessible ? 'not-allowed' : 'pointer',
-                  }}
-                  onClick={() => {
-                    if (inaccessible) return;
-                    void navigateToContent(subcatNode.id);
-                  }}
-                >
-                  <span
-                    className="echoes-subcat-num"
-                    style={{ color: cluster.color }}
-                  >
-                    {String(i + 1).padStart(2, '0')}.
-                  </span>
-                  <div className="echoes-subcat-info">
-                    <div className="echoes-subcat-name">{subcatNode.title}</div>
-                    {typeof subcatNode.metadata?.description === 'string' && (
-                      <div className="echoes-subcat-hint">
-                        ({subcatNode.metadata.description})
-                      </div>
-                    )}
-                  </div>
-                  <span className="echoes-subcat-count">
-                    {subcatLocked ? 'locked' : `${songCount} echoes`}
-                  </span>
-                  <span
-                    className="echoes-subcat-arrow"
+            {/* 子分類卡片列表 — 從 tree 讀取 */}
+            <div className="echoes-subcat-list">
+              {subcatNodes.map((subcatNode, i) => {
+                const songCount = countSongs(
+                  subcatNode,
+                  progress,
+                  progressTree
+                );
+                const subcatLocked = !isContentNodeViewable(
+                  subcatNode,
+                  progress,
+                  progressTree
+                );
+                const inaccessible = subcatLocked;
+                return (
+                  <button
+                    key={subcatNode.id}
+                    type="button"
+                    className="echoes-subcat-card"
+                    disabled={inaccessible}
                     style={{
-                      color: inaccessible ? 'var(--ink-mute)' : cluster.color,
+                      borderLeftColor: inaccessible
+                        ? 'var(--line)'
+                        : cluster.color,
+                      opacity: inaccessible ? 0.5 : 1,
+                      fontStyle: inaccessible ? 'italic' : 'normal',
+                      cursor: inaccessible ? 'not-allowed' : 'pointer',
+                    }}
+                    onClick={() => {
+                      if (inaccessible) return;
+                      void navigateToContent(subcatNode.id);
                     }}
                   >
-                    {inaccessible ? 'LOCK' : '→'}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* 反叛群組 (stories 專屬) */}
-          {cluster.extraGroups && (
-            <div className="echoes-extra-groups">
-              <p className="echoes-instruction">
-                在你完成剛才的分類之後，某一些群組的回聲似乎對此不太滿意。
-                漸漸地，他們跑了出來，並自行組成了新的群組：
-              </p>
-              <div className="echoes-extra-grid">
-                {cluster.extraGroups.map((g, i) => (
-                  <div key={i} className="echoes-extra-item">
-                    <span style={{ color: cluster.color }}>·</span>
-                    {g}
-                  </div>
-                ))}
-              </div>
+                    <span
+                      className="echoes-subcat-num"
+                      style={{ color: cluster.color }}
+                    >
+                      {String(i + 1).padStart(2, '0')}.
+                    </span>
+                    <div className="echoes-subcat-info">
+                      <div className="echoes-subcat-name">
+                        {subcatNode.title}
+                      </div>
+                      {typeof subcatNode.metadata?.description === 'string' && (
+                        <div className="echoes-subcat-hint">
+                          ({subcatNode.metadata.description})
+                        </div>
+                      )}
+                    </div>
+                    <span className="echoes-subcat-count">
+                      {subcatLocked ? 'locked' : `${songCount} echoes`}
+                    </span>
+                    <span
+                      className="echoes-subcat-arrow"
+                      style={{
+                        color: inaccessible ? 'var(--ink-mute)' : cluster.color,
+                      }}
+                    >
+                      {inaccessible ? 'LOCK' : '→'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          )}
+
+            {/* 反叛群組 (stories 專屬) */}
+            {cluster.extraGroups && (
+              <div className="echoes-extra-groups">
+                <p className="echoes-instruction">
+                  在你完成剛才的分類之後，某一些群組的回聲似乎對此不太滿意。
+                  漸漸地，他們跑了出來，並自行組成了新的群組：
+                </p>
+                <div className="echoes-extra-grid">
+                  {cluster.extraGroups.map((g, i) => (
+                    <div key={i} className="echoes-extra-item">
+                      <span style={{ color: cluster.color }}>·</span>
+                      {g}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </ZoneEmptyOverlay>
 
           {/* 返回按鈕 */}
           <div className="echoes-back-bar">
@@ -1780,6 +1811,16 @@ function EchoesReaderInner() {
         !isHidden(c) &&
         isSongUnlockedInZone(c, progress, progressTree)
     );
+    // 空狀態：song 用歌曲解鎖判定，容器沿用 content 視圖守門
+    const contentEmptyKind = contentNode
+      ? resolveZoneEmptyState(
+          allChildren.filter((c) => c.pageType !== 'page'),
+          (c) =>
+            c.pageType === 'song'
+              ? isSongUnlockedInZone(c, progress, progressTree)
+              : isContentNodeViewable(c, progress, progressTree)
+        )
+      : null;
 
     return (
       <section className="echoes-content-page">
@@ -1811,186 +1852,195 @@ function EchoesReaderInner() {
             )}
           </header>
 
-          {/* 頁面內容 (rich text) */}
-          {contentHtml && (
-            <>{renderHtmlWithUep(contentHtml, 'content', 'echoes-prose')}</>
-          )}
+          {/* 空狀態告示牌蓋住標題以下的主內容區（內文、子分類、歌單） */}
+          <ZoneEmptyOverlay
+            kind={contentEmptyKind}
+            seed={`echoes:${currentContentPage.id}`}
+            accent={color}
+          >
+            {/* 頁面內容 (rich text) */}
+            {contentHtml && (
+              <>{renderHtmlWithUep(contentHtml, 'content', 'echoes-prose')}</>
+            )}
 
-          {/* 子分類列表 */}
-          {childSubcats.length > 0 && (
-            <div className="echoes-child-list">
-              {childSubcats.map((child) => {
-                const childLocked = !isContentNodeViewable(
-                  child,
-                  progress,
-                  progressTree
-                );
-                return (
-                  <button
-                    key={child.id}
-                    type="button"
-                    className="echoes-subcat-card"
-                    disabled={childLocked}
-                    style={{
-                      borderLeftColor: childLocked ? 'var(--line)' : color,
-                      opacity: childLocked ? 0.5 : 1,
-                      fontStyle: childLocked ? 'italic' : 'normal',
-                      cursor: childLocked ? 'not-allowed' : 'pointer',
-                    }}
-                    onClick={() => {
-                      if (childLocked) return;
-                      void navigateToContent(child.id);
-                    }}
-                  >
-                    <span
-                      className="echoes-subcat-num"
-                      style={{ color: childLocked ? 'var(--ink-mute)' : color }}
-                    >
-                      {childLocked ? 'LOCK' : '→'}
-                    </span>
-                    <div className="echoes-subcat-info">
-                      <div className="echoes-subcat-name">{child.title}</div>
-                    </div>
-                    <span className="echoes-subcat-count">
-                      {childLocked
-                        ? 'locked'
-                        : `${countSongs(child, progress, progressTree)} echoes`}
-                    </span>
-                    <span
-                      className="echoes-subcat-arrow"
+            {/* 子分類列表 */}
+            {childSubcats.length > 0 && (
+              <div className="echoes-child-list">
+                {childSubcats.map((child) => {
+                  const childLocked = !isContentNodeViewable(
+                    child,
+                    progress,
+                    progressTree
+                  );
+                  return (
+                    <button
+                      key={child.id}
+                      type="button"
+                      className="echoes-subcat-card"
+                      disabled={childLocked}
                       style={{
-                        color: childLocked ? 'var(--ink-mute)' : color,
+                        borderLeftColor: childLocked ? 'var(--line)' : color,
+                        opacity: childLocked ? 0.5 : 1,
+                        fontStyle: childLocked ? 'italic' : 'normal',
+                        cursor: childLocked ? 'not-allowed' : 'pointer',
+                      }}
+                      onClick={() => {
+                        if (childLocked) return;
+                        void navigateToContent(child.id);
                       }}
                     >
-                      {childLocked ? 'LOCK' : '→'}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* 歌曲清單（音樂播放列表樣式）*/}
-          {directSongs.length > 0 && (
-            <div className="echoes-playlist" {...entityDrag.handlers}>
-              <div className="echoes-playlist-header">
-                <span className="echoes-kicker" style={{ color }}>
-                  ♪ {directSongs.length} echoes
-                </span>
-              </div>
-              {directSongs.map((song, i) => {
-                const meta = song.metadata as Record<string, unknown>;
-                const sp = effectiveSongSpoiler(song, progress);
-                const subtitle = (meta?.subtitle as string) || '';
-                // 劇情點名稱：只有劇情歌會有，且要與副標同一套 spoiler 遮蔽
-                // ——它跟副標一樣是會劇透的敘事資訊
-                const storyKey =
-                  typeof meta?.storyKey === 'string'
-                    ? meta.storyKey.trim()
-                    : '';
-                const storyTitle = storyKey
-                  ? getCachedStoryTitle(storyKey)
-                  : null;
-                // 分級解鎖：解鎖後仍根據等級決定可見範圍
-                const songHasUnlocked = sp === 0 || isSongUnlocked(song.id);
-                const songCanSeeTitle = songHasUnlocked && sp <= 2;
-                const songCanSeeSub = songHasUnlocked && sp <= 1;
-                return (
-                  <button
-                    key={song.id}
-                    type="button"
-                    className="echoes-playlist-item"
-                    style={{ ['--accent' as string]: color }}
-                    onClick={() => void navigateToSong(song.id)}
-                    /*
-                     * 標題被 spoiler 遮住時不掛拖曳來源——一張顯示
-                     * 「████████」的卡片能拖出角色正名，讀起來像漏餡
-                     * （即使 dossier 那端本來就已解鎖）
-                     */
-                    data-entity-key={
-                      songCanSeeTitle
-                        ? ((meta?.entityKey as string) ?? undefined)
-                        : undefined
-                    }
-                  >
-                    <span className="echoes-playlist-num">
-                      {String(i + 1).padStart(2, '0')}
-                    </span>
-                    <div
-                      className="echoes-playlist-info"
-                      style={{
-                        filter:
-                          !songCanSeeTitle && sp === 1
-                            ? 'blur(5px)'
-                            : undefined,
-                        userSelect: !songCanSeeTitle ? 'none' : undefined,
-                      }}
-                    >
-                      <div className="echoes-playlist-title">
-                        {songCanSeeTitle ? (
-                          song.title
-                        ) : sp === 3 ? (
-                          <GlitchText text={song.title} />
-                        ) : sp === 2 ? (
-                          '████████'
-                        ) : (
-                          song.title
-                        )}
-                      </div>
-                      {subtitle && (
-                        <div className="echoes-playlist-sub">
-                          {songCanSeeSub ? (
-                            subtitle
-                          ) : sp === 3 ? (
-                            <GlitchText text={subtitle} />
-                          ) : sp === 2 ? (
-                            '████'
-                          ) : (
-                            subtitle
-                          )}
-                        </div>
-                      )}
-                      {storyTitle && (
-                        <div className="echoes-playlist-story">
-                          {songCanSeeSub ? (
-                            <>◈ {storyTitle}</>
-                          ) : sp === 3 ? (
-                            <GlitchText text={`◈ ${storyTitle}`} />
-                          ) : sp === 2 ? (
-                            '◈ ████'
-                          ) : (
-                            <>◈ {storyTitle}</>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {/* 狀態標籤 */}
-                    {sp > 0 && !songHasUnlocked && (
                       <span
+                        className="echoes-subcat-num"
                         style={{
-                          flexShrink: 0,
-                          fontSize: '0.7em',
-                          padding: '2px 7px',
-                          borderRadius: 4,
-                          fontWeight: 600,
-                          letterSpacing: '0.04em',
-                          color: sp === 3 ? 'crimson' : 'goldenrod',
-                          border: `1px solid ${sp === 3 ? 'crimson' : 'goldenrod'}`,
-                          opacity: 0.8,
+                          color: childLocked ? 'var(--ink-mute)' : color,
                         }}
                       >
-                        L{sp}
+                        {childLocked ? 'LOCK' : '→'}
                       </span>
-                    )}
-                    <span className="echoes-subcat-arrow" style={{ color }}>
-                      →
-                    </span>
-                  </button>
-                );
-              })}
-              {entityDrag.ghost}
-            </div>
-          )}
+                      <div className="echoes-subcat-info">
+                        <div className="echoes-subcat-name">{child.title}</div>
+                      </div>
+                      <span className="echoes-subcat-count">
+                        {childLocked
+                          ? 'locked'
+                          : `${countSongs(child, progress, progressTree)} echoes`}
+                      </span>
+                      <span
+                        className="echoes-subcat-arrow"
+                        style={{
+                          color: childLocked ? 'var(--ink-mute)' : color,
+                        }}
+                      >
+                        {childLocked ? 'LOCK' : '→'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 歌曲清單（音樂播放列表樣式）*/}
+            {directSongs.length > 0 && (
+              <div className="echoes-playlist" {...entityDrag.handlers}>
+                <div className="echoes-playlist-header">
+                  <span className="echoes-kicker" style={{ color }}>
+                    ♪ {directSongs.length} echoes
+                  </span>
+                </div>
+                {directSongs.map((song, i) => {
+                  const meta = song.metadata as Record<string, unknown>;
+                  const sp = effectiveSongSpoiler(song, progress);
+                  const subtitle = (meta?.subtitle as string) || '';
+                  // 劇情點名稱：只有劇情歌會有，且要與副標同一套 spoiler 遮蔽
+                  // ——它跟副標一樣是會劇透的敘事資訊
+                  const storyKey =
+                    typeof meta?.storyKey === 'string'
+                      ? meta.storyKey.trim()
+                      : '';
+                  const storyTitle = storyKey
+                    ? getCachedStoryTitle(storyKey)
+                    : null;
+                  // 分級解鎖：解鎖後仍根據等級決定可見範圍
+                  const songHasUnlocked = sp === 0 || isSongUnlocked(song.id);
+                  const songCanSeeTitle = songHasUnlocked && sp <= 2;
+                  const songCanSeeSub = songHasUnlocked && sp <= 1;
+                  return (
+                    <button
+                      key={song.id}
+                      type="button"
+                      className="echoes-playlist-item"
+                      style={{ ['--accent' as string]: color }}
+                      onClick={() => void navigateToSong(song.id)}
+                      /*
+                       * 標題被 spoiler 遮住時不掛拖曳來源——一張顯示
+                       * 「████████」的卡片能拖出角色正名，讀起來像漏餡
+                       * （即使 dossier 那端本來就已解鎖）
+                       */
+                      data-entity-key={
+                        songCanSeeTitle
+                          ? ((meta?.entityKey as string) ?? undefined)
+                          : undefined
+                      }
+                    >
+                      <span className="echoes-playlist-num">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <div
+                        className="echoes-playlist-info"
+                        style={{
+                          filter:
+                            !songCanSeeTitle && sp === 1
+                              ? 'blur(5px)'
+                              : undefined,
+                          userSelect: !songCanSeeTitle ? 'none' : undefined,
+                        }}
+                      >
+                        <div className="echoes-playlist-title">
+                          {songCanSeeTitle ? (
+                            song.title
+                          ) : sp === 3 ? (
+                            <GlitchText text={song.title} />
+                          ) : sp === 2 ? (
+                            '████████'
+                          ) : (
+                            song.title
+                          )}
+                        </div>
+                        {subtitle && (
+                          <div className="echoes-playlist-sub">
+                            {songCanSeeSub ? (
+                              subtitle
+                            ) : sp === 3 ? (
+                              <GlitchText text={subtitle} />
+                            ) : sp === 2 ? (
+                              '████'
+                            ) : (
+                              subtitle
+                            )}
+                          </div>
+                        )}
+                        {storyTitle && (
+                          <div className="echoes-playlist-story">
+                            {songCanSeeSub ? (
+                              <>◈ {storyTitle}</>
+                            ) : sp === 3 ? (
+                              <GlitchText text={`◈ ${storyTitle}`} />
+                            ) : sp === 2 ? (
+                              '◈ ████'
+                            ) : (
+                              <>◈ {storyTitle}</>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {/* 狀態標籤 */}
+                      {sp > 0 && !songHasUnlocked && (
+                        <span
+                          style={{
+                            flexShrink: 0,
+                            fontSize: '0.7em',
+                            padding: '2px 7px',
+                            borderRadius: 4,
+                            fontWeight: 600,
+                            letterSpacing: '0.04em',
+                            color: sp === 3 ? 'crimson' : 'goldenrod',
+                            border: `1px solid ${sp === 3 ? 'crimson' : 'goldenrod'}`,
+                            opacity: 0.8,
+                          }}
+                        >
+                          L{sp}
+                        </span>
+                      )}
+                      <span className="echoes-subcat-arrow" style={{ color }}>
+                        →
+                      </span>
+                    </button>
+                  );
+                })}
+                {entityDrag.ghost}
+              </div>
+            )}
+          </ZoneEmptyOverlay>
 
           {/* 返回上一層 */}
           {cluster && (

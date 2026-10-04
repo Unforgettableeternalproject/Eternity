@@ -72,6 +72,25 @@ const ART = [
     out: 'teatime-table-empty.webp',
     frames: 'teatime-table',
   },
+  // 子頁面空狀態告示牌：顯示高度約 130~170px，長邊 800 已足夠 2x 以上。
+  // Command 與 Working 畫在同一種直式畫布、人物比例相近，同組共用縮放
+  // 讓兩張並列時大小一致；Forklift 是橫式且含整台車，人物本來就畫得小，
+  // 硬併進同組只會讓另外兩張被壓小，改由 CSS 以寬度另外控制
+  {
+    src: 'Command.png',
+    out: 'empty-command.webp',
+    group: 'construction',
+    maxEdge: 800,
+  },
+  {
+    src: 'Working.png',
+    out: 'empty-working.webp',
+    group: 'construction',
+    maxEdge: 800,
+  },
+  { src: 'Forklift.png', out: 'empty-forklift.webp', maxEdge: 800 },
+  // 原稿 8410x5940（13MB），裁邊後仍是直式人像
+  { src: 'Exera.png', out: 'empty-exera.webp', maxEdge: 800 },
 ];
 
 const args = process.argv.slice(2);

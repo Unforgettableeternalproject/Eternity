@@ -26,6 +26,8 @@ import type {
 } from './types';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import { ZoneEmptyOverlay } from '../zone/ZoneEmptyOverlay';
+import { resolveZoneEmptyState } from '../zone/zoneEmptyState';
 import { useScrollMemory } from '../zone/useScrollMemory';
 import ZoneBootArt from '../zone/ZoneBootArt';
 import { useZoneBootReady } from '../zone/useZoneBootReady';
@@ -1696,6 +1698,11 @@ export default function ConceptsReader() {
         !isHidden(child) &&
         evaluateGate(progress, parseGateCondition(child.metadata))
     );
+    // 空狀態：gate 未過與 static locked 都算「存在但未解鎖」
+    const stackEmptyKind = resolveZoneEmptyState(
+      children,
+      (child) => !isLocked(child, progress)
+    );
 
     // 從 D1 載入的 stackPage 取得動態內容
     const stackTitle = stackPage?.title || stackDef.label;
@@ -1731,86 +1738,95 @@ export default function ConceptsReader() {
         {stackDesc && <p className="conc-reading-desc">{stackDesc}</p>}
         <div className="conc-gradient-line" />
 
-        {/* 從 D1 讀取的 stack 介紹內容，若無則 fallback 到硬編碼 */}
-        {stackContentHtml ? (
-          <>
-            {renderHtmlWithUep(
-              stackContentHtml,
-              'stack-intro',
-              'conc-stack-intro conc-prose'
-            )}
-          </>
-        ) : (
-          <p className="conc-stack-intro">
-            <span className="conc-drop-cap">{stackDef.intro[0]}</span>
-            {stackDef.intro.slice(1)}
-          </p>
-        )}
+        {/* 空狀態告示牌蓋住標題以下的主內容區（介紹、對話、目錄列表） */}
+        <ZoneEmptyOverlay
+          kind={stackEmptyKind}
+          seed={`concepts:${stackNode.id}`}
+          accent="var(--concepts-main)"
+        >
+          {/* 從 D1 讀取的 stack 介紹內容，若無則 fallback 到硬編碼 */}
+          {stackContentHtml ? (
+            <>
+              {renderHtmlWithUep(
+                stackContentHtml,
+                'stack-intro',
+                'conc-stack-intro conc-prose'
+              )}
+            </>
+          ) : (
+            <p className="conc-stack-intro">
+              <span className="conc-drop-cap">{stackDef.intro[0]}</span>
+              {stackDef.intro.slice(1)}
+            </p>
+          )}
 
-        <div className="conc-stack-uep">
-          <UepDialogue
-            side="left"
-            effects={['shimmer', 'halo'] as never[]}
-            text={stackDef.uepNote}
-          />
-        </div>
+          <div className="conc-stack-uep">
+            <UepDialogue
+              side="left"
+              effects={['shimmer', 'halo'] as never[]}
+              text={stackDef.uepNote}
+            />
+          </div>
 
-        {/* 終端目錄列表 */}
-        <div className="conc-dir-listing">
-          <div className="conc-dir-bar">
-            <span>$ ls ./{stackDef.slug.split('/').pop()} --long</span>
-            <span>{visibleChildren.length} entries</span>
-          </div>
-          <div className="conc-dir-header-row">
-            <span>#</span>
-            <span>name</span>
-            <span>identifier</span>
-            <span>state</span>
-            <span />
-          </div>
-          {visibleChildren.map((child, i) => {
-            const locked = isLocked(child);
-            return (
-              <button
-                key={child.id}
-                className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${locked ? 'locked' : ''}`}
-                onClick={() => !locked && navigateToPage(child.slug)}
-              >
-                <span className="conc-dir-num">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <div className="conc-dir-name-cell">
-                  <div className="conc-dir-name">{child.title}</div>
-                  <div className="conc-dir-hint">
-                    {locked
-                      ? ''
-                      : typeof child.metadata?.description === 'string'
-                        ? (child.metadata.description as string).slice(0, 50)
-                        : ''}
-                  </div>
-                </div>
-                <span className="conc-dir-en">
-                  {locked ? '—' : child.slug.split('/').pop()}
-                </span>
-                <span
-                  className={`conc-dir-state ${locked ? 'sealed' : 'sync'}`}
+          {/* 終端目錄列表 */}
+          <div className="conc-dir-listing">
+            <div className="conc-dir-bar">
+              <span>$ ls ./{stackDef.slug.split('/').pop()} --long</span>
+              <span>{visibleChildren.length} entries</span>
+            </div>
+            <div className="conc-dir-header-row">
+              <span>#</span>
+              <span>name</span>
+              <span>identifier</span>
+              <span>state</span>
+              <span />
+            </div>
+            {visibleChildren.map((child, i) => {
+              const locked = isLocked(child);
+              return (
+                <button
+                  key={child.id}
+                  className={`conc-dir-row ${i % 2 ? 'alt' : ''} ${locked ? 'locked' : ''}`}
+                  onClick={() => !locked && navigateToPage(child.slug)}
                 >
-                  <span className="conc-mod-dot" />
-                  {locked ? 'sealed' : 'sync'}
-                </span>
-                <span className="conc-dir-arrow">{locked ? 'LOCK' : '›'}</span>
-              </button>
-            );
-          })}
-          <div className="conc-dir-tip">
-            <span className="conc-dir-tip-prompt">$</span>
-            <span>
-              tip — 被標記為 <span className="conc-hl">sealed</span>{' '}
-              的類別會隨著故事進度自動解鎖
-            </span>
-            <span className="conc-cursor" />
+                  <span className="conc-dir-num">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <div className="conc-dir-name-cell">
+                    <div className="conc-dir-name">{child.title}</div>
+                    <div className="conc-dir-hint">
+                      {locked
+                        ? ''
+                        : typeof child.metadata?.description === 'string'
+                          ? (child.metadata.description as string).slice(0, 50)
+                          : ''}
+                    </div>
+                  </div>
+                  <span className="conc-dir-en">
+                    {locked ? '—' : child.slug.split('/').pop()}
+                  </span>
+                  <span
+                    className={`conc-dir-state ${locked ? 'sealed' : 'sync'}`}
+                  >
+                    <span className="conc-mod-dot" />
+                    {locked ? 'sealed' : 'sync'}
+                  </span>
+                  <span className="conc-dir-arrow">
+                    {locked ? 'LOCK' : '›'}
+                  </span>
+                </button>
+              );
+            })}
+            <div className="conc-dir-tip">
+              <span className="conc-dir-tip-prompt">$</span>
+              <span>
+                tip — 被標記為 <span className="conc-hl">sealed</span>{' '}
+                的類別會隨著故事進度自動解鎖
+              </span>
+              <span className="conc-cursor" />
+            </div>
           </div>
-        </div>
+        </ZoneEmptyOverlay>
 
         <div className="conc-back-bar">
           <button className="conc-back-btn" onClick={() => navigateToLanding()}>

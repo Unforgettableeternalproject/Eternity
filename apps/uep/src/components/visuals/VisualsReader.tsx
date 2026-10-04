@@ -40,6 +40,8 @@ import { ReaderShell } from '../zone/ReaderShell';
 import { ZoneBreadcrumb } from '../zone/ZoneBreadcrumb';
 import ZoneHomepageRenderer from '../zone/ZoneHomepageRenderer';
 import { ZoneStateDisplay } from '../zone/ZoneStateDisplay';
+import { ZoneEmptyOverlay } from '../zone/ZoneEmptyOverlay';
+import { resolveZoneEmptyState } from '../zone/zoneEmptyState';
 import VisualsPhantomCard from './VisualsPhantomCard';
 import { shouldRevealPhantomCard } from './phantomCardRoll';
 import type { GroupSlot } from './phantomCardRoll';
@@ -1540,6 +1542,16 @@ function VisualsReaderInner() {
     const currentGalleries = groupMap.get(currentGroup) || galleries;
     const maxIdx = Math.max(0, groupList.length - 1);
 
+    // 空狀態以整個子分類為範圍（不是當前分組），且傳未過濾的 gallery，
+    // 讓 hidden / draft 依統一語意算作「不存在」
+    const emptyKind = resolveZoneEmptyState(
+      (subcatNode.children || []).filter((c) => c.pageType === 'gallery'),
+      (g) => isGalleryUnlockedInZone(g, progress, progressTree)
+    );
+    const showPhantomCard =
+      phantomSlot?.subcatId === activeSubcatId &&
+      phantomSlot?.groupIdx === safeGroupIdx;
+
     return (
       <div className="visuals-subcat-page">
         <ZoneBreadcrumb
@@ -1562,225 +1574,240 @@ function VisualsReaderInner() {
         </div>
         <div className="visuals-gradient-divider" />
 
-        {/* 富文本內容（來自編輯器） */}
-        {subcatPage?.content && subcatPage.content.length > 0 && (
-          <div className="visuals-prose visuals-subcat-intro">
-            {subcatPage.content
-              .filter((b) => b.type === 'rich_text')
-              .map((b) => (
-                <React.Fragment key={b.id}>
-                  {renderHtmlWithUep(b.content, b.id, 'visuals-prose')}
-                </React.Fragment>
-              ))}
-          </div>
-        )}
+        {/* 空狀態告示牌蓋住標題以下的主內容區（介紹文與群組檢視器） */}
+        <ZoneEmptyOverlay
+          kind={emptyKind}
+          seed={`visuals:${subcatNode.id}`}
+          accent="var(--visuals-main)"
+        >
+          {/* 富文本內容（來自編輯器） */}
+          {subcatPage?.content && subcatPage.content.length > 0 && (
+            <div className="visuals-prose visuals-subcat-intro">
+              {subcatPage.content
+                .filter((b) => b.type === 'rich_text')
+                .map((b) => (
+                  <React.Fragment key={b.id}>
+                    {renderHtmlWithUep(b.content, b.id, 'visuals-prose')}
+                  </React.Fragment>
+                ))}
+            </div>
+          )}
 
-        {/* 群組檢視器 */}
-        <div className="visuals-viewer">
-          {/* 導航列 — 只顯示群組名和計數 */}
-          <div className="visuals-viewer-nav">
-            <div className="visuals-viewer-label">
-              <div className="visuals-viewer-group-name">{currentGroup}</div>
-              <div className="visuals-viewer-group-counter">
-                {groupList.length > 0
-                  ? `${safeGroupIdx + 1} / ${groupList.length}`
-                  : '—'}
+          {/* 群組檢視器 */}
+          <div className="visuals-viewer">
+            {/* 導航列 — 只顯示群組名和計數 */}
+            <div className="visuals-viewer-nav">
+              <div className="visuals-viewer-label">
+                <div className="visuals-viewer-group-name">{currentGroup}</div>
+                <div className="visuals-viewer-group-counter">
+                  {groupList.length > 0
+                    ? `${safeGroupIdx + 1} / ${groupList.length}`
+                    : '—'}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* 內容區 — 箭頭浮在兩側 */}
-          <div
-            className="visuals-viewer-body"
-            onPointerDown={handleViewerPointerDown}
-            onPointerUp={(e) => handleViewerPointerUp(e, groupList.length)}
-          >
-            {groupList.length > 1 && (
-              <button
-                className="visuals-viewer-side-arrow is-left"
-                disabled={safeGroupIdx <= 0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigateToSubcat(activeSubcatId!, safeGroupIdx - 1);
-                }}
-              >
-                <svg width="20" height="36" viewBox="0 0 20 36" fill="none">
-                  <polyline
-                    points="16,2 4,18 16,34"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-            )}
+            {/* 內容區 — 箭頭浮在兩側 */}
+            <div
+              className="visuals-viewer-body"
+              onPointerDown={handleViewerPointerDown}
+              onPointerUp={(e) => handleViewerPointerUp(e, groupList.length)}
+            >
+              {groupList.length > 1 && (
+                <button
+                  className="visuals-viewer-side-arrow is-left"
+                  disabled={safeGroupIdx <= 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateToSubcat(activeSubcatId!, safeGroupIdx - 1);
+                  }}
+                >
+                  <svg width="20" height="36" viewBox="0 0 20 36" fill="none">
+                    <polyline
+                      points="16,2 4,18 16,34"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              )}
 
-            {currentGalleries.length === 0 ? (
-              <div className="visuals-empty">此分組尚無畫廊</div>
-            ) : (
-              <div
-                className="visuals-gallery-card-grid"
-                {...entityDrag.handlers}
-              >
-                {currentGalleries.map((g) => {
-                  const images = Array.isArray(g.metadata?.images)
-                    ? (g.metadata.images as ImageItem[])
-                    : [];
+              {currentGalleries.length === 0 ? (
+                <div className="visuals-empty">此分組尚無畫廊</div>
+              ) : (
+                <div
+                  className="visuals-gallery-card-grid"
+                  {...entityDrag.handlers}
+                >
+                  {currentGalleries.map((g) => {
+                    const images = Array.isArray(g.metadata?.images)
+                      ? (g.metadata.images as ImageItem[])
+                      : [];
 
-                  // gallery 閘（tree-aware）：未過時一切不可見——
-                  // 連縮圖與張數都不外洩，整卡呈鎖定態（不變量 1）。
-                  // 推導旗標（clue 展示授旗）可解鎖，static locked 仍優先
-                  const gateLocked = !isGalleryUnlockedInZone(
-                    g,
-                    progress,
-                    progressTree
-                  );
-                  if (gateLocked) {
+                    // gallery 閘（tree-aware）：未過時一切不可見——
+                    // 連縮圖與張數都不外洩，整卡呈鎖定態（不變量 1）。
+                    // 推導旗標（clue 展示授旗）可解鎖，static locked 仍優先
+                    const gateLocked = !isGalleryUnlockedInZone(
+                      g,
+                      progress,
+                      progressTree
+                    );
+                    if (gateLocked) {
+                      return (
+                        <button
+                          key={g.id}
+                          className="visuals-gallery-card visuals-gallery-card--sealed"
+                          disabled
+                        >
+                          <LockedImageCell label="SEALED" />
+                          <div className="visuals-gallery-card-body">
+                            <div className="visuals-gallery-card-title">
+                              🔒 {g.title}
+                            </div>
+                            <div className="visuals-gallery-card-meta">
+                              — sealed —
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    }
+
+                    const firstImg = images.length > 0 ? images[0] : null;
+                    const thumbUrl = firstImg
+                      ? buildImageUrl(firstImg.file)
+                      : '';
+
+                    const handleClick = () => {
+                      void navigateToGallery(g.id);
+                    };
+
+                    // 精靈圖縮圖：顯示第一個動畫的第一幀
+                    const isSpriteThumb =
+                      firstImg?.isSpriteSheet &&
+                      firstImg.frameWidth &&
+                      firstImg.frameHeight &&
+                      firstImg.columns;
+
                     return (
                       <button
                         key={g.id}
-                        className="visuals-gallery-card visuals-gallery-card--sealed"
-                        disabled
+                        className="visuals-gallery-card"
+                        onClick={handleClick}
+                        /*
+                         * 陳列走廊的畫廊綁 entityKey，可以被拖進便條島；
+                         * 鑲框室的插圖綁 storyKey，不在 dossier 命名空間裡，
+                         * 自然拖不動（findCanonicalEntityName 查不到）
+                         */
+                        data-entity-key={
+                          (g.metadata?.entityKey as string) ?? undefined
+                        }
                       >
-                        <LockedImageCell label="SEALED" />
+                        {thumbUrl && isSpriteThumb ? (
+                          (() => {
+                            const cols = firstImg.columns!;
+                            const rows =
+                              firstImg.rows ||
+                              Math.ceil((firstImg.frameCount || 1) / cols);
+                            const anims = firstImg.animations || {};
+                            const animKeys = Object.keys(anims);
+                            // 取第一個動畫的起始幀
+                            const startFrame =
+                              animKeys.length > 0 ? anims[animKeys[0]][0] : 0;
+                            const frameCol = startFrame % cols;
+                            const frameRow = Math.floor(startFrame / cols);
+                            // 百分比定位：讓每幀正好填滿容器寬度
+                            const bgPosX =
+                              cols > 1 ? (frameCol / (cols - 1)) * 100 : 0;
+                            const bgPosY =
+                              rows > 1 ? (frameRow / (rows - 1)) * 100 : 0;
+                            return (
+                              <div
+                                className="visuals-gallery-card-thumb visuals-sprite-thumb"
+                                role="img"
+                                aria-label={g.title}
+                                style={{
+                                  backgroundImage: `url(${thumbUrl})`,
+                                  backgroundSize: `${cols * 100}% auto`,
+                                  backgroundPosition: `${bgPosX}% ${bgPosY}%`,
+                                  backgroundRepeat: 'no-repeat',
+                                  imageRendering: 'pixelated',
+                                }}
+                              />
+                            );
+                          })()
+                        ) : thumbUrl ? (
+                          <img
+                            className="visuals-gallery-card-thumb"
+                            src={thumbUrl}
+                            alt={g.title}
+                            /* 原生圖片拖曳會接管 pointer 序列，讓卡片的圖片
+                             區塊拖不進便條島（只剩下方文字能拖） */
+                            draggable={false}
+                          />
+                        ) : (
+                          <div
+                            className="visuals-placeholder-art"
+                            style={{
+                              background: `linear-gradient(135deg, ${ACCENT}, #9F86C0)`,
+                            }}
+                          >
+                            {g.title.slice(0, 2)}
+                          </div>
+                        )}
                         <div className="visuals-gallery-card-body">
                           <div className="visuals-gallery-card-title">
-                            🔒 {g.title}
+                            {g.title}
                           </div>
                           <div className="visuals-gallery-card-meta">
-                            — sealed —
+                            {images.length} 張圖片
                           </div>
                         </div>
                       </button>
                     );
-                  }
+                  })}
 
-                  const firstImg = images.length > 0 ? images[0] : null;
-                  const thumbUrl = firstImg ? buildImageUrl(firstImg.file) : '';
-
-                  const handleClick = () => {
-                    void navigateToGallery(g.id);
-                  };
-
-                  // 精靈圖縮圖：顯示第一個動畫的第一幀
-                  const isSpriteThumb =
-                    firstImg?.isSpriteSheet &&
-                    firstImg.frameWidth &&
-                    firstImg.frameHeight &&
-                    firstImg.columns;
-
-                  return (
-                    <button
-                      key={g.id}
-                      className="visuals-gallery-card"
-                      onClick={handleClick}
-                      /*
-                       * 陳列走廊的畫廊綁 entityKey，可以被拖進便條島；
-                       * 鑲框室的插圖綁 storyKey，不在 dossier 命名空間裡，
-                       * 自然拖不動（findCanonicalEntityName 查不到）
-                       */
-                      data-entity-key={
-                        (g.metadata?.entityKey as string) ?? undefined
-                      }
-                    >
-                      {thumbUrl && isSpriteThumb ? (
-                        (() => {
-                          const cols = firstImg.columns!;
-                          const rows =
-                            firstImg.rows ||
-                            Math.ceil((firstImg.frameCount || 1) / cols);
-                          const anims = firstImg.animations || {};
-                          const animKeys = Object.keys(anims);
-                          // 取第一個動畫的起始幀
-                          const startFrame =
-                            animKeys.length > 0 ? anims[animKeys[0]][0] : 0;
-                          const frameCol = startFrame % cols;
-                          const frameRow = Math.floor(startFrame / cols);
-                          // 百分比定位：讓每幀正好填滿容器寬度
-                          const bgPosX =
-                            cols > 1 ? (frameCol / (cols - 1)) * 100 : 0;
-                          const bgPosY =
-                            rows > 1 ? (frameRow / (rows - 1)) * 100 : 0;
-                          return (
-                            <div
-                              className="visuals-gallery-card-thumb visuals-sprite-thumb"
-                              role="img"
-                              aria-label={g.title}
-                              style={{
-                                backgroundImage: `url(${thumbUrl})`,
-                                backgroundSize: `${cols * 100}% auto`,
-                                backgroundPosition: `${bgPosX}% ${bgPosY}%`,
-                                backgroundRepeat: 'no-repeat',
-                                imageRendering: 'pixelated',
-                              }}
-                            />
-                          );
-                        })()
-                      ) : thumbUrl ? (
-                        <img
-                          className="visuals-gallery-card-thumb"
-                          src={thumbUrl}
-                          alt={g.title}
-                          /* 原生圖片拖曳會接管 pointer 序列，讓卡片的圖片
-                             區塊拖不進便條島（只剩下方文字能拖） */
-                          draggable={false}
-                        />
-                      ) : (
-                        <div
-                          className="visuals-placeholder-art"
-                          style={{
-                            background: `linear-gradient(135deg, ${ACCENT}, #9F86C0)`,
-                          }}
-                        >
-                          {g.title.slice(0, 2)}
-                        </div>
-                      )}
-                      <div className="visuals-gallery-card-body">
-                        <div className="visuals-gallery-card-title">
-                          {g.title}
-                        </div>
-                        <div className="visuals-gallery-card-meta">
-                          {images.length} 張圖片
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-
-                {/* 解鎖儀式（S9-B）：獨立渲染在網格末尾，不混進上面那個由
+                  {/* 解鎖儀式（S9-B）：獨立渲染在網格末尾，不混進上面那個由
                     伺服器 tree 驅動的清單——那條路徑會先過 gate 閘（鎖定
                     即 disabled 死卡），點擊又會打真 API。 */}
-                {phantomSlot?.subcatId === activeSubcatId &&
-                  phantomSlot?.groupIdx === safeGroupIdx && (
+                  {showPhantomCard && !emptyKind && (
                     <VisualsPhantomCard onOpen={handlePhantomCardOpen} />
                   )}
-                {entityDrag.ghost}
-              </div>
-            )}
+                  {entityDrag.ghost}
+                </div>
+              )}
 
-            {groupList.length > 1 && (
-              <button
-                className="visuals-viewer-side-arrow is-right"
-                disabled={safeGroupIdx >= maxIdx}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigateToSubcat(activeSubcatId!, safeGroupIdx + 1);
-                }}
-              >
-                <svg width="20" height="36" viewBox="0 0 20 36" fill="none">
-                  <polyline
-                    points="4,2 16,18 4,34"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-            )}
+              {groupList.length > 1 && (
+                <button
+                  className="visuals-viewer-side-arrow is-right"
+                  disabled={safeGroupIdx >= maxIdx}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateToSubcat(activeSubcatId!, safeGroupIdx + 1);
+                  }}
+                >
+                  <svg width="20" height="36" viewBox="0 0 20 36" fill="none">
+                    <polyline
+                      points="4,2 16,18 4,34"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        </ZoneEmptyOverlay>
+
+        {/* 告示牌蓋住列表時，解鎖儀式的卡片移到告示牌下方，保持可點 */}
+        {showPhantomCard && emptyKind && (
+          <div className="visuals-gallery-card-grid">
+            <VisualsPhantomCard onOpen={handlePhantomCardOpen} />
+          </div>
+        )}
 
         <div className="visuals-back-bar">
           <button
