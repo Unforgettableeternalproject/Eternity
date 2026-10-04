@@ -27,6 +27,8 @@ jobs:
             visitor-counter:
               - 'workers/visitor-counter/**'
 
+  # 部署一律用 workspace 安裝的 wrangler：wrangler-action 在沒有 node_modules 時
+  # 會改用 npm 在 pnpm monorepo 裡安裝舊版 wrangler，npm 會直接崩潰。
   deploy-content-api:
     name: Deploy Content API
     runs-on: ubuntu-latest
@@ -36,12 +38,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/content-api
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter content-api-worker...
+
+      - name: Deploy to Cloudflare Workers
+        run: pnpm --filter content-api-worker exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   deploy-visitor-counter:
     name: Deploy Visitor Counter
@@ -52,9 +67,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/visitor-counter
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter visitor-counter-worker...
+
+      - name: Deploy to Cloudflare Workers
+        run: pnpm --filter visitor-counter-worker exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

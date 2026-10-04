@@ -93,6 +93,11 @@ import ThoughtStream from './ThoughtStream';
 import StorageSubcatEditor, { type SubcatDef } from './StorageSubcatEditor';
 import ZoneTabsEditor, { type ZoneTab } from './ZoneTabsEditor';
 import { UploadSpinner } from './UploadSpinner';
+import {
+  isRedactedMetadata,
+  REDACTED_STUB_ERROR,
+  redactedSaveBlock,
+} from '../../lib/adminPageRead';
 import './StorageDialogueEditor.css';
 import './ChangelogEditorBody.css';
 import './ThoughtStream.css';
@@ -219,6 +224,8 @@ export default function RichEditor({
   const currentPageId = canonicalizePagePath(
     pageSlug ? [area, pageSlug].join('/') : area
   );
+  // 存根（content-api 對訪客送的封存頁替身）絕不可存回：載入即鎖死存檔
+  const loadedRedacted = !isEntryMode && isRedactedMetadata(initialMetadata);
 
   // State — dirty 由多來源聯合判斷
   const initialContentRef = useRef(initialContent || '<p></p>');
@@ -545,6 +552,10 @@ export default function RichEditor({
   // Save handler
   const handleSave = useCallback(async () => {
     if (!isDirty) return;
+    if (loadedRedacted) {
+      getToast().error(REDACTED_STUB_ERROR);
+      return;
+    }
 
     // 送出暫存排序；成功才清除，儲存途中又拖曳產生的新暫存保留
     const commitReorder = async () => {
@@ -680,6 +691,14 @@ export default function RichEditor({
       // metadata-only 的 PATCH，不碰 content）。讀不到就退回舊行為，
       // 存檔本身不該因為這一次額外請求失敗而中斷。
       const latestMetadata = await fetchLatestMetadata();
+      // 重讀拿到存根代表此刻不是以管理員身分讀取，整份 metadata 底稿不可信
+      const redactedBlock = redactedSaveBlock(initialMetadata, latestMetadata);
+      if (redactedBlock) {
+        getToast().error(redactedBlock);
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 3000);
+        return;
+      }
       const metadataBase = latestMetadata ?? initialMetadata ?? {};
 
       // 這兩個 toggle 兩邊都改得到：使用者在這個編輯器動過就以編輯器為準，
@@ -785,6 +804,8 @@ export default function RichEditor({
   }, [
     editor,
     isDirty,
+    loadedRedacted,
+    initialMetadata,
     isPageDirty,
     pendingReorder,
     modeId,
@@ -2064,7 +2085,7 @@ export default function RichEditor({
               </a>
               <button
                 className={`ned-btn-save ${isDirty ? 'is-dirty' : ''}`}
-                disabled={!isDirty || saveStatus === 'saving'}
+                disabled={loadedRedacted || !isDirty || saveStatus === 'saving'}
                 onClick={handleSave}
               >
                 {saveButtonLabel}
@@ -2073,6 +2094,12 @@ export default function RichEditor({
           </>
         )}
       </header>
+
+      {loadedRedacted && (
+        <div className="ned-redacted-banner" role="alert">
+          {REDACTED_STUB_ERROR}
+        </div>
+      )}
 
       {/* Toolbar */}
       {/* Toolbar — 入口模式隱藏 */}
