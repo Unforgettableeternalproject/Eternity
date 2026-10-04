@@ -1440,7 +1440,7 @@ function UpdatesEditor({
             />
           </Field>
           <Toggle
-            label="featured"
+            label="featured (首頁精選)"
             checked={u.featured}
             onChange={(v) => up({ featured: v })}
           />

@@ -25,6 +25,7 @@ const updates = allUpdatesRaw
       description_en: u.descEn,
       date: new Date(u.date),
       category: u.category,
+      featured: u.featured,
     },
   }))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
@@ -224,6 +225,11 @@ const formatShortDate = (d: Date) =>
                         {formatShortDate(u.data.date)}
                       </span>
                       <span class="q-pill">{catLabel}</span>
+                      {u.data.featured && (
+                        <span class="q-pill q-pill--accent">
+                          ✦ {locale === 'zh-tw' ? '精選' : 'featured'}
+                        </span>
+                      )}
                       <div class="flex-1 min-w-0">
                         <div
                           class="text-[17px] font-semibold leading-[1.4] tracking-tight truncate"

@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCurrentLocale, getTranslations } from '../i18n/utils';
 import { getProjects, getUpdates, getSingleton, assetUrl } from '../lib/api';
 import { normalizeColors } from '../lib/color-normalize';
+import { pickHomepageUpdates } from '../lib/featuredUpdates';
 import { APP_VERSION } from '../lib/version';
 
 export const prerender = false;
@@ -53,9 +54,9 @@ const otherProjects = allProjects
   .sort((a, b) => (a.data.order ?? 999) - (b.data.order ?? 999))
   .slice(0, 4);
 
-// Updates from D1
-const allUpdatesRaw = await getUpdates(5);
-const latestUpdates = allUpdatesRaw.map((u) => ({
+// Updates from D1：精選在前，不足 5 筆以最新非精選補滿
+const allUpdatesRaw = await getUpdates();
+const latestUpdates = pickHomepageUpdates(allUpdatesRaw, 5).map((u) => ({
   id: u.id,
   data: {
     title_zh: u.titleZh,
@@ -64,8 +65,10 @@ const latestUpdates = allUpdatesRaw.map((u) => ({
     description_en: u.descEn,
     date: new Date(u.date),
     category: u.category,
+    featured: u.featured,
   },
 }));
+const featuredLabel = locale === 'zh-tw' ? '精選' : 'Featured';
 
 // Skills count for stats
 const skillDomains = 5;
@@ -671,6 +674,16 @@ const skillDomains = 5;
                   {locale === 'zh-tw'
                     ? update.data.title_zh || update.id
                     : update.data.title_en || update.id}
+                  {update.data.featured && (
+                    <span
+                      class="ml-1.5 text-[10px] q-mono"
+                      style="color: var(--q-navy); vertical-align: middle;"
+                      title={featuredLabel}
+                      aria-label={featuredLabel}
+                    >
+                      ✦
+                    </span>
+                  )}
                 </span>
               </a>
             ))
