@@ -25,14 +25,23 @@ import {
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { getAuthHeaders, resolveWriteToken } from './sync-auth.mjs';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
 const args = process.argv.slice(2);
 const apiArg = args.find((a) => a.startsWith('--api='));
-const API_BASE = apiArg
-  ? apiArg.slice('--api='.length)
-  : 'https://eternity-content-api.ptyc4076.workers.dev';
+const PROD_API = 'https://eternity-content-api.ptyc4076.workers.dev';
+const API_BASE = apiArg ? apiArg.slice('--api='.length) : PROD_API;
+
+/**
+ * 讀取用的認證 header（main 開頭解析）。
+ *
+ * content-api 對未認證的 `include_deleted=true` 回 401、對封存頁只回
+ * 存根——不帶認證掃到的用字會漏掉封存內容，管理員預覽時就缺字。
+ */
+let authHeaders = {};
 
 const AREAS = ['history', 'echoes', 'visuals', 'concepts', 'storage', 'portal'];
 
@@ -83,7 +92,7 @@ function collect(set, text) {
 }
 
 async function fetchJson(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: authHeaders });
   if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
   return res.json();
 }
@@ -183,6 +192,15 @@ async function main() {
   const baselineCount = coreSet.size;
 
   console.log(`資料來源：${API_BASE}`);
+  // 登入一律打正式 worker（test D1 沒有 admin_users，兩邊共用 JWT_SECRET）
+  const token = await resolveWriteToken({
+    loginApiUrl: PROD_API,
+    purpose: '讀取完整內容（含封存頁）',
+  });
+  if (!token) {
+    throw new Error('需要 API_TOKEN 或管理員登入才能讀取完整內容');
+  }
+  authHeaders = getAuthHeaders(token);
   console.log('掃描 D1 內容…');
   const pageCount = await scanContent(contentSet);
   const sectionCount = await scanHomepage(coreSet);

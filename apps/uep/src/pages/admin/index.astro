@@ -9,9 +9,16 @@ const apiBase = getApiBase(
   Astro.cookies.get(TEST_MODE_COOKIE_NAME)?.value ?? null
 );
 
+// content-api 對訪客會把封存頁（metadata.locked）的標題清空、排除草稿；
+// 後台總覽要的是完整清單，SSR 端轉發 httpOnly cookie 裡的管理員 JWT
+const adminJwt = Astro.cookies.get('uep-admin-jwt')?.value;
+const adminHeaders: Record<string, string> = adminJwt
+  ? { Authorization: `Bearer ${adminJwt}` }
+  : {};
+
 async function safeFetchJson(url: string): Promise<any> {
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: adminHeaders });
     const ct = res.headers.get('content-type') || '';
     if (!ct.includes('application/json')) return null;
     return res.json();

@@ -29,6 +29,7 @@ import {
   checkLocalApi,
   checkRemoteApi,
   abortOnAuthFailure,
+  readContentOrThrow,
 } from './sync-utils.mjs';
 import {
   resolveWriteToken,
@@ -78,32 +79,30 @@ function authHeaders(apiBase) {
 
 // === 頁面讀寫 ===
 
-/** 從 API 取得指定區域的所有頁面清單（不含 content，包含已軟刪除的記錄） */
+/**
+ * 從 API 取得指定區域的所有頁面清單（不含 content，包含已軟刪除的記錄）。
+ *
+ * 必須帶認證：content-api 對未認證的 `include_deleted=true` 回 401，
+ * 對未認證讀取的封存頁只回存根。任何失敗都丟錯中止，不回空陣列——
+ * 空清單會被當成「這一端沒有資料」，差異表接著要求整份覆蓋。
+ */
 async function listPages(apiBase, area) {
-  try {
-    const res = await fetch(
-      `${apiBase}/api/content/${area}?include_deleted=true`
-    );
-    if (!res.ok) return [];
-    const json = await safeJson(res);
-    return json?.ok ? json.data || [] : [];
-  } catch {
-    return [];
-  }
+  const data = await readContentOrThrow(
+    `${apiBase}/api/content/${area}?include_deleted=true`,
+    { headers: authHeaders(apiBase), what: `${area} 頁面清單（${apiBase}）` }
+  );
+  return Array.isArray(data) ? data : [];
 }
 
-/** 從 API 取得單一頁面完整資料（包含已軟刪除的記錄） */
+/** 從 API 取得單一頁面完整資料（包含已軟刪除的記錄）；失敗即丟錯 */
 async function getPage(apiBase, area, slug) {
-  try {
-    const res = await fetch(
-      `${apiBase}/api/content/${area}/${slug}?include_deleted=true`
-    );
-    if (!res.ok) return null;
-    const json = await safeJson(res);
-    return json?.ok ? json.data : null;
-  } catch {
-    return null;
-  }
+  return readContentOrThrow(
+    `${apiBase}/api/content/${area}/${slug}?include_deleted=true`,
+    {
+      headers: authHeaders(apiBase),
+      what: `頁面 ${area}/${slug}（${apiBase}）`,
+    }
+  );
 }
 
 /** 透過 PUT 端點寫入頁面（保留來源端的 updatedAt） */
