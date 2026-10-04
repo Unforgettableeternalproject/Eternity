@@ -139,3 +139,116 @@ describe('root projects isPrivateRepo', () => {
     expect(row?.isPrivateRepo).toBe(true);
   });
 });
+
+describe('root projects 私人 repo 對未授權讀者隱藏 github', () => {
+  const PRIVATE_URL = 'https://github.com/example/hidden-secret';
+  const PUBLIC_URL = 'https://github.com/example/open';
+
+  async function seed() {
+    await putProject('redact-private', {
+      titleZh: '私人',
+      isPrivateRepo: true,
+      links: {
+        github: PRIVATE_URL,
+        demo: 'https://demo.example',
+        website: 'https://site.example',
+      },
+    });
+    await putProject('redact-public', {
+      titleZh: '公開',
+      links: { github: PUBLIC_URL },
+    });
+  }
+
+  async function fetchRaw(path: string, token?: string) {
+    return worker.fetch(createRequest(path, { token }), env, ctx);
+  }
+
+  it('未授權列表：私人專案 github 為 null，其他連結與公開專案照舊，可共用快取', async () => {
+    await seed();
+    const res = await fetchRaw('/api/root/projects');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toContain('public');
+    expect(res.headers.get('Vary')).toBe('Authorization');
+
+    const json = (await res.json()) as {
+      data: (ProjectJson['data'] & {
+        links: { demo: string | null; website: string | null };
+      })[];
+    };
+    const priv = json.data.find((p) => p.id === 'redact-private');
+    const pub = json.data.find((p) => p.id === 'redact-public');
+    expect(priv?.isPrivateRepo).toBe(true);
+    expect(priv?.links.github).toBeNull();
+    expect(priv?.links.demo).toBe('https://demo.example');
+    expect(priv?.links.website).toBe('https://site.example');
+    expect(pub?.links.github).toBe(PUBLIC_URL);
+    expect(JSON.stringify(json)).not.toContain('hidden-secret');
+  });
+
+  it('未授權單筆：私人專案 github 為 null', async () => {
+    await seed();
+    const res = await fetchRaw('/api/root/projects/redact-private');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toContain('public');
+    expect(res.headers.get('Vary')).toBe('Authorization');
+    const json = (await res.json()) as ProjectJson;
+    expect(json.data.links.github).toBeNull();
+
+    const pub = (await (
+      await fetchRaw('/api/root/projects/redact-public')
+    ).json()) as ProjectJson;
+    expect(pub.data.links.github).toBe(PUBLIC_URL);
+  });
+
+  it('無效 token 視同未授權', async () => {
+    await seed();
+    const res = await fetchRaw('/api/root/projects/redact-private', 'bogus');
+    const json = (await res.json()) as ProjectJson;
+    expect(json.data.links.github).toBeNull();
+    expect(res.headers.get('Cache-Control')).toContain('public');
+  });
+
+  it('管理員列表與單筆：完整 github，private, no-store', async () => {
+    await seed();
+    const token = await getAdminToken();
+
+    const list = await fetchRaw('/api/root/projects', token);
+    expect(list.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(list.headers.get('Vary')).toBe('Authorization');
+    const listJson = (await list.json()) as { data: ProjectJson['data'][] };
+    expect(
+      listJson.data.find((p) => p.id === 'redact-private')?.links.github
+    ).toBe(PRIVATE_URL);
+
+    const single = await fetchRaw('/api/root/projects/redact-private', token);
+    expect(single.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(single.headers.get('Vary')).toBe('Authorization');
+    const singleJson = (await single.json()) as ProjectJson;
+    expect(singleJson.data.links.github).toBe(PRIVATE_URL);
+  });
+
+  it('include_deleted 仍需認證；授權時回完整 github', async () => {
+    await seed();
+    const anon = await fetchRaw('/api/root/projects?include_deleted=true');
+    expect(anon.status).toBe(401);
+
+    const token = await getAdminToken();
+    const authed = await fetchRaw(
+      '/api/root/projects?include_deleted=true',
+      token
+    );
+    expect(authed.status).toBe(200);
+    expect(authed.headers.get('Cache-Control')).toBe('private, no-store');
+    const json = (await authed.json()) as { data: ProjectJson['data'][] };
+    expect(json.data.find((p) => p.id === 'redact-private')?.links.github).toBe(
+      PRIVATE_URL
+    );
+  });
+
+  it('404 不帶快取標頭', async () => {
+    const res = await fetchRaw('/api/root/projects/no-such-project');
+    expect(res.status).toBe(404);
+    expect(res.headers.get('Cache-Control')).toBeNull();
+  });
+});
