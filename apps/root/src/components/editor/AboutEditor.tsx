@@ -13,6 +13,7 @@ import {
   Toggle,
   TagEditor,
   OutlineRow,
+  SortButtons,
 } from './editorPrimitives';
 
 // ─── 型別定義 ────────────────────────────────────────────────────────
@@ -57,40 +58,6 @@ const SECTIONS = [
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]['id'];
-
-// ─── 排序輔助按鈕 ────────────────────────────────────────────────────
-function SortButtons({
-  idx,
-  total,
-  onMove,
-}: {
-  idx: number;
-  total: number;
-  onMove: (from: number, to: number) => void;
-}) {
-  return (
-    <div style={{ display: 'flex', gap: 4 }}>
-      <button
-        className="qe-topbar__btn"
-        style={{ padding: '3px 8px', opacity: idx === 0 ? 0.3 : 1 }}
-        disabled={idx === 0}
-        onClick={() => onMove(idx, idx - 1)}
-        title="上移"
-      >
-        <Mono>↑</Mono>
-      </button>
-      <button
-        className="qe-topbar__btn"
-        style={{ padding: '3px 8px', opacity: idx === total - 1 ? 0.3 : 1 }}
-        disabled={idx === total - 1}
-        onClick={() => onMove(idx, idx + 1)}
-        title="下移"
-      >
-        <Mono>↓</Mono>
-      </button>
-    </div>
-  );
-}
 
 // ─── 圖片 URL 輔助（編輯器內預覽用） ────────────────────────────────
 function editorAssetUrl(apiBase: string, key: string): string {
