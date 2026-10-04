@@ -12,6 +12,10 @@ import {
 } from './types';
 import BlockPreview from './BlockPreview';
 import BlockEditor from './BlockEditor';
+import {
+  isRedactedMetadata,
+  REDACTED_STUB_ERROR,
+} from '../../../lib/adminPageRead';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -91,6 +95,10 @@ export default function HomepageEditor({
 
       const json = await res.json();
       const page = json.data ?? json;
+      // 存根（封存頁的訪客替身）不可進入可存檔狀態
+      if (isRedactedMetadata(page?.metadata)) {
+        throw new Error(REDACTED_STUB_ERROR);
+      }
 
       // content 可能是字串或已解析的陣列
       let rawContent: ContentBlock[] = [];
@@ -301,7 +309,7 @@ export default function HomepageEditor({
           {/* 儲存按鈕 */}
           <button
             onClick={handleSave}
-            disabled={saveStatus === 'saving' || loading}
+            disabled={saveStatus === 'saving' || loading || loadError !== null}
             style={{
               ...saveButtonStyle,
               background: zoneColor,
