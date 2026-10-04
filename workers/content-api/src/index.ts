@@ -80,6 +80,15 @@ import { handleUepRoutes } from './uep-auth';
 import { purgeExpiredThrottleBuckets } from './uep-throttle';
 import { buildDiscordStats } from './widget-stats';
 import {
+  isExcludedRow,
+  isPubliclyListed,
+  isStaticallyLocked,
+  parseMetadata,
+  publicNodeFields,
+  stubPage,
+  viewerCacheHeaders,
+} from './visibility';
+import {
   buildTestSeedSnapshot,
   isTestSeedSnapshot,
   resetAndSeedTestData,
@@ -186,8 +195,38 @@ function jsonResponse<T>(
     // CDN 快取 60 秒，用戶端 10 秒，背景重驗證最長 5 分鐘
     headers['Cache-Control'] =
       'public, s-maxage=60, max-age=10, stale-while-revalidate=300';
+    // 公開讀取端點的回應依身分而異（管理員拿完整資料）——瀏覽器快取
+    // 必須以 Authorization 區分，未認證副本不可回給帶認證的請求
+    headers['Vary'] = 'Authorization';
   }
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+/**
+ * 依讀者身分輸出的公開讀取回應：管理員 `private, no-store`，訪客走
+ * 共用短快取；兩者都帶 `Vary: Authorization`。非 2xx 不加快取。
+ */
+function viewerJsonResponse<T>(
+  data: ApiResponse<T>,
+  cors: Record<string, string>,
+  admin: boolean
+): Response {
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: {
+      ...cors,
+      'Content-Type': 'application/json',
+      ...viewerCacheHeaders(admin),
+    },
+  });
+}
+
+/**
+ * 公開讀取端點的身分判定：API_TOKEN 或 admin JWT 視為管理員（拿完整
+ * 資料）；讀者 JWT、無認證一律為訪客。JWT 一律本地驗證（requireJwt）。
+ */
+async function isAdminViewer(request: Request, env: Env): Promise<boolean> {
+  return (await requireJwtOrApiToken(request, env)) !== null;
 }
 
 /**
@@ -308,15 +347,34 @@ async function listPages(
   area: string,
   db: D1Database,
   cors: Record<string, string>,
-  includeDeleted = false
+  includeDeleted = false,
+  admin = true
 ): Promise<Response> {
-  const query = includeDeleted
-    ? `SELECT ${LIST_COLS} FROM pages WHERE area = ? ORDER BY sort_order ASC`
-    : `SELECT ${LIST_COLS} FROM pages WHERE area = ? AND deleted_at IS NULL ORDER BY sort_order ASC`;
-  const result = await db.prepare(query).bind(area).all<PageRow>();
+  if (admin) {
+    const query = includeDeleted
+      ? `SELECT ${LIST_COLS} FROM pages WHERE area = ? ORDER BY sort_order ASC`
+      : `SELECT ${LIST_COLS} FROM pages WHERE area = ? AND deleted_at IS NULL ORDER BY sort_order ASC`;
+    const result = await db.prepare(query).bind(area).all<PageRow>();
+    const items: PageListItem[] = (result.results || []).map(rowToListItem);
+    return viewerJsonResponse({ ok: true, data: items }, cors, true);
+  }
 
-  const items: PageListItem[] = (result.results || []).map(rowToListItem);
-  return jsonResponse({ ok: true, data: items }, 200, cors, true);
+  // 訪客：草稿不出現、靜態鎖頁標題清空（列表本身不含 metadata，
+  // 但要讀 metadata 才知道鎖定狀態）
+  const result = await db
+    .prepare(
+      `SELECT ${LIST_COLS}, metadata FROM pages WHERE area = ? AND deleted_at IS NULL ORDER BY sort_order ASC`
+    )
+    .bind(area)
+    .all<PageRow>();
+  const items: PageListItem[] = [];
+  for (const row of result.results || []) {
+    if (isExcludedRow(row)) continue;
+    const item = rowToListItem(row);
+    if (isStaticallyLocked(parseMetadata(row.metadata))) item.title = '';
+    items.push(item);
+  }
+  return viewerJsonResponse({ ok: true, data: items }, cors, false);
 }
 
 /** GET /api/content/:area/:slug — 取得單一頁面 */
@@ -325,7 +383,8 @@ async function getPage(
   slug: string,
   db: D1Database,
   cors: Record<string, string>,
-  includeDeleted = false
+  includeDeleted = false,
+  admin = true
 ): Promise<Response> {
   const id = `${area}/${slug}`;
   const query = includeDeleted
@@ -333,11 +392,15 @@ async function getPage(
     : 'SELECT * FROM pages WHERE id = ? AND deleted_at IS NULL';
   const row = await db.prepare(query).bind(id).first<PageRow>();
 
-  if (!row) {
+  // 訪客看不到草稿：與不存在同一個 404，不透露「有這頁但是草稿」
+  if (!row || (!admin && isExcludedRow(row))) {
     return jsonResponse({ ok: false, error: 'Page not found' }, 404, cors);
   }
 
-  return jsonResponse({ ok: true, data: rowToPage(row) }, 200, cors, true);
+  const page = rowToPage(row);
+  const data =
+    !admin && isStaticallyLocked(page.metadata) ? stubPage(page) : page;
+  return viewerJsonResponse({ ok: true, data }, cors, admin);
 }
 
 /**
@@ -1951,22 +2014,25 @@ export default {
       );
       const leafTypes = ['page', 'song', 'gallery', 'stuff'];
       const placeholders = leafTypes.map(() => '?').join(',');
-      const rows =
+      // 公開清單口徑（草稿／hidden／靜態鎖排除）統一走 isPubliclyListed，
+      // 不在 SQL 用 json_extract：任一列壞 JSON 會讓整條 SELECT 報錯。
+      // 判定在應用層，所以 LIMIT 也只能在過濾後套用。
+      // 不區分管理員：這是首頁的公開動態，對誰都是同一份清單。
+      const rows = (
         (
           await env.CONTENT_DB.prepare(
-            `SELECT id, area, title, slug, page_type, metadata, updated_at
+            `SELECT id, area, title, slug, status, page_type, metadata, updated_at, deleted_at
            FROM pages
            WHERE page_type IN (${placeholders})
              AND deleted_at IS NULL
-             AND status != 'draft'
-             AND COALESCE(json_extract(metadata, '$.locked'), 0) != 1
-             AND COALESCE(json_extract(metadata, '$.hidden'), 0) != 1
-           ORDER BY updated_at DESC
-           LIMIT ?`
+           ORDER BY updated_at DESC`
           )
-            .bind(...leafTypes, limit)
+            .bind(...leafTypes)
             .all<PageRow>()
-        ).results || [];
+        ).results || []
+      )
+        .filter(isPubliclyListed)
+        .slice(0, limit);
       const items = rows.map((r) => ({
         id: r.id,
         area: r.area,
@@ -1985,6 +2051,12 @@ export default {
       const area = treeMatch[1];
       const treeIncludeDeleted =
         url.searchParams.get('include_deleted') === 'true';
+      const admin = await isAdminViewer(request, env);
+      // 已刪除記錄只給管理員（同步／編輯器）；訪客帶這個參數直接 401，
+      // 不默默降級——呼叫端漏帶認證時要大聲失敗，而不是拿到殘缺資料
+      if (treeIncludeDeleted && !admin) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
       const treeQuery = treeIncludeDeleted
         ? `SELECT ${LIST_COLS}, metadata FROM pages WHERE area = ? ORDER BY sort_order ASC`
         : `SELECT ${LIST_COLS}, metadata FROM pages WHERE area = ? AND deleted_at IS NULL ORDER BY sort_order ASC`;
@@ -1992,12 +2064,22 @@ export default {
         .bind(area)
         .all<PageRow>();
       const rows = result.results || [];
-      const items = rows.map((r) => ({
-        ...rowToListItem(r),
-        metadata: JSON.parse(r.metadata || '{}'),
-      }));
+      const items = [];
+      for (const r of rows) {
+        if (!admin && isExcludedRow(r)) continue;
+        const item = {
+          ...rowToListItem(r),
+          metadata: JSON.parse(r.metadata || '{}') as Record<string, unknown>,
+        };
+        // 靜態鎖只存根節點本身，子節點照常送出（與前端 locked 不繼承一致）
+        items.push(
+          admin
+            ? item
+            : { ...item, ...publicNodeFields(item.title, item.metadata) }
+        );
+      }
       const tree = buildTree(items);
-      return jsonResponse({ ok: true, data: tree }, 200, cors, true);
+      return viewerJsonResponse({ ok: true, data: tree }, cors, admin);
     }
 
     // ---- 圖片資源路由 (R2) ----
@@ -2140,12 +2222,14 @@ export default {
     // contentMatch regex 當成 area=concepts, slug=entity-index 吃掉）。
     // 公開 GET（與內容讀取端點同級），CDN 短快取。
     if (path === '/api/concepts/entity-index' && request.method === 'GET') {
-      const entries = await buildConceptsEntityIndex(env.CONTENT_DB);
-      return jsonResponse(
+      const admin = await isAdminViewer(request, env);
+      const entries = await buildConceptsEntityIndex(env.CONTENT_DB, {
+        publicView: !admin,
+      });
+      return viewerJsonResponse(
         { ok: true, data: { entries, generatedAt: new Date().toISOString() } },
-        200,
         cors,
-        true
+        admin
       );
     }
 
@@ -2169,10 +2253,17 @@ export default {
         return jsonResponse({ ok: false, error: 'Missing key' }, 400, cors);
       }
 
-      const anchors = await findInterlinkAnchors(env.CONTENT_DB, keyType, key);
       if (path === '/api/interlink/anchors') {
-        return jsonResponse({ ok: true, data: { anchors } }, 200, cors, true);
+        const admin = await isAdminViewer(request, env);
+        const anchors = await findInterlinkAnchors(
+          env.CONTENT_DB,
+          keyType,
+          key,
+          { publicView: !admin }
+        );
+        return viewerJsonResponse({ ok: true, data: { anchors } }, cors, admin);
       }
+      const anchors = await findInterlinkAnchors(env.CONTENT_DB, keyType, key);
 
       // usage 是 admin 反查 UI 的資料：`findInterlinkDefinitions`
       // 刻意 includeHidden（管理者要看到全部使用位置），並帶出 key 的
@@ -2599,14 +2690,15 @@ export default {
       // 每筆帶 `hidden` 旗標，消費端自行決定要不要納入（數候選時排除、
       // 驗證明確指向時接受）。id 本來就能從公開的 /tree 端點列舉，
       // 不構成新的洩漏面。
+      const admin = await isAdminViewer(request, env);
       const entries = await buildEchoesEntityIndex(env.CONTENT_DB, {
         includeHidden: true,
+        publicView: !admin,
       });
-      return jsonResponse(
+      return viewerJsonResponse(
         { ok: true, data: { entries, generatedAt: new Date().toISOString() } },
-        200,
         cors,
-        true
+        admin
       );
     }
 
@@ -2631,12 +2723,14 @@ export default {
           cors
         );
       }
-      const song = await findEntitySong(env.CONTENT_DB, key, keyType);
-      return jsonResponse(
+      const admin = await isAdminViewer(request, env);
+      const song = await findEntitySong(env.CONTENT_DB, key, keyType, {
+        publicView: !admin,
+      });
+      return viewerJsonResponse(
         { ok: true, data: song ? { found: true, song } : { found: false } },
-        200,
         cors,
-        true
+        admin
       );
     }
 
@@ -2650,12 +2744,14 @@ export default {
           cors
         );
       }
-      const song = await findSongById(env.CONTENT_DB, id);
-      return jsonResponse(
+      const admin = await isAdminViewer(request, env);
+      const song = await findSongById(env.CONTENT_DB, id, {
+        publicView: !admin,
+      });
+      return viewerJsonResponse(
         { ok: true, data: song ? { found: true, song } : { found: false } },
-        200,
         cors,
-        true
+        admin
       );
     }
 
@@ -2667,14 +2763,15 @@ export default {
       // 每筆帶 `hidden` 旗標，消費端自行決定要不要納入（數候選時排除、
       // 驗證明確指向時接受）。id 本來就能從公開的 /tree 端點列舉，
       // 不構成新的洩漏面。
+      const admin = await isAdminViewer(request, env);
       const entries = await buildVisualsEntityIndex(env.CONTENT_DB, {
         includeHidden: true,
+        publicView: !admin,
       });
-      return jsonResponse(
+      return viewerJsonResponse(
         { ok: true, data: { entries, generatedAt: new Date().toISOString() } },
-        200,
         cors,
-        true
+        admin
       );
     }
 
@@ -2697,15 +2794,17 @@ export default {
           cors
         );
       }
-      const gallery = await findEntityGallery(env.CONTENT_DB, key, keyType);
-      return jsonResponse(
+      const admin = await isAdminViewer(request, env);
+      const gallery = await findEntityGallery(env.CONTENT_DB, key, keyType, {
+        publicView: !admin,
+      });
+      return viewerJsonResponse(
         {
           ok: true,
           data: gallery ? { found: true, gallery } : { found: false },
         },
-        200,
         cors,
-        true
+        admin
       );
     }
 
@@ -2721,17 +2820,18 @@ export default {
           cors
         );
       }
+      const admin = await isAdminViewer(request, env);
+      const lookup = { publicView: !admin };
       const gallery = id
-        ? await findGalleryById(env.CONTENT_DB, id)
-        : await findGalleryByStoryKey(env.CONTENT_DB, story);
-      return jsonResponse(
+        ? await findGalleryById(env.CONTENT_DB, id, lookup)
+        : await findGalleryByStoryKey(env.CONTENT_DB, story, lookup);
+      return viewerJsonResponse(
         {
           ok: true,
           data: gallery ? { found: true, gallery } : { found: false },
         },
-        200,
         cors,
-        true
+        admin
       );
     }
 
@@ -2761,11 +2861,17 @@ export default {
       const [, area, slug] = contentMatch;
 
       const includeDeleted = url.searchParams.get('include_deleted') === 'true';
+      const admin =
+        request.method === 'GET' ? await isAdminViewer(request, env) : true;
+      // 已刪除記錄只給管理員（sync 讀取靠這個參數）；訪客帶了直接 401
+      if (includeDeleted && !admin) {
+        return jsonResponse({ ok: false, error: 'Unauthorized' }, 401, cors);
+      }
 
       if (!slug) {
         // /api/content/:area
         if (request.method === 'GET')
-          return listPages(area, env.CONTENT_DB, cors, includeDeleted);
+          return listPages(area, env.CONTENT_DB, cors, includeDeleted, admin);
         return jsonResponse(
           { ok: false, error: 'Method not allowed' },
           405,
@@ -2776,7 +2882,14 @@ export default {
       // /api/content/:area/:slug
       switch (request.method) {
         case 'GET':
-          return getPage(area, slug, env.CONTENT_DB, cors, includeDeleted);
+          return getPage(
+            area,
+            slug,
+            env.CONTENT_DB,
+            cors,
+            includeDeleted,
+            admin
+          );
         case 'PUT': {
           const body = (await request.json()) as UpsertPageRequest;
           return upsertPage(area, slug, body, env.CONTENT_DB, cors);

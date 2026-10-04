@@ -10,6 +10,7 @@
  * 也讓「軟刪除後 key 自動釋放」不需要任何額外程式碼。
  */
 
+import { isExcludedRow, isStaticallyLocked, parseMetadata } from './visibility';
 import {
   buildConceptsEntityIndex,
   collectConceptsKeyCandidates,
@@ -492,20 +493,35 @@ export interface InterlinkAnchorRow {
 export async function findInterlinkAnchors(
   db: D1Database,
   keyType: 'entity' | 'story',
-  keyValue: string
+  keyValue: string,
+  opts: { publicView?: boolean } = {}
 ): Promise<InterlinkAnchorRow[]> {
   const result = await db
     .prepare(
       `SELECT i.page_id AS pageId, p.title AS pageTitle,
-              i.anchor_kind AS anchorKind, i.anchor_id AS anchorId, i.label
+              i.anchor_kind AS anchorKind, i.anchor_id AS anchorId, i.label,
+              p.status AS pageStatus, p.metadata AS pageMetadata
        FROM history_interlink_index i
        JOIN pages p ON p.id = i.page_id
        WHERE i.key_type = ? AND i.key_value = ? AND p.deleted_at IS NULL
        ORDER BY p.sort_order ASC, i.id ASC`
     )
     .bind(keyType, keyValue)
-    .all<InterlinkAnchorRow>();
-  return result.results || [];
+    .all<InterlinkAnchorRow & { pageStatus: string; pageMetadata: string }>();
+  const out: InterlinkAnchorRow[] = [];
+  for (const { pageStatus, pageMetadata, ...anchor } of result.results || []) {
+    // 訪客視角：草稿頁的錨點不出現；靜態鎖頁的錨點整筆不出現——
+    // 錨點本身帶頁標題與標記文字，存根化後也沒有可觸發的內容
+    if (
+      opts.publicView &&
+      (isExcludedRow({ status: pageStatus }) ||
+        isStaticallyLocked(parseMetadata(pageMetadata)))
+    ) {
+      continue;
+    }
+    out.push(anchor);
+  }
+  return out;
 }
 
 /** `/api/interlink/usage` 的定義端單筆 */

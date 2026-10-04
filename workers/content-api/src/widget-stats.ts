@@ -3,7 +3,7 @@
  *
  * 為 Discord widget / bot 同步器提供公開唯讀的內容統計。設計原則：
  * 1. 只做「聚合 D1 + 呼叫 visitor-counter」，不 PATCH Discord、不存 Bot token。
- * 2. 全部指標排除 deleted_at、metadata.hidden、metadata.locked。
+ * 2. 全部指標排除軟刪除、草稿、metadata.hidden、metadata.locked（visibility.isPubliclyListed）。
  * 3. 字數口徑對齊編輯器（ThoughtStream）：去 HTML tag 後 `text.replace(/\s/g,'').length`。
  * 4. visitor-counter fetch 失敗時 stats 仍 200，該欄位回 null。
  *
@@ -12,6 +12,7 @@
 
 import type { ContentBlock } from './types';
 import { buildConceptsEntityIndex } from './concepts-index';
+import { isPubliclyListed } from './visibility';
 
 /** 對外回應型別（Discord widget 消費格式） */
 export interface DiscordStatsResponse {
@@ -24,16 +25,6 @@ export interface DiscordStatsResponse {
   uepVisitorCount: number | null;
   generatedAt: string;
 }
-
-/**
- * SQL 片段：排除軟刪除、hidden、locked。
- * 用 json_extract 檢查 metadata；hidden/locked 為 `true` 才排除，undefined/false 都納入。
- */
-const VISIBLE_WHERE = `
-  deleted_at IS NULL
-  AND COALESCE(json_extract(metadata, '$.hidden'), 0) != 1
-  AND COALESCE(json_extract(metadata, '$.locked'), 0) != 1
-`;
 
 /**
  * 從 ContentBlock 陣列萃取純文字用於字數計算。
@@ -110,13 +101,19 @@ export async function computeHistoryTotalWords(
 ): Promise<number> {
   const result = await db
     .prepare(
-      `SELECT metadata, content FROM pages
-       WHERE area = 'history' AND page_type IN ('arc', 'section') AND ${VISIBLE_WHERE}`
+      `SELECT status, metadata, content FROM pages
+       WHERE area = 'history' AND page_type IN ('arc', 'section')
+         AND deleted_at IS NULL`
     )
-    .all<{ metadata: string | null; content: string | null }>();
+    .all<{
+      status: string;
+      metadata: string | null;
+      content: string | null;
+    }>();
 
   let total = 0;
   for (const row of result.results || []) {
+    if (!isPubliclyListed(row)) continue;
     total += pageWordCount(row);
   }
   return total;
@@ -128,14 +125,16 @@ export async function countVisiblePages(
   area: string,
   pageType: string
 ): Promise<number> {
+  // 公開口徑統一走 isPubliclyListed（草稿／hidden／靜態鎖排除），
+  // 判定在應用層：json_extract 遇壞 JSON 會讓整條 SELECT 報錯
   const result = await db
     .prepare(
-      `SELECT COUNT(*) as n FROM pages
-       WHERE area = ? AND page_type = ? AND ${VISIBLE_WHERE}`
+      `SELECT status, metadata FROM pages
+       WHERE area = ? AND page_type = ? AND deleted_at IS NULL`
     )
     .bind(area, pageType)
-    .first<{ n: number }>();
-  return result?.n ?? 0;
+    .all<{ status: string; metadata: string | null }>();
+  return (result.results || []).filter(isPubliclyListed).length;
 }
 
 /**

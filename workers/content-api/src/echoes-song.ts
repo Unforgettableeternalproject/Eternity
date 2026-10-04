@@ -25,6 +25,8 @@
  *   不另開欄位
  */
 
+import { isExcludedRow, isStaticallyLocked } from './visibility';
+
 export interface EntitySongPayload {
   /** Echoes 歌曲頁 id（`echoes/...`） */
   id: string;
@@ -47,16 +49,31 @@ export interface EntitySongPayload {
   spoilerRevisions?: unknown[];
   /** 頁面 id 第二段（`echoes/{cluster}/...`）；推導不出時 null */
   clusterId: string | null;
+  /** 訪客視角的靜態鎖存根：內容欄位已剝除 */
+  redacted?: true;
 }
 
 interface SongRow {
   id: string;
   title: string;
   metadata: string;
+  status?: string;
+}
+
+/** 反查選項 */
+export interface SongLookupOptions {
+  /**
+   * 訪客視角（非管理員）：草稿視為不存在、靜態鎖回存根。
+   * 預設 false 維持既有完整資料（管理員與內部呼叫）。
+   */
+  publicView?: boolean;
 }
 
 /** SongRow → payload（entity-song 與 by-id 反查共用同一份摘要邏輯） */
-function buildSongPayload(row: SongRow): EntitySongPayload {
+function buildSongPayload(
+  row: SongRow,
+  opts: SongLookupOptions = {}
+): EntitySongPayload {
   let meta: Record<string, unknown> = {};
   try {
     meta = JSON.parse(row.metadata || '{}') as Record<string, unknown>;
@@ -65,6 +82,26 @@ function buildSongPayload(row: SongRow): EntitySongPayload {
   }
 
   const segments = row.id.split('/');
+  if (opts.publicView && isStaticallyLocked(meta)) {
+    // 存根：前端只需知道「有這首、封存中」；songType 決定走哪套判定，保留
+    return {
+      id: row.id,
+      title: '',
+      audioFile: null,
+      entityKey: null,
+      storyKey: null,
+      songType: typeof meta.category === 'string' ? meta.category : null,
+      subtitle: null,
+      duration: null,
+      spoilerLevel: 0,
+      ...(meta.gate != null && typeof meta.gate === 'object'
+        ? { gate: meta.gate }
+        : {}),
+      locked: true,
+      clusterId: segments.length >= 2 ? segments[1] : null,
+      redacted: true,
+    };
+  }
   return {
     id: row.id,
     title: row.title,
@@ -112,16 +149,18 @@ function buildSongPayload(row: SongRow): EntitySongPayload {
 export async function findEntitySong(
   db: D1Database,
   key: string,
-  keyType: 'entity' | 'story' = 'entity'
+  keyType: 'entity' | 'story' = 'entity',
+  opts: SongLookupOptions = {}
 ): Promise<EntitySongPayload | null> {
   const result = await db
     .prepare(
-      `SELECT id, title, metadata FROM pages
+      `SELECT id, title, metadata, status FROM pages
        WHERE area = 'echoes' AND page_type = 'song' AND deleted_at IS NULL`
     )
     .all<SongRow>();
 
   for (const row of result.results || []) {
+    if (opts.publicView && isExcludedRow(row)) continue;
     let meta: Record<string, unknown>;
     try {
       meta = JSON.parse(row.metadata || '{}') as Record<string, unknown>;
@@ -132,7 +171,7 @@ export async function findEntitySong(
     if (meta.hidden === true || meta.hidden === 1) continue;
     const candidate = keyType === 'entity' ? meta.entityKey : meta.storyKey;
     if (candidate !== key) continue;
-    return buildSongPayload(row);
+    return buildSongPayload(row, opts);
   }
   return null;
 }
@@ -146,11 +185,12 @@ export async function findEntitySong(
  */
 export async function findSongById(
   db: D1Database,
-  id: string
+  id: string,
+  opts: SongLookupOptions = {}
 ): Promise<EntitySongPayload | null> {
   const row = await db
     .prepare(
-      `SELECT id, title, metadata FROM pages
+      `SELECT id, title, metadata, status FROM pages
        WHERE id = ? AND area = 'echoes' AND page_type = 'song'
          AND deleted_at IS NULL
        LIMIT 1`
@@ -158,5 +198,6 @@ export async function findSongById(
     .bind(id)
     .first<SongRow>();
   if (!row) return null;
-  return buildSongPayload(row);
+  if (opts.publicView && isExcludedRow(row)) return null;
+  return buildSongPayload(row, opts);
 }

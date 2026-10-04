@@ -25,6 +25,8 @@
  *   在後端排定減少前端出錯面
  */
 
+import { isExcludedRow, isStaticallyLocked } from './visibility';
+
 /** gallery 內單張圖片的摘要（三態求值在前端） */
 export interface GalleryImagePayload {
   id: string;
@@ -53,12 +55,24 @@ export interface EntityGalleryPayload {
   locked: boolean;
   /** 依 sortOrder 升冪 */
   images: GalleryImagePayload[];
+  /** 訪客視角的靜態鎖存根：標題、key、圖片已剝除 */
+  redacted?: true;
 }
 
 interface GalleryRow {
   id: string;
   title: string;
   metadata: string;
+  status?: string;
+}
+
+/** 反查選項 */
+export interface GalleryLookupOptions {
+  /**
+   * 訪客視角（非管理員）：草稿視為不存在、靜態鎖回存根。
+   * 預設 false 維持既有完整資料（管理員與內部呼叫）。
+   */
+  publicView?: boolean;
 }
 
 /** metadata.images → 摘要陣列（壞資料逐項防禦，依 sortOrder 升冪） */
@@ -90,7 +104,10 @@ function buildImages(meta: Record<string, unknown>): GalleryImagePayload[] {
 }
 
 /** GalleryRow → payload（entity 與 by-id/by-story 反查共用） */
-function buildGalleryPayload(row: GalleryRow): EntityGalleryPayload {
+function buildGalleryPayload(
+  row: GalleryRow,
+  opts: GalleryLookupOptions = {}
+): EntityGalleryPayload {
   let meta: Record<string, unknown> = {};
   try {
     meta = JSON.parse(row.metadata || '{}') as Record<string, unknown>;
@@ -99,6 +116,21 @@ function buildGalleryPayload(row: GalleryRow): EntityGalleryPayload {
   }
 
   const segments = row.id.split('/');
+  if (opts.publicView && isStaticallyLocked(meta)) {
+    return {
+      id: row.id,
+      title: '',
+      entityKey: null,
+      storyKey: null,
+      divisionId: segments.length >= 2 ? segments[1] : null,
+      ...(meta.gate != null && typeof meta.gate === 'object'
+        ? { gate: meta.gate }
+        : {}),
+      locked: true,
+      images: [],
+      redacted: true,
+    };
+  }
   return {
     id: row.id,
     title: row.title,
@@ -128,16 +160,18 @@ function buildGalleryPayload(row: GalleryRow): EntityGalleryPayload {
 export async function findEntityGallery(
   db: D1Database,
   key: string,
-  keyType: 'entity' | 'story' = 'entity'
+  keyType: 'entity' | 'story' = 'entity',
+  opts: GalleryLookupOptions = {}
 ): Promise<EntityGalleryPayload | null> {
   const result = await db
     .prepare(
-      `SELECT id, title, metadata FROM pages
+      `SELECT id, title, metadata, status FROM pages
        WHERE area = 'visuals' AND page_type = 'gallery' AND deleted_at IS NULL`
     )
     .all<GalleryRow>();
 
   for (const row of result.results || []) {
+    if (opts.publicView && isExcludedRow(row)) continue;
     let meta: Record<string, unknown>;
     try {
       meta = JSON.parse(row.metadata || '{}') as Record<string, unknown>;
@@ -148,7 +182,7 @@ export async function findEntityGallery(
     if (meta.hidden === true || meta.hidden === 1) continue;
     const candidate = keyType === 'entity' ? meta.entityKey : meta.storyKey;
     if (candidate !== key) continue;
-    return buildGalleryPayload(row);
+    return buildGalleryPayload(row, opts);
   }
   return null;
 }
@@ -161,11 +195,12 @@ export async function findEntityGallery(
  */
 export async function findGalleryById(
   db: D1Database,
-  id: string
+  id: string,
+  opts: GalleryLookupOptions = {}
 ): Promise<EntityGalleryPayload | null> {
   const row = await db
     .prepare(
-      `SELECT id, title, metadata FROM pages
+      `SELECT id, title, metadata, status FROM pages
        WHERE id = ? AND area = 'visuals' AND page_type = 'gallery'
          AND deleted_at IS NULL
        LIMIT 1`
@@ -173,7 +208,8 @@ export async function findGalleryById(
     .bind(id)
     .first<GalleryRow>();
   if (!row) return null;
-  return buildGalleryPayload(row);
+  if (opts.publicView && isExcludedRow(row)) return null;
+  return buildGalleryPayload(row, opts);
 }
 
 /**
@@ -188,16 +224,18 @@ export async function findGalleryById(
  */
 export async function findGalleryByStoryKey(
   db: D1Database,
-  storyKey: string
+  storyKey: string,
+  opts: GalleryLookupOptions = {}
 ): Promise<EntityGalleryPayload | null> {
   const result = await db
     .prepare(
-      `SELECT id, title, metadata FROM pages
+      `SELECT id, title, metadata, status FROM pages
        WHERE area = 'visuals' AND page_type = 'gallery' AND deleted_at IS NULL`
     )
     .all<GalleryRow>();
 
   for (const row of result.results || []) {
+    if (opts.publicView && isExcludedRow(row)) continue;
     let meta: Record<string, unknown>;
     try {
       meta = JSON.parse(row.metadata || '{}') as Record<string, unknown>;
@@ -205,7 +243,7 @@ export async function findGalleryByStoryKey(
       continue;
     }
     if (meta.storyKey !== storyKey) continue;
-    return buildGalleryPayload(row);
+    return buildGalleryPayload(row, opts);
   }
   return null;
 }
