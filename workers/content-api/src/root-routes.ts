@@ -18,6 +18,7 @@ import type {
   RootCardRow,
   RootCard,
 } from './root-types';
+import { viewerCacheHeaders } from './visibility';
 
 // ===== Row → API 轉換 =====
 
@@ -40,12 +41,22 @@ function projectRowToApi(row: RootProjectRow): RootProject {
       github: row.link_github,
       website: row.link_website,
     },
+    isPrivateRepo: row.is_private_repo === 1,
     startDate: row.start_date,
     endDate: row.end_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
   };
+}
+
+/**
+ * 公開讀取的專案形狀：私人 repo 對未授權讀者不輸出 github 網址。
+ * 管理員（admin JWT／API_TOKEN／本機 dev）拿完整資料供後台編輯與同步。
+ */
+function projectForViewer(project: RootProject, admin: boolean): RootProject {
+  if (admin || !project.isPrivateRepo) return project;
+  return { ...project, links: { ...project.links, github: null } };
 }
 
 function linkRowToApi(row: RootLinkRow): RootLink {
@@ -108,16 +119,22 @@ function json<T>(
   status = 200,
   cors: Record<string, string> = {},
   /** 設為 true 時加入 CDN 短快取，適用於所有公開 GET 回應 */
-  cacheable = false
+  cacheable = false,
+  /** 2xx 時覆寫快取相關標頭（依讀者身分決定的回應用） */
+  cacheHeaders?: Record<string, string>
 ): Response {
   const headers: Record<string, string> = {
     ...cors,
     'Content-Type': 'application/json',
   };
-  if (cacheable && status >= 200 && status < 300) {
-    // CDN 快取 60 秒，用戶端 10 秒，背景重驗證最長 5 分鐘
-    headers['Cache-Control'] =
-      'public, s-maxage=60, max-age=10, stale-while-revalidate=300';
+  if (status >= 200 && status < 300) {
+    if (cacheHeaders) {
+      Object.assign(headers, cacheHeaders);
+    } else if (cacheable) {
+      // CDN 快取 60 秒，用戶端 10 秒，背景重驗證最長 5 分鐘
+      headers['Cache-Control'] =
+        'public, s-maxage=60, max-age=10, stale-while-revalidate=300';
+    }
   }
   return new Response(JSON.stringify(data), { status, headers });
 }
@@ -136,13 +153,12 @@ export async function handleRootRoutes(
   // /api/root/projects
   const projectsListMatch = path === '/api/root/projects';
   if (projectsListMatch && method === 'GET') {
+    const admin = (await requireJwt(request, env)) !== null;
     // include_deleted 需要認證
-    if (url.searchParams.get('include_deleted') === 'true') {
-      const jwtUser = await requireJwt(request, env);
-      if (!jwtUser)
-        return json({ ok: false, error: 'Unauthorized' }, 401, cors);
+    if (url.searchParams.get('include_deleted') === 'true' && !admin) {
+      return json({ ok: false, error: 'Unauthorized' }, 401, cors);
     }
-    return listProjects(url, env.CONTENT_DB, cors);
+    return listProjects(url, env.CONTENT_DB, cors, admin);
   }
 
   // /api/root/projects/:id
@@ -151,7 +167,10 @@ export async function handleRootRoutes(
   );
   if (projectMatch) {
     const id = projectMatch[1];
-    if (method === 'GET') return getProject(id, env.CONTENT_DB, cors);
+    if (method === 'GET') {
+      const admin = (await requireJwt(request, env)) !== null;
+      return getProject(id, env.CONTENT_DB, cors, admin);
+    }
     if (method === 'PUT') {
       const jwtUser = await requireJwt(request, env);
       if (!jwtUser)
@@ -423,7 +442,8 @@ export async function handleRootRoutes(
 async function listProjects(
   url: URL,
   db: D1Database,
-  cors: Record<string, string>
+  cors: Record<string, string>,
+  admin: boolean
 ): Promise<Response> {
   const conditions = ['deleted_at IS NULL'];
   const binds: (string | number)[] = [];
@@ -454,17 +474,24 @@ async function listProjects(
       : await stmt.all<RootProjectRow>();
 
   return json(
-    { ok: true, data: (result.results || []).map(projectRowToApi) },
+    {
+      ok: true,
+      data: (result.results || []).map((row) =>
+        projectForViewer(projectRowToApi(row), admin)
+      ),
+    },
     200,
     cors,
-    true
+    true,
+    viewerCacheHeaders(admin)
   );
 }
 
 async function getProject(
   id: string,
   db: D1Database,
-  cors: Record<string, string>
+  cors: Record<string, string>,
+  admin: boolean
 ): Promise<Response> {
   const row = await db
     .prepare('SELECT * FROM root_projects WHERE id = ? AND deleted_at IS NULL')
@@ -474,7 +501,13 @@ async function getProject(
   if (!row) {
     return json({ ok: false, error: 'Project not found' }, 404, cors);
   }
-  return json({ ok: true, data: projectRowToApi(row) }, 200, cors, true);
+  return json(
+    { ok: true, data: projectForViewer(projectRowToApi(row), admin) },
+    200,
+    cors,
+    true,
+    viewerCacheHeaders(admin)
+  );
 }
 
 async function upsertProject(
@@ -550,6 +583,10 @@ async function upsertProject(
       sets.push('link_website = ?');
       binds.push(body.links.website);
     }
+    if (body.isPrivateRepo !== undefined) {
+      sets.push('is_private_repo = ?');
+      binds.push(body.isPrivateRepo ? 1 : 0);
+    }
     if (body.startDate !== undefined) {
       sets.push('start_date = ?');
       binds.push(body.startDate);
@@ -574,9 +611,9 @@ async function upsertProject(
         `INSERT INTO root_projects
          (id, title_zh, title_en, desc_zh, desc_en, content_zh, content_en,
           tags, featured, sort_order, status, image,
-          link_demo, link_github, link_website, start_date, end_date,
-          created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          link_demo, link_github, link_website, is_private_repo,
+          start_date, end_date, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -594,6 +631,7 @@ async function upsertProject(
         body.links?.demo ?? null,
         body.links?.github ?? null,
         body.links?.website ?? null,
+        body.isPrivateRepo ? 1 : 0,
         body.startDate ?? null,
         body.endDate ?? null,
         now,

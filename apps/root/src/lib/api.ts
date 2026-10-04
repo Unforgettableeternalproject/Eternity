@@ -32,6 +32,8 @@ export interface RootProject {
     github: string | null;
     website: string | null;
   };
+  /** 私人 repo：前台不輸出 GitHub 連結（舊版 API 無此欄位時視為公開） */
+  isPrivateRepo?: boolean;
   startDate: string | null;
   endDate: string | null;
   createdAt: string;
@@ -142,10 +144,46 @@ async function apiFetch<T>(
   return promise;
 }
 
+/**
+ * 帶管理員認證的讀取：不讀也不寫 TTL／in-flight 快取。
+ *
+ * 快取以 URL 為 key 並跨請求共用，同一路徑的公開回應（私人 repo 的 github
+ * 已剝除）與管理員回應若共用快取，後台會拿到剝除版而在存檔時清掉網址，
+ * 或公開頁拿到管理員的完整資料。
+ */
+async function apiFetchAuthed<T>(
+  path: string,
+  token: string,
+  apiBase = getApiBase()
+): Promise<T | null> {
+  const url = `${apiBase}${path}`;
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const json: ApiResponse<T> = await res.json();
+    return json.ok ? (json.data ?? null) : null;
+  } catch (e) {
+    console.error(`[api] Failed to fetch ${path}:`, e);
+    return null;
+  }
+}
+
 // ───── Projects ─────
 
-export async function getProjects(apiBase?: string): Promise<RootProject[]> {
-  return (await apiFetch<RootProject[]>('/api/root/projects', apiBase)) ?? [];
+/**
+ * 專案列表。帶 token 時以管理員身分讀取（私人 repo 的 github 完整），
+ * 供後台編輯器使用；公開頁面不帶 token。
+ */
+export async function getProjects(
+  apiBase?: string,
+  token?: string
+): Promise<RootProject[]> {
+  const data = token
+    ? await apiFetchAuthed<RootProject[]>('/api/root/projects', token, apiBase)
+    : await apiFetch<RootProject[]>('/api/root/projects', apiBase);
+  return data ?? [];
 }
 
 export async function getProject(id: string): Promise<RootProject | null> {

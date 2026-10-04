@@ -20,6 +20,7 @@ export interface RootProjectRow {
   link_demo: string | null;
   link_github: string | null;
   link_website: string | null;
+  is_private_repo: number; // 0 | 1
   start_date: string | null;
   end_date: string | null;
   created_at: string;
@@ -45,6 +46,8 @@ export interface RootProject {
     github: string | null;
     website: string | null;
   };
+  /** 私人 repo：前台不輸出 GitHub 連結，改顯示私人標示 */
+  isPrivateRepo: boolean;
   startDate: string | null;
   endDate: string | null;
   createdAt: string;
@@ -70,6 +73,7 @@ export interface UpsertRootProjectRequest {
     github?: string | null;
     website?: string | null;
   };
+  isPrivateRepo?: boolean;
   startDate?: string | null;
   endDate?: string | null;
 }

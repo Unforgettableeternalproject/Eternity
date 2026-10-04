@@ -279,8 +279,9 @@ export async function resetAndSeedTestData(
           `INSERT INTO root_projects
            (id, title_zh, title_en, desc_zh, desc_en, content_zh, content_en,
             tags, featured, sort_order, status, image, link_demo, link_github,
-            link_website, start_date, end_date, created_at, updated_at, deleted_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            link_website, is_private_repo, start_date, end_date, created_at,
+            updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           row.id,
@@ -298,6 +299,7 @@ export async function resetAndSeedTestData(
           row.link_demo,
           row.link_github,
           row.link_website,
+          row.is_private_repo ?? 0,
           row.start_date,
           row.end_date,
           row.created_at,

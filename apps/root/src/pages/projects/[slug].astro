@@ -3,6 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getCurrentLocale } from '../../i18n/utils';
 import { getProject, getProjects, assetUrl } from '../../lib/api';
 import { normalizeColors } from '../../lib/color-normalize';
+import { resolveProjectRepo } from '../../lib/projectRepo';
 
 export const prerender = false;
 
@@ -27,6 +28,7 @@ const toLocal = (p: typeof projectRaw) => ({
     status: p.status,
     image: p.image,
     links: p.links,
+    isPrivateRepo: p.isPrivateRepo ?? false,
     startDate: p.startDate ? new Date(p.startDate) : null,
     endDate: p.endDate ? new Date(p.endDate) : null,
     content_zh: p.contentZh,
@@ -35,6 +37,7 @@ const toLocal = (p: typeof projectRaw) => ({
 });
 
 const project = toLocal(projectRaw);
+const repo = resolveProjectRepo(project.data, locale);
 
 const allRaw = await getProjects();
 const sorted = allRaw
@@ -143,9 +146,9 @@ const contentText =
           )
         }
         {
-          project.data.links?.github && (
+          repo?.kind === 'link' && (
             <a
-              href={project.data.links.github}
+              href={repo.href}
               target="_blank"
               rel="noopener noreferrer"
               class="flex justify-between items-baseline gap-3 px-4 py-3.5 text-sm font-semibold no-underline overflow-hidden"
@@ -156,9 +159,20 @@ const contentText =
                 class="font-mono text-[11px] opacity-70 truncate min-w-0"
                 style="font-family: 'JetBrains Mono', monospace;"
               >
-                {project.data.links.github.replace('https://', '')}
+                {repo.display}
               </span>
             </a>
+          )
+        }
+        {
+          repo?.kind === 'private' && (
+            <div
+              class="flex justify-between items-center gap-3 px-4 py-3.5 text-sm font-semibold overflow-hidden"
+              style={`background: transparent; color: var(--q-ink-mute); border: 1px solid var(--q-line); ${project.data.links?.website ? 'border-top: none;' : ''}`}
+            >
+              <span class="shrink-0">⌥ GitHub</span>
+              <span class="q-pill">{repo.label}</span>
+            </div>
           )
         }
         {
