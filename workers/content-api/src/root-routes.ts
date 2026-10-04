@@ -40,6 +40,7 @@ function projectRowToApi(row: RootProjectRow): RootProject {
       github: row.link_github,
       website: row.link_website,
     },
+    isPrivateRepo: row.is_private_repo === 1,
     startDate: row.start_date,
     endDate: row.end_date,
     createdAt: row.created_at,
@@ -550,6 +551,10 @@ async function upsertProject(
       sets.push('link_website = ?');
       binds.push(body.links.website);
     }
+    if (body.isPrivateRepo !== undefined) {
+      sets.push('is_private_repo = ?');
+      binds.push(body.isPrivateRepo ? 1 : 0);
+    }
     if (body.startDate !== undefined) {
       sets.push('start_date = ?');
       binds.push(body.startDate);
@@ -574,9 +579,9 @@ async function upsertProject(
         `INSERT INTO root_projects
          (id, title_zh, title_en, desc_zh, desc_en, content_zh, content_en,
           tags, featured, sort_order, status, image,
-          link_demo, link_github, link_website, start_date, end_date,
-          created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          link_demo, link_github, link_website, is_private_repo,
+          start_date, end_date, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         id,
@@ -594,6 +599,7 @@ async function upsertProject(
         body.links?.demo ?? null,
         body.links?.github ?? null,
         body.links?.website ?? null,
+        body.isPrivateRepo ? 1 : 0,
         body.startDate ?? null,
         body.endDate ?? null,
         now,

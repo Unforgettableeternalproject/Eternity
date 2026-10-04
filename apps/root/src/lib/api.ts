@@ -32,6 +32,8 @@ export interface RootProject {
     github: string | null;
     website: string | null;
   };
+  /** 私人 repo：前台不輸出 GitHub 連結（舊版 API 無此欄位時視為公開） */
+  isPrivateRepo?: boolean;
   startDate: string | null;
   endDate: string | null;
   createdAt: string;

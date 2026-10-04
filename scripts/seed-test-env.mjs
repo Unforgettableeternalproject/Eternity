@@ -514,6 +514,7 @@ async function writeProject(project, token) {
     status: project.status,
     image: project.image,
     links: project.links,
+    isPrivateRepo: project.isPrivateRepo,
     startDate: project.startDate,
     endDate: project.endDate,
     updatedAt: project.updatedAt,
