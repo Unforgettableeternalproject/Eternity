@@ -31,7 +31,7 @@
 | 🌟 **主站**   | [unforgettableeternalproject.com](https://unforgettableeternalproject.com)         | 作品集、專案展示、動態、連結 — Quartz 設計 |
 | 📚 **文件站** | [uep.unforgettableeternalproject.com](https://uep.unforgettableeternalproject.com) | 世界觀文件，5 個主題區域                   |
 
-> **目前版本：v1.0.0** — 首個穩定版。Epic 2（進度系統）全段完成：讀者帳號、雙視角、掃描線閱讀追蹤、內容閘門、互動式嵌入、五座區域浮島，以及跨區域互聯。
+> **目前版本：v1.0.1** — 內容可見度修補：封存內容改由後端保留、空狀態告示牌與編輯器排序修正。v1.0.0 為首個穩定版。Epic 2（進度系統）全段完成：讀者帳號、雙視角、掃描線閱讀追蹤、內容閘門、互動式嵌入、五座區域浮島，以及跨區域互聯。
 
 ## 專案結構
 
