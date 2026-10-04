@@ -2,6 +2,10 @@
 import DesignLayout from '../../../layouts/DesignLayout.astro';
 import RichEditor from '../../../components/editor/RichEditor';
 import { getApiBase, TEST_MODE_COOKIE_NAME } from '../../../lib/apiBase';
+import {
+  ADMIN_JWT_COOKIE,
+  loadAdminEditPage,
+} from '../../../lib/adminPageRead';
 
 export const prerender = false;
 
@@ -22,22 +26,16 @@ const isEntryMode = !pageSlug;
 let page: any = null;
 let fetchError: string | null = null;
 
+// content-api 對訪客把封存頁（metadata.locked）換成存根，編輯器拿存根初始化
+// 再存檔會把封存內容覆蓋成空：SSR 直連 worker 必須轉發管理員 JWT，
+// 仍拿到存根（JWT 缺失或失效）時改顯示錯誤、不掛載編輯器
 if (!isEntryMode) {
-  try {
-    const res = await fetch(`${contentApi}/api/content/${area}/${pageSlug}`);
-    const ct = res.headers.get('content-type') || '';
-    if (!ct.includes('application/json')) {
-      throw new Error('Content API not available (received non-JSON response)');
-    }
-    const json = await res.json();
-    if (json.ok) {
-      page = json.data;
-    } else {
-      fetchError = json.error || 'Page not found';
-    }
-  } catch (e: any) {
-    fetchError = e.message || 'Failed to connect to Content API';
-  }
+  ({ page, error: fetchError } = await loadAdminEditPage(
+    contentApi,
+    area,
+    pageSlug,
+    Astro.cookies.get(ADMIN_JWT_COOKIE)?.value
+  ));
 }
 
 // Convert content blocks to HTML for TipTap

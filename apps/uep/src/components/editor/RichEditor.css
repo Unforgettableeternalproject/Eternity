@@ -13,6 +13,18 @@
 }
 
 /* === Header (52px) === */
+/* 存根資料警示：載入到封存頁替身時鎖死存檔 */
+.ned-redacted-banner {
+  flex: 0 0 auto;
+  padding: 10px 22px;
+  border-bottom: 1px solid #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+
 .ned-header {
   height: 52px;
   flex: 0 0 52px;
