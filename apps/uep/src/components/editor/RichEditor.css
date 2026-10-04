@@ -3024,6 +3024,25 @@
 .ced-tab-del:hover {
   color: #ef4444;
 }
+.ced-tab[draggable='true'] {
+  cursor: grab;
+}
+.ced-tab-grip {
+  padding-left: 6px;
+  color: var(--ink-mute);
+  font-size: 10px;
+  user-select: none;
+}
+.ced-tab.is-dragging {
+  opacity: 0.4;
+}
+/* 插入指示：inset 陰影不改變 tab 寬度，拖曳中不會推擠版面 */
+.ced-tab.is-drop-before {
+  box-shadow: inset 2px 0 0 var(--ced-accent, var(--ink-sub));
+}
+.ced-tab.is-drop-after {
+  box-shadow: inset -2px 0 0 var(--ced-accent, var(--ink-sub));
+}
 
 /* Group 列表 */
 .ced-group-list {
@@ -3844,6 +3863,7 @@
 .ced-diff-trow {
   display: grid;
   grid-template-columns:
+    18px
     minmax(90px, 1fr)
     repeat(var(--ced-diff-cols, 2), minmax(110px, 1.4fr))
     auto;
@@ -3878,6 +3898,54 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 列拖曳把手：輸入框之外唯一的拖曳起點 */
+.ced-diff-trow-grip {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  color: var(--ink-mute);
+  font-size: 10px;
+  cursor: grab;
+  user-select: none;
+}
+
+/* 垂直排序（群組／區段／表格列）：子元素有自己的底色會蓋掉 inset 陰影，
+   插入線改用絕對定位的偽元素，同樣不改變版面高度 */
+.ced-browser-group,
+.ced-diff-trow {
+  position: relative;
+}
+.ced-browser-group.is-dragging,
+.ced-diff-trow.is-dragging {
+  opacity: 0.4;
+}
+.ced-browser-group.is-drop-before::before,
+.ced-browser-group.is-drop-after::after,
+.ced-diff-trow.is-drop-before::before,
+.ced-diff-trow.is-drop-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--ced-accent, var(--ink-sub));
+  pointer-events: none;
+  z-index: 1;
+}
+.ced-browser-group.is-drop-before::before,
+.ced-diff-trow.is-drop-before::before {
+  top: 0;
+}
+.ced-browser-group.is-drop-after::after,
+.ced-diff-trow.is-drop-after::after {
+  bottom: 0;
+}
+.ced-browser-folder[draggable='true'] {
+  cursor: grab;
 }
 
 .ced-diff-trow-actions {

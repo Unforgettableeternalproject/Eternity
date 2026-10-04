@@ -13,6 +13,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   API_BASE,
+  beginRowDrag,
   getDialog,
   buildAssetUrl as buildImageUrl,
   toAssetPath,
@@ -583,6 +584,12 @@ function DossierVariantBody({
     setActiveEntry(null);
   }
 
+  // 分類 tab 拖曳排序；選取跟著分類本身走，不停在原本的位置
+  const tabDrag = useGapReorder('x', (from, to) => {
+    updateSubcats(reorder(subcategories, from, to));
+    setActiveTab(remapIndexAfterMove(activeTab, from, to));
+  });
+
   const subcat = subcategories[activeTab];
 
   function updateGroups(groups: DossierGroup[]) {
@@ -657,10 +664,47 @@ function DossierVariantBody({
     );
   }
 
+  // 條目拖曳：來源記在 ref 供 drop 判定，dragEntryInfo 只管樣式（延一幀）
+  const entryDragFromRef = useRef<{
+    groupIdx: number;
+    entryIdx: number;
+  } | null>(null);
+  function handleEntryDragStart(
+    e: React.DragEvent<HTMLElement>,
+    groupIdx: number,
+    entryIdx: number
+  ) {
+    beginRowDrag(e, entryIdx);
+    const info = { groupIdx, entryIdx };
+    entryDragFromRef.current = info;
+    requestAnimationFrame(() => {
+      if (entryDragFromRef.current === info) setDragEntryInfo(info);
+    });
+  }
+  function resetEntryDrag() {
+    entryDragFromRef.current = null;
+    setDragEntryInfo(null);
+  }
+
+  // 群組拖曳排序；index 0 是預設群組（不可刪、承接被刪群組的條目），
+  // 位置即語意，固定在首位不參與排序
+  const groupDrag = useGapReorder(
+    'y',
+    (from, to) => {
+      if (!subcat) return;
+      updateGroups(reorder(subcat.groups, from, to));
+      setActiveGroup(remapIndexAfterMove(activeGroup, from, to));
+      setListVersion((v) => v + 1);
+    },
+    1
+  );
+
   // 拖曳條目到其他群組
   function handleEntryDropOnGroup(targetGroupIdx: number) {
-    if (!dragEntryInfo || !subcat) return;
-    const { groupIdx: srcGi, entryIdx: srcEi } = dragEntryInfo;
+    const src = entryDragFromRef.current;
+    resetEntryDrag();
+    if (!src || !subcat) return;
+    const { groupIdx: srcGi, entryIdx: srcEi } = src;
     if (srcGi === targetGroupIdx) return;
     const srcGroup = subcat.groups[srcGi];
     const entry = srcGroup.entries[srcEi];
@@ -677,20 +721,18 @@ function DossierVariantBody({
       setActiveEntry(null);
       setPanelMode('group');
     }
-    setDragEntryInfo(null);
   }
 
-  // 同群組內拖曳排序
+  // 同群組內拖曳排序：放到第 targetIdx 個條目的位置
   function handleEntryReorder(targetIdx: number) {
-    if (!dragEntryInfo || !group) return;
-    if (dragEntryInfo.groupIdx !== activeGroup) return;
-    const items = [...group.entries];
-    const [moved] = items.splice(dragEntryInfo.entryIdx, 1);
-    items.splice(targetIdx, 0, moved);
-    updateEntries(items);
+    const src = entryDragFromRef.current;
+    resetEntryDrag();
+    if (!src || !group) return;
+    if (src.groupIdx !== activeGroup || src.entryIdx === targetIdx) return;
+    updateEntries(reorder(group.entries, src.entryIdx, targetIdx));
     setListVersion((v) => v + 1);
-    if (activeEntry === dragEntryInfo.entryIdx) setActiveEntry(targetIdx);
-    setDragEntryInfo(null);
+    if (activeEntry !== null)
+      setActiveEntry(remapIndexAfterMove(activeEntry, src.entryIdx, targetIdx));
   }
 
   const entry =
@@ -735,8 +777,17 @@ function DossierVariantBody({
           {subcategories.map((sc, i) => (
             <div
               key={i}
-              className={`ced-tab ${i === activeTab ? 'active' : ''}`}
+              className={`ced-tab ${i === activeTab ? 'active' : ''} ${tabDrag.itemClass(i, subcategories.length)}`}
+              draggable
+              title="拖曳排序"
+              onDragStart={(e) => tabDrag.start(e, i)}
+              onDragOver={(e) => tabDrag.over(e, i)}
+              onDrop={tabDrag.drop}
+              onDragEnd={tabDrag.reset}
             >
+              <span className="ced-tab-grip" aria-hidden="true">
+                ⠿
+              </span>
               <button
                 className="ced-tab-btn"
                 onClick={() => {
@@ -788,7 +839,12 @@ function DossierVariantBody({
               </div>
 
               {subcat.groups.map((g, gi) => (
-                <div key={gi}>
+                <div
+                  key={gi}
+                  className={`ced-browser-group ${groupDrag.itemClass(gi, subcat.groups.length)}`}
+                  onDragOver={(e) => groupDrag.over(e, gi)}
+                  onDrop={groupDrag.drop}
+                >
                   <div
                     className={`ced-browser-folder ${gi === activeGroup && panelMode === 'group' ? 'active' : ''}`}
                     onClick={() => {
@@ -802,30 +858,28 @@ function DossierVariantBody({
                           ? `3px solid ${accent}`
                           : '3px solid transparent',
                     }}
-                    onDragOver={
-                      dragEntryInfo
-                        ? (e) => {
-                            e.preventDefault();
-                            e.currentTarget.classList.add('drag-over');
-                          }
-                        : undefined
+                    draggable={gi > 0}
+                    title={gi > 0 ? '拖曳排序' : undefined}
+                    onDragStart={
+                      gi > 0 ? (e) => groupDrag.start(e, gi) : undefined
                     }
-                    onDragLeave={
-                      dragEntryInfo
-                        ? (e) => {
-                            e.currentTarget.classList.remove('drag-over');
-                          }
-                        : undefined
-                    }
-                    onDrop={
-                      dragEntryInfo
-                        ? (e) => {
-                            e.preventDefault();
-                            e.currentTarget.classList.remove('drag-over');
-                            handleEntryDropOnGroup(gi);
-                          }
-                        : undefined
-                    }
+                    onDragEnd={groupDrag.reset}
+                    // 只處理條目移入；群組拖曳冒泡給外層包裝判定插入縫隙
+                    onDragOver={(e) => {
+                      if (!entryDragFromRef.current) return;
+                      e.preventDefault();
+                      e.currentTarget.classList.add('drag-over');
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove('drag-over');
+                    }}
+                    onDrop={(e) => {
+                      if (!entryDragFromRef.current) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.currentTarget.classList.remove('drag-over');
+                      handleEntryDropOnGroup(gi);
+                    }}
                   >
                     <span
                       className="ced-browser-folder-name"
@@ -858,11 +912,10 @@ function DossierVariantBody({
                         }}
                         style={{ paddingLeft: 20 }}
                         draggable
-                        onDragStart={() =>
-                          setDragEntryInfo({ groupIdx: gi, entryIdx: ei })
-                        }
-                        onDragEnd={() => setDragEntryInfo(null)}
+                        onDragStart={(e) => handleEntryDragStart(e, gi, ei)}
+                        onDragEnd={resetEntryDrag}
                         onDragOver={(e) => {
+                          if (!entryDragFromRef.current) return;
                           e.preventDefault();
                           e.currentTarget.classList.add('drag-over');
                         }}
@@ -870,7 +923,9 @@ function DossierVariantBody({
                           e.currentTarget.classList.remove('drag-over');
                         }}
                         onDrop={(e) => {
+                          if (!entryDragFromRef.current) return;
                           e.preventDefault();
+                          e.stopPropagation();
                           e.currentTarget.classList.remove('drag-over');
                           handleEntryReorder(ei);
                         }}
@@ -1960,6 +2015,87 @@ function reorder<T>(arr: T[], from: number, to: number): T[] {
   return result;
 }
 
+/** 插入縫隙（0 = 最前）換算成移除來源後的目標 index */
+function moveIndexForGap(from: number, gap: number): number {
+  return gap > from ? gap - 1 : gap;
+}
+
+/** 元素 from 移到 to 之後，原本位於 idx 的元素的新位置 */
+function remapIndexAfterMove(idx: number, from: number, to: number): number {
+  if (idx === from) return to;
+  if (from < idx && idx <= to) return idx - 1;
+  if (to <= idx && idx < from) return idx + 1;
+  return idx;
+}
+
+/**
+ * 縫隙式拖曳排序：來源以 ref 記錄（is-dragging 延一幀才套，drop 判定
+ * 不能等 state）；插入點以「縫隙」表示，0 = 第一項之前。
+ * minGap 讓固定在前的項目（預設群組／區段）不會被擠離首位。
+ * over／drop 回傳 false 代表目前不是本組的拖曳，事件留給其他處理。
+ */
+function useGapReorder(
+  axis: 'x' | 'y',
+  onMove: (from: number, to: number) => void,
+  minGap = 0
+) {
+  const fromRef = useRef<number | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dropGap, setDropGap] = useState<number | null>(null);
+
+  function reset() {
+    fromRef.current = null;
+    setDragIdx(null);
+    setDropGap(null);
+  }
+  function start(e: React.DragEvent<HTMLElement>, idx: number) {
+    beginRowDrag(e, idx);
+    fromRef.current = idx;
+    requestAnimationFrame(() => {
+      if (fromRef.current === idx) setDragIdx(idx);
+    });
+  }
+  function over(e: React.DragEvent<HTMLElement>, idx: number): boolean {
+    const from = fromRef.current;
+    if (from === null) return false;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const after =
+      axis === 'x'
+        ? e.clientX > rect.left + rect.width / 2
+        : e.clientY > rect.top + rect.height / 2;
+    const gap = Math.max(minGap, after ? idx + 1 : idx);
+    // 來源兩側的縫隙等於原位，不顯示插入指示
+    setDropGap(moveIndexForGap(from, gap) === from ? null : gap);
+    return true;
+  }
+  function drop(e: React.DragEvent<HTMLElement>): boolean {
+    const from = fromRef.current;
+    if (from === null) return false;
+    // 拖曳帶 text/plain，未擋預設行為時 Firefox 會把它當網址開啟或插進輸入框
+    e.preventDefault();
+    const gap = dropGap;
+    reset();
+    if (gap === null) return true;
+    const to = moveIndexForGap(from, gap);
+    if (to !== from) onMove(from, to);
+    return true;
+  }
+  /** 第 i 項（共 count 項）的拖曳狀態 class */
+  function itemClass(i: number, count: number): string {
+    return [
+      dragIdx === i ? 'is-dragging' : '',
+      dropGap === i ? 'is-drop-before' : '',
+      dropGap === i + 1 && i === count - 1 ? 'is-drop-after' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  return { start, over, drop, reset, itemClass };
+}
+
 /** 舊格式 → 新格式轉換（向後相容） */
 function migrateChronoData(raw: any): ChronoContent {
   // 已是新格式（有 fieldDefs 且 periods 有 era）
@@ -2877,7 +3013,24 @@ function DiffEditor({
     setActiveEntry(null);
   }
 
+  // 分類 tab 拖曳排序（同 dossier）
+  const tabDrag = useGapReorder('x', (from, to) => {
+    updateSubcats(reorder(data.subcategories, from, to));
+    setActiveTab(remapIndexAfterMove(activeTab, from, to));
+  });
+
   const subcat = data.subcategories[activeTab];
+
+  // 區段拖曳排序；index 0 是預設區段（不可刪、承接被刪區段的條目），固定首位
+  const sectionDrag = useGapReorder(
+    'y',
+    (from, to) => {
+      if (!subcat) return;
+      updateSections(reorder(subcat.sections, from, to));
+      setActiveSection(remapIndexAfterMove(activeSection, from, to));
+    },
+    1
+  );
 
   function updateSections(sections: DiffSection[]) {
     updateSubcats(
@@ -2965,10 +3118,45 @@ function DiffEditor({
     );
   }
 
+  // 條目拖曳：來源記在 ref 供 drop 判定，dragEntryInfo 只管樣式（延一幀）
+  const entryDragFromRef = useRef<{
+    sectionIdx: number;
+    entryIdx: number;
+  } | null>(null);
+  function handleEntryDragStart(
+    e: React.DragEvent<HTMLElement>,
+    sectionIdx: number,
+    entryIdx: number
+  ) {
+    beginRowDrag(e, entryIdx);
+    const info = { sectionIdx, entryIdx };
+    entryDragFromRef.current = info;
+    requestAnimationFrame(() => {
+      if (entryDragFromRef.current === info) setDragEntryInfo(info);
+    });
+  }
+  function resetEntryDrag() {
+    entryDragFromRef.current = null;
+    setDragEntryInfo(null);
+  }
+
+  /** 區段內移動條目；選取跟著條目本身走 */
+  function moveEntry(from: number, to: number) {
+    if (!section || from === to) return;
+    updateEntries(reorder(section.entries, from, to));
+    if (activeEntry !== null)
+      setActiveEntry(remapIndexAfterMove(activeEntry, from, to));
+  }
+
+  // 表格逐格填模式的列排序：以 grip 起手，插入點用縫隙
+  const rowDrag = useGapReorder('y', moveEntry);
+
   // 跨區段拖曳
   function handleEntryDropOnSection(targetSi: number) {
-    if (!dragEntryInfo || !subcat) return;
-    const { sectionIdx: srcSi, entryIdx: srcEi } = dragEntryInfo;
+    const src = entryDragFromRef.current;
+    resetEntryDrag();
+    if (!src || !subcat) return;
+    const { sectionIdx: srcSi, entryIdx: srcEi } = src;
     if (srcSi === targetSi) return;
     const srcSection = subcat.sections[srcSi];
     const ent = srcSection.entries[srcEi];
@@ -2983,19 +3171,14 @@ function DiffEditor({
       setActiveEntry(null);
       setPanelMode('section');
     }
-    setDragEntryInfo(null);
   }
 
-  // 同區段拖曳排序
+  // 同區段拖曳排序：放到第 targetIdx 個條目的位置
   function handleEntryReorder(targetIdx: number) {
-    if (!dragEntryInfo || !section) return;
-    if (dragEntryInfo.sectionIdx !== activeSection) return;
-    const items = [...section.entries];
-    const [moved] = items.splice(dragEntryInfo.entryIdx, 1);
-    items.splice(targetIdx, 0, moved);
-    updateEntries(items);
-    if (activeEntry === dragEntryInfo.entryIdx) setActiveEntry(targetIdx);
-    setDragEntryInfo(null);
+    const src = entryDragFromRef.current;
+    resetEntryDrag();
+    if (!src || src.sectionIdx !== activeSection) return;
+    moveEntry(src.entryIdx, targetIdx);
   }
 
   const entry =
@@ -3095,8 +3278,17 @@ function DiffEditor({
           {data.subcategories.map((sc, i) => (
             <div
               key={i}
-              className={`ced-tab ${i === activeTab ? 'active' : ''}`}
+              className={`ced-tab ${i === activeTab ? 'active' : ''} ${tabDrag.itemClass(i, data.subcategories.length)}`}
+              draggable
+              title="拖曳排序"
+              onDragStart={(e) => tabDrag.start(e, i)}
+              onDragOver={(e) => tabDrag.over(e, i)}
+              onDrop={tabDrag.drop}
+              onDragEnd={tabDrag.reset}
             >
+              <span className="ced-tab-grip" aria-hidden="true">
+                ⠿
+              </span>
               <button
                 className="ced-tab-btn"
                 onClick={() => {
@@ -3148,7 +3340,12 @@ function DiffEditor({
               </div>
 
               {subcat.sections.map((s, si) => (
-                <div key={si}>
+                <div
+                  key={si}
+                  className={`ced-browser-group ${sectionDrag.itemClass(si, subcat.sections.length)}`}
+                  onDragOver={(e) => sectionDrag.over(e, si)}
+                  onDrop={sectionDrag.drop}
+                >
                   <div
                     className={`ced-browser-folder ${si === activeSection && panelMode === 'section' ? 'active' : ''}`}
                     onClick={() => {
@@ -3162,30 +3359,28 @@ function DiffEditor({
                           ? `3px solid ${accent}`
                           : '3px solid transparent',
                     }}
-                    onDragOver={
-                      dragEntryInfo
-                        ? (e) => {
-                            e.preventDefault();
-                            e.currentTarget.classList.add('drag-over');
-                          }
-                        : undefined
+                    draggable={si > 0}
+                    title={si > 0 ? '拖曳排序' : undefined}
+                    onDragStart={
+                      si > 0 ? (e) => sectionDrag.start(e, si) : undefined
                     }
-                    onDragLeave={
-                      dragEntryInfo
-                        ? (e) => {
-                            e.currentTarget.classList.remove('drag-over');
-                          }
-                        : undefined
-                    }
-                    onDrop={
-                      dragEntryInfo
-                        ? (e) => {
-                            e.preventDefault();
-                            e.currentTarget.classList.remove('drag-over');
-                            handleEntryDropOnSection(si);
-                          }
-                        : undefined
-                    }
+                    onDragEnd={sectionDrag.reset}
+                    // 只處理條目移入；區段拖曳冒泡給外層包裝判定插入縫隙
+                    onDragOver={(e) => {
+                      if (!entryDragFromRef.current) return;
+                      e.preventDefault();
+                      e.currentTarget.classList.add('drag-over');
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove('drag-over');
+                    }}
+                    onDrop={(e) => {
+                      if (!entryDragFromRef.current) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.currentTarget.classList.remove('drag-over');
+                      handleEntryDropOnSection(si);
+                    }}
                   >
                     <span
                       className="ced-browser-folder-name"
@@ -3218,11 +3413,10 @@ function DiffEditor({
                         }}
                         style={{ paddingLeft: 20 }}
                         draggable
-                        onDragStart={() =>
-                          setDragEntryInfo({ sectionIdx: si, entryIdx: ei })
-                        }
-                        onDragEnd={() => setDragEntryInfo(null)}
+                        onDragStart={(e) => handleEntryDragStart(e, si, ei)}
+                        onDragEnd={resetEntryDrag}
                         onDragOver={(e) => {
+                          if (!entryDragFromRef.current) return;
                           e.preventDefault();
                           e.currentTarget.classList.add('drag-over');
                         }}
@@ -3230,7 +3424,9 @@ function DiffEditor({
                           e.currentTarget.classList.remove('drag-over');
                         }}
                         onDrop={(e) => {
+                          if (!entryDragFromRef.current) return;
                           e.preventDefault();
+                          e.stopPropagation();
                           e.currentTarget.classList.remove('drag-over');
                           handleEntryReorder(ei);
                         }}
@@ -3467,6 +3663,7 @@ function DiffEditor({
                         className="ced-diff-trow ced-diff-thead"
                         style={diffColsStyle(valueColumns)}
                       >
+                        <span />
                         <span>詞條</span>
                         {paddedLabels().map((label, ci) => (
                           <span key={ci}>{label || `值 ${ci + 1}`}</span>
@@ -3476,9 +3673,34 @@ function DiffEditor({
                       {section.entries.map((ent, ei) => (
                         <div
                           key={ei}
-                          className={`ced-diff-trow ${ei === activeEntry ? 'active' : ''}`}
+                          className={`ced-diff-trow ${ei === activeEntry ? 'active' : ''} ${rowDrag.itemClass(ei, section.entries.length)}`}
                           style={diffColsStyle(valueColumns)}
+                          onDragOver={(e) => rowDrag.over(e, ei)}
+                          onDrop={rowDrag.drop}
                         >
+                          {/* 列內都是輸入框，整列 draggable 會干擾選字，改由 grip 起手 */}
+                          <span
+                            className="ced-diff-trow-grip"
+                            draggable
+                            title="拖曳排序"
+                            aria-hidden="true"
+                            onDragStart={(e) => {
+                              rowDrag.start(e, ei);
+                              // 拖曳影像用整列，不只 grip 一格
+                              const row = e.currentTarget.parentElement;
+                              if (row) {
+                                const rect = row.getBoundingClientRect();
+                                e.dataTransfer.setDragImage(
+                                  row,
+                                  Math.max(0, e.clientX - rect.left),
+                                  Math.max(0, e.clientY - rect.top)
+                                );
+                              }
+                            }}
+                            onDragEnd={rowDrag.reset}
+                          >
+                            ⠿
+                          </span>
                           <input
                             className="ced-input ced-input-sm"
                             value={ent.term}
