@@ -3194,6 +3194,7 @@ export default function RichEditor({
                       setGate(next);
                       setDirtyMetadata(true);
                     }}
+                    showAlwaysLocked
                     // minimal：progress page / exempt from container 是
                     // History tree 專屬欄位，媒體 zone 不顯示（不傳
                     // callback 即收起 toggle）；既有 metadata 值原樣保留

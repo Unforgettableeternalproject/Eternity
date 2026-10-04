@@ -12,7 +12,9 @@
  *                  任何時刻只露出進度鏈上最近的一篇未解鎖文章
  * 3. flag        — 閘門條件含任何自訂旗標或 pristineOnly（旗標鎖）。
  *                  無論何時都顯示，標題完全遮蔽（不透字）；
- *                  進度與旗標混合條件時以旗標鎖為主
+ *                  進度與旗標混合條件時以旗標鎖為主；alwaysLocked（恆鎖定）
+ *                  也歸此類——它的用途是「後期內容先鎖著不讓人看到」，
+ *                  不可落到 progression 露出模糊標題
  *
  * 呼叫端不傳 progress state 時只判定靜態鎖定（向後相容，
  * Visuals/Echoes 在接上進度系統前維持原行為）。
@@ -79,7 +81,8 @@ export function getLockKind(
       // 進度鎖優先：gate 尚未通過時，先呈現 flag / progression，不看 static
       const flags = gate.requiresFlags || [];
       const hasCustomFlag = flags.some((f) => !f.startsWith(COMPLETION_PREFIX));
-      if (gate.pristineOnly || hasCustomFlag) return 'flag';
+      if (gate.alwaysLocked || gate.pristineOnly || hasCustomFlag)
+        return 'flag';
       return 'progression';
     }
   }

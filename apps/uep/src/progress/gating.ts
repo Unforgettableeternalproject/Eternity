@@ -25,7 +25,8 @@ export interface GateCondition {
   /** 純潔者限定：探索者且無觀測者印記才可見；觀測者不 bypass */
   pristineOnly?: boolean;
   /**
-   * 恆鎖定：條件恆不成立，任何身分都通不過（觀測者也不 bypass）。
+   * 恆鎖定：探索者永遠通不過；觀測者 bypass（同 requiresFlags）。
+   * 語意等同「探索者永遠達不成的旗標條件」。
    *
    * 給「內容已經寫好，但它該綁的頁面或旗標還沒設計出來」的過渡期用——
    * 先擋住，之後回來換成真正的條件。沒有這個開關的話，暫時的做法只能是
@@ -54,8 +55,8 @@ export function hasAllFlags(state: ProgressState, flags: string[]): boolean {
  *
  * 求值順序：
  * 1. 無條件 → 可見
- * 2. alwaysLocked → 一律不可見（最優先，任何身分皆不 bypass）
- * 3. pristineOnly 不滿足 → 不可見（觀測者與印記者到此為止）
+ * 2. pristineOnly 不滿足 → 不可見（觀測者與印記者到此為止）
+ * 3. alwaysLocked：觀測者 bypass；探索者一律不可見
  * 4. requiresFlags：觀測者 bypass；探索者需持有全部旗標
  */
 export function evaluateGate(
@@ -64,11 +65,12 @@ export function evaluateGate(
 ): boolean {
   if (!condition) return true;
 
-  if (condition.alwaysLocked) return false;
-
   if (condition.pristineOnly && !isPristine(state)) {
     return false;
   }
+
+  // 觀測者 bypass（已通過 pristine 檢查）
+  if (condition.alwaysLocked && state.view !== 'observer') return false;
 
   const required = condition.requiresFlags;
   if (required && required.length > 0) {
@@ -404,9 +406,10 @@ export function evaluateEffectiveGate(
     resolvedGate === undefined ? effectiveGate(nodeId, tree) : resolvedGate;
   if (!gate) return true;
 
-  if (gate.alwaysLocked) return false;
-
   if (gate.pristineOnly && !isPristine(progress)) return false;
+
+  // 觀測者 bypass 恆鎖定（同 requiresFlags；pristine 已上面擋掉）
+  if (gate.alwaysLocked && progress.view !== 'observer') return false;
 
   const required = gate.requiresFlags;
   if (!required || required.length === 0) return true;

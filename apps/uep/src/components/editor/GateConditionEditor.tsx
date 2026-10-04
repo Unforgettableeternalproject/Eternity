@@ -7,8 +7,9 @@
  *   自訂旗標走 FlagPicker 從註冊表選，**沒有自由輸入欄**（D-1 強制註冊：
  *   手打的旗標名打錯一個字，需求端就永遠等不到且不會有錯誤訊息）。
  * - pristineOnly — 純潔者限定（觀測者與印記者不可見，且不可 bypass）。
- * - alwaysLocked — 恆鎖定（條件恆不成立）。過渡期佔位用，只在 Concepts
- *   的條目／群組／revision 層級露出（`showAlwaysLocked`）。
+ * - alwaysLocked — 恆鎖定（探索者恆不通過，觀測者 bypass）。過渡期佔位用，
+ *   由呼叫端以 `showAlwaysLocked` 決定是否露出：Concepts 條目／群組／
+ *   revision、各 zone 的頁面解鎖閘、Visuals 圖片三態閘。
  *
  * 唯一進度軸是 History——「需先讀完」的頁面 picker 固定抓 history tree，
  * 與當前編輯的 area 無關（Concepts/Echoes 頁面的解鎖條件也綁 History 進度）。
@@ -407,7 +408,7 @@ export default function GateConditionEditor({
           </div>
           {alwaysLocked && (
             <div className="ned-gate-scope-hint">
-              ⓘ 恆鎖定：條件永遠不成立，任何身分（含觀測者）都看不到。
+              ⓘ 恆鎖定：探索者永遠無法通過此閘，觀測者不受影響。
               給「內容先寫好、要綁的旗標之後才設計」的過渡期用，
               上方其他條件在解除恆鎖定前一律無效。
             </div>

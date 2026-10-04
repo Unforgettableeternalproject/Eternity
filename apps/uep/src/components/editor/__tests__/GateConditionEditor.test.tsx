@@ -15,7 +15,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import GateConditionEditor from '../GateConditionEditor';
 
 describe('GateConditionEditor — 恆鎖定', () => {
-  it('預設不顯示（只有 Concepts 傳 showAlwaysLocked 才露出）', () => {
+  it('預設不顯示（呼叫端傳 showAlwaysLocked 才露出）', () => {
     render(
       <GateConditionEditor
         value={null}
