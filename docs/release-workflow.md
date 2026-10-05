@@ -271,6 +271,12 @@ sync-back 是拿**原分支**（不是 main）合回 develop——merge-base 正
 分支若已不在，job 會退回 `head=main`，那條路徑的 merge-base 會因為 squash
 退到上一版，整包 diff 對上 develop 既有的相同變更就是滿版衝突（v1.0.0 卡過）。
 
+原分支合回後，sync-back 會再把 main 合進 develop 一次。squash commit 本身
+不在原分支歷史裡，不縫進 develop 的話，下一個從 main 切出的 hotfix 與
+develop 的 merge-base 一樣會退到上一版而衝突（hotfix v1.0.1 卡過）。這一步
+內容零差異，只補歷史；失敗時 job 會紅，需手動 `git merge origin/main` 進
+develop（先確認 `git diff origin/main origin/develop` 只差 develop 的新功能）。
+
 分支名由 CI 依 `{branch_type}/v{version}` 推導，所以**分支命名必須守慣例**
 （`release/v1.0.0`、`hotfix/v1.0.0`）。命名不合就會走進上述 fallback。
 

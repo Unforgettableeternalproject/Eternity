@@ -257,6 +257,18 @@ jobs:
             -f commit_message="chore: sync from ${HEAD_REF} after ${BRANCH_TYPE} v${VERSION}"
           echo "✅ Synced changes back to develop (GitHub-signed merge)"
 
+          # 縫合 main 的 squash commit：原分支合回後 develop 已含相同內容，
+          # 再合一次 main 只補歷史、不改 tree。少了這步，之後從 main 切出的
+          # hotfix 與 develop 的 merge-base 會退到上一版，整包 squash diff
+          # 疊上 develop 既有的相同變更就衝突（hotfix v1.0.1 實際卡住過）。
+          if [ "$HEAD_REF" != "main" ]; then
+            gh api "repos/${{ github.repository }}/merges" \
+              -f base=develop \
+              -f head=main \
+              -f commit_message="chore: stitch main squash history after ${BRANCH_TYPE} v${VERSION}"
+            echo "✅ Stitched main into develop history"
+          fi
+
       - name: Sync back to staging (release only)
         if: steps.detect_merge.outputs.skip != 'true' && steps.detect_merge.outputs.branch_type == 'release'
         run: |
