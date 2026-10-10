@@ -542,6 +542,41 @@ function DossierEditor({
 // Dossier 編輯器（單一 variant 內容）
 // ══════════════════════════════════════════════════════════════════
 
+/**
+ * 把分類內所有條目 revision 的 `set.group` 從舊 label 改指向新 label
+ * （群組改名／刪除時維持引用）。
+ *
+ * 舊 label 為空字串時不動：空字串是「預設群組」的固定寫法，不是 label。
+ * 該不該改寫（同名群組、清空名稱等）由呼叫端判斷。
+ */
+function retargetGroupRefs(
+  groups: DossierGroup[],
+  from: string,
+  to: string
+): DossierGroup[] {
+  if (from === '' || from === to) return groups;
+  return groups.map((g) => {
+    let touched = false;
+    const entries = g.entries.map((entry) => {
+      if (!entry.revisions?.some((r) => r.patch?.set?.group === from))
+        return entry;
+      touched = true;
+      return {
+        ...entry,
+        revisions: entry.revisions.map((r) =>
+          r.patch?.set?.group === from
+            ? {
+                ...r,
+                patch: { ...r.patch, set: { ...r.patch.set, group: to } },
+              }
+            : r
+        ),
+      };
+    });
+    return touched ? { ...g, entries } : g;
+  });
+}
+
 function DossierVariantBody({
   subcategories,
   onSubcatsChange,
@@ -559,6 +594,14 @@ function DossierVariantBody({
   const [activeEntry, setActiveEntry] = useState<number | null>(null);
   // 右側面板模式：'group'=編輯群組, 'entry'=編輯條目
   const [panelMode, setPanelMode] = useState<'group' | 'entry'>('group');
+  // 進行中的群組改名：開始時的名稱，與當時指向它的 revision 位置
+  // （見 renameGroup）
+  const groupRenameRef = useRef<{
+    tab: number;
+    index: number;
+    label: string;
+    refs: { group: number; entry: number; revision: number }[];
+  } | null>(null);
   const [dragEntryInfo, setDragEntryInfo] = useState<{
     groupIdx: number;
     entryIdx: number;
@@ -602,10 +645,88 @@ function DossierVariantBody({
     updateGroups([...subcat.groups, { label: '新群組', entries: [] }]);
   }
 
+  // 同名群組的引用一律解析到第一個：只有它改名或刪除才需要改寫引用
+  function ownsGroupLabel(gi: number): boolean {
+    if (!subcat) return false;
+    const label = subcat.groups[gi].label;
+    return subcat.groups.findIndex((g) => g.label === label) === gi;
+  }
+
+  // 群組改名：開始輸入時記下「當時指向這個群組的 revision」，之後每次
+  // 按鍵都把 label 與這批 revision 一起寫回，資料任何時刻都自洽（鍵盤存檔
+  // 不必等失焦）。只改寫記下的那一批，而不是「值等於上一個名稱的引用」——
+  // 後者會在途中名稱與另一個群組暫時相同時，把那個群組的引用一起帶走
+  function beginGroupRename(gi: number) {
+    if (!subcat) return;
+    const label = subcat.groups[gi].label;
+    const refs: { group: number; entry: number; revision: number }[] = [];
+    // 空字串是「預設群組」的固定寫法，不隨名稱變動
+    if (label !== '' && ownsGroupLabel(gi)) {
+      subcat.groups.forEach((g, group) =>
+        g.entries.forEach((e, entry) =>
+          e.revisions?.forEach((r, revision) => {
+            if (r.patch?.set?.group === label)
+              refs.push({ group, entry, revision });
+          })
+        )
+      );
+    }
+    groupRenameRef.current = { tab: activeTab, index: gi, label, refs };
+  }
+  function renameGroup(gi: number, label: string) {
+    if (!subcat) return;
+    let start = groupRenameRef.current;
+    if (!start || start.tab !== activeTab || start.index !== gi) {
+      beginGroupRename(gi);
+      start = groupRenameRef.current!;
+    }
+    // 引用維持指向開始時的名稱：預設群組以外的群組被清空（空字串會把引用
+    // 改指到預設群組），或與另一個既有群組同名（不替作者把兩組併在一起）
+    const keep =
+      (label === '' && gi !== 0) ||
+      subcat.groups.some((g, i) => i !== gi && g.label === label);
+    const target = keep ? start.label : label;
+    const groups = subcat.groups.map((g, i) =>
+      i === gi ? { ...g, label } : g
+    );
+    for (const ref of start.refs) {
+      const g = groups[ref.group];
+      const revisions = g?.entries[ref.entry]?.revisions;
+      const revision = revisions?.[ref.revision];
+      if (!revision || typeof revision.patch?.set?.group !== 'string') continue;
+      groups[ref.group] = {
+        ...g,
+        entries: g.entries.map((e, ei) =>
+          ei === ref.entry
+            ? {
+                ...e,
+                revisions: revisions!.map((r, ri) =>
+                  ri === ref.revision
+                    ? {
+                        ...r,
+                        patch: {
+                          ...r.patch,
+                          set: { ...r.patch.set, group: target },
+                        },
+                      }
+                    : r
+                ),
+              }
+            : e
+        ),
+      };
+    }
+    updateGroups(groups);
+  }
+
   // 刪除群組：條目移至預設群組或全部刪除
   async function removeGroup(gi: number) {
     if (!subcat || gi === 0) return; // 預設群組（index 0）不可刪
     const g = subcat.groups[gi];
+    // 指向被刪群組的 revision 改指預設群組
+    const retargeted = ownsGroupLabel(gi)
+      ? retargetGroupRefs(subcat.groups, g.label, subcat.groups[0].label)
+      : subcat.groups;
     if (g.entries.length > 0) {
       const ok = await getDialog().confirm(
         `群組「${g.label || '未命名'}」有 ${g.entries.length} 個條目。\n確定 → 條目移至預設群組\n取消 → 不做任何操作`,
@@ -613,15 +734,15 @@ function DossierVariantBody({
       );
       if (!ok) return;
       // 移動條目到預設群組（index 0）
-      const newGroups = [...subcat.groups];
+      const newGroups = [...retargeted];
       newGroups[0] = {
         ...newGroups[0],
-        entries: [...newGroups[0].entries, ...g.entries],
+        entries: [...newGroups[0].entries, ...newGroups[gi].entries],
       };
       newGroups.splice(gi, 1);
       updateGroups(newGroups);
     } else {
-      updateGroups(subcat.groups.filter((_, idx) => idx !== gi));
+      updateGroups(retargeted.filter((_, idx) => idx !== gi));
     }
     if (activeGroup >= gi) setActiveGroup(Math.max(0, activeGroup - 1));
     setActiveEntry(null);
@@ -1053,15 +1174,11 @@ function DossierVariantBody({
                     <input
                       className="ced-input"
                       value={group.label}
-                      onChange={(e) =>
-                        updateGroups(
-                          subcat.groups.map((g, i) =>
-                            i === activeGroup
-                              ? { ...g, label: e.target.value }
-                              : g
-                          )
-                        )
-                      }
+                      onChange={(e) => renameGroup(activeGroup, e.target.value)}
+                      onFocus={() => beginGroupRename(activeGroup)}
+                      onBlur={() => {
+                        groupRenameRef.current = null;
+                      }}
                       placeholder={
                         activeGroup === 0
                           ? '留空則閱讀器不顯示名稱'
@@ -1126,6 +1243,7 @@ function DossierVariantBody({
           onBaseGateChange={(gate) =>
             updateEntry(activeEntry!, { gate: gate ?? undefined })
           }
+          groupLabels={subcat?.groups.map((g) => g.label)}
           onClose={() => setRevModalOpen(false)}
           accent={accent}
         />

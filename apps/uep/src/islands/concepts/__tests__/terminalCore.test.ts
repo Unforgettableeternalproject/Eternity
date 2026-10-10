@@ -35,6 +35,8 @@ import {
   formatEntryLabel,
 } from '../terminalCore';
 import type { TerminalIndexEntry } from '../terminalCore';
+import { resolveEffectiveViewForPage } from '../../../components/concepts/revision';
+import type { DossierContent } from '../../../components/concepts/types';
 
 function stateWith(partial: Partial<ProgressState>): ProgressState {
   return { ...createInitialState(), ...partial };
@@ -735,6 +737,85 @@ describe('resolveEntryDetails', () => {
     expect(details[0].restricted).toBeUndefined();
     expect(details[0].summary[0]).toBe('base 敘述。');
   });
+});
+
+describe('resolveEntryDetails — revision 移動群組後與 Reader 一致', () => {
+  const pageId = 'concepts/server/records/characters';
+  const content: DossierContent = {
+    variants: [
+      {
+        id: 'u',
+        label: 'U',
+        subcategories: [
+          {
+            label: '人物',
+            groups: [
+              { label: '', entries: [] },
+              {
+                label: '無組織',
+                entries: [
+                  {
+                    name: '凱奇',
+                    entityKey: 'kage',
+                    aliases: ['K'],
+                    content_html: '<p>獨來獨往。</p>',
+                    revisions: [
+                      {
+                        id: 'kage:01',
+                        gate: { requiresFlags: ['kage:01'] },
+                        patch: {
+                          set: {
+                            group: '舊會議',
+                            name: '凱奇 Kage',
+                            content_html: '<p>舊會議成員。</p>',
+                          },
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+              { label: '舊會議', entries: [{ name: '議長' }] },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const target = indexEntry({ name: '凱奇', entityKey: 'kage', pageId });
+
+  for (const flags of [[], ['kage:01']]) {
+    it(`旗標 [${flags.join(',')}]：名稱、別名與描述相同`, async () => {
+      stubFetch({
+        [`/api/content/${pageId}`]: {
+          ok: true,
+          data: {
+            content: [{ type: 'dossier', content: JSON.stringify(content) }],
+          },
+        },
+      });
+      const progress = stateWith({ flags });
+
+      const groups = resolveEffectiveViewForPage(content, progress).variants[0]
+        .subcategories[0].groups;
+      const readerEntry = groups
+        .flatMap((g) => g.entries)
+        .find((e) => e.entityKey === 'kage')!;
+      // Reader 端條目確實換了群組
+      expect(groups.find((g) => g.entries.includes(readerEntry))!.label).toBe(
+        flags.length > 0 ? '舊會議' : '無組織'
+      );
+
+      const details = await resolveEntryDetails(target, progress);
+      expect(details).toHaveLength(1);
+      expect(details[0].restricted).toBeUndefined();
+      expect(details[0].name).toBe(readerEntry.name);
+      expect(details[0].summary).toEqual([
+        `又名：${readerEntry.aliases!.join('、')}`,
+        ...htmlToLines(readerEntry.content_html!),
+      ]);
+    });
+  }
 });
 
 // ── 嵌入 ref 可點守門（2026-07-17：可點 ⟺ terminal 查得到內容） ────

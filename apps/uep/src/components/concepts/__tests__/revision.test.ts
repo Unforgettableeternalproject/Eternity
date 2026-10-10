@@ -22,6 +22,7 @@ import {
   isBrowserContent,
   isChronoContent,
   isDiffContent,
+  resolveDossierGroups,
   resolveEffectiveViewForPage,
 } from '../revision';
 import type {
@@ -30,6 +31,7 @@ import type {
   ConceptsRevision,
   DiffContent,
   DossierContent,
+  DossierGroup,
 } from '../types';
 
 function stateWith(partial: Partial<ProgressState>): ProgressState {
@@ -601,6 +603,273 @@ describe('resolveEffectiveViewForPage', () => {
     expect(
       unlocked.variants[0].subcategories[0].groups[0].entries[0].content_html
     ).toBe('<p>他現在是一個更好的人</p>');
+  });
+});
+
+describe('resolveDossierGroups — revision 移動群組', () => {
+  const moveTo = (
+    label: string,
+    flag: string | null = 'move:01'
+  ): ConceptsRevision => ({
+    id: 'move',
+    gate: flag ? { requiresFlags: [flag] } : null,
+    patch: { set: { group: label } },
+  });
+  const moved = stateWith({ flags: ['move:01'] });
+
+  /** [label, 條目名稱[], hasMembers] */
+  const shape = (groups: ReturnType<typeof resolveDossierGroups>) =>
+    groups.map((g) => [g.label, g.entries.map((e) => e.name), g.hasMembers]);
+
+  const kaiGroups = (): DossierGroup[] => [
+    { label: '', entries: [] },
+    {
+      label: '無組織',
+      entries: [{ name: '凱奇', revisions: [moveTo('舊會議')] }],
+    },
+    { label: '舊會議', entries: [{ name: '議長' }] },
+  ];
+
+  it('revision gate 未過 → 留在基底群組', () => {
+    expect(shape(resolveDossierGroups(kaiGroups(), stateWith({})))).toEqual([
+      ['', [], false],
+      ['無組織', ['凱奇'], true],
+      ['舊會議', ['議長'], true],
+    ]);
+  });
+
+  it('revision gate 通過 → 接在目標群組尾端，搬空的來源群組不再有歸屬', () => {
+    expect(shape(resolveDossierGroups(kaiGroups(), moved))).toEqual([
+      ['', [], false],
+      ['無組織', [], false],
+      ['舊會議', ['議長', '凱奇'], true],
+    ]);
+  });
+
+  it('多個移入者維持走訪順序，排在目標群組原有條目之後', () => {
+    const groups: DossierGroup[] = [
+      { label: '', entries: [{ name: '甲', revisions: [moveTo('新')] }] },
+      {
+        label: '新',
+        entries: [{ name: '原一' }, { name: '原二' }],
+      },
+      {
+        label: '舊',
+        entries: [
+          { name: '乙', revisions: [moveTo('新')] },
+          { name: '留' },
+          { name: '丙', revisions: [moveTo('新')] },
+        ],
+      },
+    ];
+    expect(shape(resolveDossierGroups(groups, moved))).toEqual([
+      ['', [], false],
+      ['新', ['原一', '原二', '甲', '乙', '丙'], true],
+      ['舊', ['留'], true],
+    ]);
+  });
+
+  it('空字串 = 預設群組（index 0），不論它有沒有名稱', () => {
+    const groups: DossierGroup[] = [
+      { label: '未分類', entries: [] },
+      { label: '會議', entries: [{ name: '甲', revisions: [moveTo('')] }] },
+    ];
+    expect(shape(resolveDossierGroups(groups, moved))).toEqual([
+      ['未分類', ['甲'], true],
+      ['會議', [], false],
+    ]);
+  });
+
+  it('多個 revision 都設 group → 後套用者勝；remove 回到基底群組', () => {
+    const groups = (revisions: ConceptsRevision[]): DossierGroup[] => [
+      { label: 'A', entries: [{ name: '甲', revisions }] },
+      { label: 'B', entries: [] },
+      { label: 'C', entries: [] },
+    ];
+    const toB = moveTo('B', null);
+    const toC = moveTo('C', 'move:01');
+    const back: ConceptsRevision = {
+      id: 'back',
+      gate: { requiresFlags: ['back:01'] },
+      patch: { remove: ['group'] },
+    };
+    const where = (revisions: ConceptsRevision[], flags: string[]) =>
+      resolveDossierGroups(groups(revisions), stateWith({ flags })).find(
+        (g) => g.entries.length > 0
+      )?.label;
+
+    expect(where([toB, toC], [])).toBe('B');
+    expect(where([toB, toC], ['move:01'])).toBe('C');
+    expect(where([toB, toC, back], ['move:01', 'back:01'])).toBe('A');
+  });
+
+  it('目標 label 不存在 → 留在原群組，不丟條目', () => {
+    const groups: DossierGroup[] = [
+      { label: 'A', entries: [{ name: '甲', revisions: [moveTo('不存在')] }] },
+      { label: 'B', entries: [] },
+    ];
+    expect(shape(resolveDossierGroups(groups, moved))).toEqual([
+      ['A', ['甲'], true],
+      ['B', [], false],
+    ]);
+  });
+
+  it('同名群組：來源群組自己就是目標名稱 → 不搬到第一個同名群組', () => {
+    const groups: DossierGroup[] = [
+      { label: '會議', entries: [{ name: '甲' }] },
+      { label: '會議', entries: [{ name: '乙', revisions: [moveTo('會議')] }] },
+      { label: '其他', entries: [{ name: '丙', revisions: [moveTo('會議')] }] },
+    ];
+    expect(shape(resolveDossierGroups(groups, moved))).toEqual([
+      ['會議', ['甲', '丙'], true],
+      ['會議', ['乙'], true],
+      ['其他', [], false],
+    ]);
+  });
+
+  it('group 值不是字串 → 留在原群組', () => {
+    const groups: DossierGroup[] = [
+      { label: '', entries: [] },
+      {
+        label: 'A',
+        entries: [
+          {
+            name: '甲',
+            revisions: [{ id: 'x', gate: null, patch: { set: { group: 0 } } }],
+          },
+        ],
+      },
+    ];
+    expect(shape(resolveDossierGroups(groups, moved))[1]).toEqual([
+      'A',
+      ['甲'],
+      true,
+    ]);
+  });
+
+  it('目標群組自身 gate 未過 → 留在原群組；條目可見性不受目標 gate 影響', () => {
+    const groups: DossierGroup[] = [
+      { label: 'A', entries: [{ name: '甲', revisions: [moveTo('機密')] }] },
+      {
+        label: '機密',
+        gate: { requiresFlags: ['sec:01'] },
+        entries: [{ name: '內部' }],
+      },
+    ];
+    expect(shape(resolveDossierGroups(groups, moved))).toEqual([
+      ['A', ['甲'], true],
+    ]);
+    expect(
+      shape(
+        resolveDossierGroups(
+          groups,
+          stateWith({ flags: ['move:01', 'sec:01'] })
+        )
+      )
+    ).toEqual([
+      ['A', [], false],
+      ['機密', ['內部', '甲'], true],
+    ]);
+  });
+
+  it('來源群組 gate 未過 → 條目不出現在目標群組，也不計入歸屬', () => {
+    const groups: DossierGroup[] = [
+      { label: '公開', entries: [] },
+      {
+        label: '機密',
+        gate: { requiresFlags: ['sec:01'] },
+        entries: [{ name: '甲', revisions: [moveTo('公開', null)] }],
+      },
+    ];
+    expect(shape(resolveDossierGroups(groups, stateWith({})))).toEqual([
+      ['公開', [], false],
+    ]);
+  });
+
+  it('base gate 未過的條目不輸出，但仍計入求值後群組的歸屬', () => {
+    const groups: DossierGroup[] = [
+      { label: '', entries: [] },
+      {
+        label: '舊',
+        entries: [
+          {
+            name: '鎖',
+            gate: { requiresFlags: ['never'] },
+            revisions: [moveTo('新')],
+          },
+        ],
+      },
+      { label: '新', entries: [] },
+    ];
+    expect(shape(resolveDossierGroups(groups, stateWith({})))).toEqual([
+      ['', [], false],
+      ['舊', [], true],
+      ['新', [], false],
+    ]);
+    expect(shape(resolveDossierGroups(groups, moved))).toEqual([
+      ['', [], false],
+      ['舊', [], false],
+      ['新', [], true],
+    ]);
+  });
+
+  it('輸出條目剝除 group／revisions／gate，其餘 patch 照常套用', () => {
+    const groups: DossierGroup[] = [
+      {
+        label: 'A',
+        entries: [
+          {
+            name: '甲',
+            gate: { requiresFlags: ['move:01'] },
+            revisions: [
+              {
+                id: 'r',
+                gate: null,
+                patch: { set: { group: 'B', content_html: '<p>新</p>' } },
+              },
+            ],
+          },
+        ],
+      },
+      { label: 'B', entries: [] },
+    ];
+    const [, target] = resolveDossierGroups(groups, moved);
+    expect(target.entries).toEqual([{ name: '甲', content_html: '<p>新</p>' }]);
+    expect('group' in target.entries[0]).toBe(false);
+  });
+
+  it('不修改傳入的群組資料', () => {
+    const groups = kaiGroups();
+    const snapshot = JSON.parse(JSON.stringify(groups));
+    resolveDossierGroups(groups, moved);
+    expect(groups).toEqual(snapshot);
+  });
+
+  it('resolveEffectiveViewForPage：各分類各自分桶，不跨分類比對 label', () => {
+    const data: DossierContent = {
+      variants: [
+        {
+          id: 'u',
+          label: 'U',
+          subcategories: [
+            {
+              label: '三區',
+              groups: [
+                {
+                  label: 'A',
+                  entries: [{ name: '甲', revisions: [moveTo('B')] }],
+                },
+              ],
+            },
+            { label: '五區', groups: [{ label: 'B', entries: [] }] },
+          ],
+        },
+      ],
+    };
+    const [first, second] = resolveEffectiveViewForPage(data, moved).variants[0]
+      .subcategories;
+    expect(first.groups[0].entries.map((e) => e.name)).toEqual(['甲']);
+    expect(second.groups[0].entries).toEqual([]);
   });
 });
 
