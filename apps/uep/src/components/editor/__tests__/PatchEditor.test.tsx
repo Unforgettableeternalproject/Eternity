@@ -279,3 +279,94 @@ describe('bindings picker 欄位', () => {
     );
   });
 });
+
+describe('PatchEditor — 所屬群組（dossier）', () => {
+  function setupGroup(patch: RevisionPatch, groupLabels?: string[]) {
+    const onChange = vi.fn();
+    render(
+      <PatchEditor
+        stackStyle="dossier"
+        patch={patch}
+        onChange={onChange}
+        groupLabels={groupLabels}
+        accent="#2d6a4f"
+      />
+    );
+    return { onChange };
+  }
+  const options = (select: HTMLElement) =>
+    Array.from(select.querySelectorAll('option')).map((o) => [
+      o.getAttribute('value'),
+      o.textContent,
+    ]);
+
+  it('group 是 dossier 的已知欄位，其他 stack 沒有', () => {
+    expect(inferFieldKind('dossier', 'group', '舊會議')).toBe('group-select');
+    expect(inferFieldKind('browser', 'group', '舊會議')).toBe('text');
+    expect(inferFieldKind('diff', 'group', '舊會議')).toBe('text');
+  });
+
+  it('從欄位下拉新增 → 預設值為空字串（預設群組）', () => {
+    const { onChange } = setupGroup({}, ['', '無組織']);
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: 'group' },
+    });
+    expect(onChange).toHaveBeenCalledWith({ set: { group: '' } });
+  });
+
+  it('下拉列出同分類群組；未命名的預設群組顯示「(預設)」、值為空字串', () => {
+    setupGroup({ set: { group: '舊會議' } }, ['', '無組織', '舊會議']);
+    const select = screen.getByLabelText('所屬群組');
+    expect(options(select)).toEqual([
+      ['', '(預設)'],
+      ['無組織', '無組織'],
+      ['舊會議', '舊會議'],
+    ]);
+    expect((select as HTMLSelectElement).value).toBe('舊會議');
+  });
+
+  it('選擇群組寫回 label；選預設群組寫回空字串', () => {
+    const { onChange } = setupGroup({ set: { group: '舊會議' } }, [
+      '',
+      '無組織',
+      '舊會議',
+    ]);
+    const select = screen.getByLabelText('所屬群組');
+    fireEvent.change(select, { target: { value: '無組織' } });
+    expect(onChange).toHaveBeenLastCalledWith({ set: { group: '無組織' } });
+    fireEvent.change(select, { target: { value: '' } });
+    expect(onChange).toHaveBeenLastCalledWith({ set: { group: '' } });
+  });
+
+  it('預設群組有名稱時以名稱為值；同名與未命名的一般群組不重複列出', () => {
+    setupGroup({ set: { group: '未分類' } }, ['未分類', '會議', '', '會議']);
+    expect(options(screen.getByLabelText('所屬群組'))).toEqual([
+      ['未分類', '未分類'],
+      ['會議', '會議'],
+    ]);
+  });
+
+  it('指向的群組已不存在 → 保留原值並標示，不默默改寫', () => {
+    const { onChange } = setupGroup({ set: { group: '已刪除' } }, ['', '會議']);
+    const select = screen.getByLabelText('所屬群組') as HTMLSelectElement;
+    expect(select.value).toBe('已刪除');
+    expect(options(select)[0]).toEqual(['已刪除', '已刪除（群組不存在）']);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('預設群組有名稱時，空字串仍顯示為選中預設群組', () => {
+    setupGroup({ set: { group: '' } }, ['未分類', '會議']);
+    const select = screen.getByLabelText('所屬群組') as HTMLSelectElement;
+    expect(select.value).toBe('未分類');
+    expect(screen.queryByText(/群組不存在/)).not.toBeInTheDocument();
+  });
+
+  it('未提供群組清單時退回文字輸入', () => {
+    const { onChange } = setupGroup({ set: { group: '舊會議' } });
+    expect(screen.queryByLabelText('所屬群組')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue('舊會議'), {
+      target: { value: '新會議' },
+    });
+    expect(onChange).toHaveBeenCalledWith({ set: { group: '新會議' } });
+  });
+});

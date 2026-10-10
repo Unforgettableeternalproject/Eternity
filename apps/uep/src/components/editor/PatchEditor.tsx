@@ -4,7 +4,7 @@
  * 依 stack 動態渲染 patch.set 的欄位編輯器，patch.remove 為路徑列表。
  * 設計依據 docs/agent/S7_CONCEPTS_DESIGN.md §4-3（欄位清單以實際資料模型
  * 與消費端為準，不以設計文件為準——設計文件寫過的 spoiler 從未實作）：
- * - dossier：name / content_html / aliases
+ * - dossier：name / content_html / aliases / group（所屬群組）
  * - browser：name / categories（整段）/ placeholder / avatar / basic（整段）/
  *   sections（整段）
  * - chrono：title / fields.{id}.items（事件列，路徑動態）
@@ -42,7 +42,8 @@ type FieldKind =
   | 'keyvalue'
   | 'sections'
   | 'json'
-  | 'entity-picker';
+  | 'entity-picker'
+  | 'group-select';
 
 interface PatchFieldDef {
   path: string;
@@ -64,6 +65,9 @@ export const STACK_PATCH_FIELDS: Record<StackKind, PatchFieldDef[]> = {
     // 這條 revision 通過後，這個實體在該 zone 就對應到選中的那一個。
     { path: 'bindings.echoes', label: '綁定歌曲', kind: 'entity-picker' },
     { path: 'bindings.visuals', label: '綁定畫廊', kind: 'entity-picker' },
+    // 群組歸屬：值 = 同分類內目標群組的 label，空字串 = 預設群組。
+    // 只改條目顯示在哪個群組底下，不影響條目的可見性。
+    { path: 'group', label: '所屬群組', kind: 'group-select' },
   ],
   browser: [
     { path: 'name', label: '角色名稱', kind: 'text' },
@@ -93,6 +97,7 @@ function defaultValueFor(kind: FieldKind): unknown {
     case 'text':
     case 'html':
     case 'entity-picker':
+    case 'group-select':
       return '';
     case 'number':
       return 0;
@@ -159,7 +164,26 @@ interface PatchEditorProps {
   chronoFieldDefs?: ChronoFieldDef[];
   /** 條目的 entityKey——綁定 picker 依此篩選候選內容 */
   entityKey?: string;
+  /**
+   * dossier 專用：條目所在分類的群組 label（依群組順序，index 0 = 預設
+   * 群組）——「所屬群組」欄位的下拉選項。未提供時該欄位退回文字輸入。
+   */
+  groupLabels?: string[];
   accent: string;
+}
+
+/** 「所屬群組」下拉選項：預設群組未命名時值為空字串 */
+function groupSelectOptions(
+  groupLabels: string[]
+): { value: string; label: string }[] {
+  const options: { value: string; label: string }[] = [];
+  groupLabels.forEach((label, i) => {
+    // 預設群組以外的未命名群組無從以 label 指向；同名群組只列第一個
+    if (i > 0 && !label) return;
+    if (options.some((o) => o.value === label)) return;
+    options.push({ value: label, label: label || '(預設)' });
+  });
+  return options;
 }
 
 export default function PatchEditor({
@@ -168,6 +192,7 @@ export default function PatchEditor({
   onChange,
   chronoFieldDefs,
   entityKey,
+  groupLabels,
   accent,
 }: PatchEditorProps) {
   const [removeInput, setRemoveInput] = useState('');
@@ -258,6 +283,7 @@ export default function PatchEditor({
           onValueChange={(v) => setPath(path, v)}
           onRemove={() => removeSetPath(path)}
           entityKey={entityKey}
+          groupLabels={groupLabels}
           accent={accent}
         />
       ))}
@@ -380,6 +406,7 @@ function PatchFieldRow({
   onValueChange,
   onRemove,
   entityKey,
+  groupLabels,
   accent,
 }: {
   stackStyle: StackKind;
@@ -388,6 +415,7 @@ function PatchFieldRow({
   onValueChange: (value: unknown) => void;
   onRemove: () => void;
   entityKey?: string;
+  groupLabels?: string[];
   accent: string;
 }) {
   const kind = inferFieldKind(stackStyle, path, value);
@@ -411,6 +439,7 @@ function PatchFieldRow({
         value={value}
         onChange={onValueChange}
         entityKey={entityKey}
+        groupLabels={groupLabels}
         accent={accent}
       />
     </div>
@@ -425,6 +454,7 @@ function PatchValueEditor({
   value,
   onChange,
   entityKey,
+  groupLabels,
   accent,
 }: {
   kind: FieldKind;
@@ -432,9 +462,46 @@ function PatchValueEditor({
   value: unknown;
   onChange: (value: unknown) => void;
   entityKey?: string;
+  groupLabels?: string[];
   accent: string;
 }) {
   switch (kind) {
+    case 'group-select': {
+      const current = typeof value === 'string' ? value : '';
+      if (!groupLabels) {
+        return (
+          <input
+            className="ced-input"
+            value={current}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        );
+      }
+      const options = groupSelectOptions(groupLabels);
+      // 空字串一律指預設群組：預設群組有名稱時選項值是它的 label，
+      // 顯示上對到同一個選項
+      const selected =
+        current === '' && options.length > 0 ? options[0].value : current;
+      // 指向的群組已不存在：保留原值讓作者看得到，不默默改寫
+      const missing = !options.some((o) => o.value === selected);
+      return (
+        <select
+          className="ced-select"
+          aria-label="所屬群組"
+          value={selected}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {missing && (
+            <option value={selected}>{selected}（群組不存在）</option>
+          )}
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
     case 'entity-picker':
       return (
         <EntityBindingPicker

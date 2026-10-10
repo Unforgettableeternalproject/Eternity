@@ -55,6 +55,8 @@ interface RevisionModalProps {
   onBaseGateChange?: (gate: GateCondition | null) => void;
   /** chrono 專用（S7 驗收 #7）：pool fieldDefs，事件列 patch 下拉選擇 */
   chronoFieldDefs?: ChronoFieldDef[];
+  /** dossier 專用：條目所在分類的群組 label，「所屬群組」patch 的下拉選項 */
+  groupLabels?: string[];
   onClose: () => void;
   accent: string;
 }
@@ -78,6 +80,7 @@ export default function RevisionModal({
   baseGate,
   onBaseGateChange,
   chronoFieldDefs,
+  groupLabels,
   onClose,
   accent,
 }: RevisionModalProps) {
@@ -394,6 +397,7 @@ export default function RevisionModal({
                   }
                   chronoFieldDefs={chronoFieldDefs}
                   entityKey={entityKey}
+                  groupLabels={groupLabels}
                   accent={accent}
                 />
               </>
