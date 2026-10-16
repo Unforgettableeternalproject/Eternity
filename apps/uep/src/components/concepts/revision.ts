@@ -28,6 +28,9 @@ import type {
   ConceptsRevision,
   DiffContent,
   DossierContent,
+  DossierEntry,
+  DossierGroup,
+  DossierSubcat,
   RevisionPatch,
 } from './types';
 
@@ -271,11 +274,115 @@ function resolveEntries<T extends Record<string, unknown>>(
   return out;
 }
 
+// ── dossier 群組歸屬 ───────────────────────────────────────────────
+
+/**
+ * effective view 後的 dossier 群組。
+ *
+ * `hasMembers` 只存在於求值結果，不屬於儲存格式：群組是否有「歸屬於它」
+ * 的條目（含 base gate 未過、因此不在 `entries` 裡的條目）。Reader 靠它
+ * 區分「沒有任何條目的群組」與「有條目但全部未解鎖的群組」。
+ */
+export interface ResolvedDossierGroup extends DossierGroup {
+  hasMembers?: boolean;
+}
+
+export interface ResolvedDossierSubcat extends Omit<DossierSubcat, 'groups'> {
+  groups: ResolvedDossierGroup[];
+}
+
+/**
+ * 條目求值後的 `group` 值對應到哪個群組（回傳 groups 的索引）。
+ *
+ * - 空字串 = 預設群組（index 0），不走 label 比對
+ * - 其餘字串 = 第一個 label 完全相同的群組；來源群組自己就叫這個名稱時
+ *   留在來源群組（同名群組之間不搬動）
+ * - 非字串、對不到 label、或目標群組自身 gate 未過 → 留在來源群組
+ */
+function resolveGroupIndex(
+  groups: DossierGroup[],
+  groupVisible: boolean[],
+  value: unknown,
+  sourceIndex: number
+): number {
+  if (typeof value !== 'string') return sourceIndex;
+  if (value !== '' && groups[sourceIndex].label === value) return sourceIndex;
+  const target = value === '' ? 0 : groups.findIndex((g) => g.label === value);
+  if (target < 0 || !groupVisible[target]) return sourceIndex;
+  return target;
+}
+
+/**
+ * 對單一 subcat 的群組計算 effective view，並依條目求值後的 `group`
+ * 欄位重新分桶（revision 的 `set.group` = 目標群組 label）。
+ *
+ * 可見性與分桶正交：條目看不看得到只由「來源群組 gate ∧ 條目 base gate」
+ * 決定，`group` 只決定它顯示在哪個群組底下——目標群組自身的 gate 不會
+ * 鎖住被移入的條目，也不會因為有條目移入而開鎖。
+ *
+ * - 來源群組 gate 未過：整組不輸出，底下條目不求值、不參與歸屬計算
+ * - base gate 未過的條目：不輸出內容，但仍求值出它的歸屬群組並計入
+ *   該群組的 `hasMembers`
+ * - 移入的條目接在目標群組原有條目之後，彼此維持原本的走訪順序
+ * - 輸出條目剝除 revisions／gate／baseVisible／group
+ */
+export function resolveDossierGroups(
+  groups: DossierGroup[],
+  progress: ProgressState
+): ResolvedDossierGroup[] {
+  // 群組 gate（S7 驗收 #3）：未通過整組隱藏，條目層不再求值
+  const groupVisible = groups.map((group) =>
+    evaluateGate(progress, group.gate ?? null)
+  );
+  const stayed: DossierEntry[][] = groups.map(() => []);
+  const movedIn: DossierEntry[][] = groups.map(() => []);
+  const hasMembers = groups.map(() => false);
+
+  groups.forEach((group, sourceIndex) => {
+    if (!groupVisible[sourceIndex]) return;
+    for (const entry of group.entries) {
+      const resolved = applyRevisions(
+        entry as unknown as Record<string, unknown>,
+        entry.revisions,
+        progress
+      );
+      const targetIndex = resolveGroupIndex(
+        groups,
+        groupVisible,
+        resolved.group,
+        sourceIndex
+      );
+      hasMembers[targetIndex] = true;
+      if (!isEntryUnlocked(progress, entry.gate)) continue;
+      delete resolved.revisions;
+      delete resolved.gate;
+      // baseVisible 為已廢除欄位（2026-07-17）——舊資料殘留照樣剝除
+      delete resolved.baseVisible;
+      delete resolved.group;
+      (targetIndex === sourceIndex ? stayed : movedIn)[targetIndex].push(
+        resolved as unknown as DossierEntry
+      );
+    }
+  });
+
+  const out: ResolvedDossierGroup[] = [];
+  groups.forEach((group, index) => {
+    if (!groupVisible[index]) return;
+    out.push({
+      ...group,
+      entries: [...stayed[index], ...movedIn[index]],
+      hasMembers: hasMembers[index],
+    });
+  });
+  return out;
+}
+
 /**
  * 對整頁 Concepts 資料計算 effective view：
  * 遍歷四種 stack 的條目路徑，過濾未解鎖條目並套用 patch。
  *
  * - dossier：variants[*].subcategories[*].groups[*].entries
+ *   （另依條目求值後的 group 重新分桶，見 resolveDossierGroups）
  * - browser：profiles
  * - chrono：periods
  * - diff：subcategories[*].sections[*].entries
@@ -294,16 +401,7 @@ export function resolveEffectiveViewForPage<D extends ConceptsData>(
         ...variant,
         subcategories: variant.subcategories.map((subcat) => ({
           ...subcat,
-          // 群組 gate（S7 驗收 #3）：未通過整組隱藏，條目層不再求值
-          groups: subcat.groups
-            .filter((group) => evaluateGate(progress, group.gate ?? null))
-            .map((group) => ({
-              ...group,
-              entries: resolveEntries(
-                group.entries as unknown as Record<string, unknown>[],
-                progress
-              ) as unknown as typeof group.entries,
-            })),
+          groups: resolveDossierGroups(subcat.groups, progress),
         })),
       })),
     };

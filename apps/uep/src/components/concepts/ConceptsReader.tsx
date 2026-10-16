@@ -46,6 +46,7 @@ import InterlinkTriggerButton from './InterlinkTriggerButton';
 import { useProgress } from '../../progress/useProgress';
 import { evaluateGate, parseGateCondition } from '../../progress/gating';
 import { resolveEffectiveViewForPage } from './revision';
+import type { ResolvedDossierSubcat } from './revision';
 import { subcatValueColumns, subcatValueLabels } from './diffTable';
 import {
   getCachedEffectiveView,
@@ -225,7 +226,7 @@ export function ReaderDossier({
   subcategories,
   onOpenBrowserDetail,
 }: {
-  subcategories: DossierSubcat[];
+  subcategories: ResolvedDossierSubcat[];
   /** 導向某 entity 的 browser 檔案（「詳細」按鈕用） */
   onOpenBrowserDetail: (pageId: string, entityKey: string) => void;
 }) {
@@ -261,8 +262,9 @@ export function ReaderDossier({
     };
   }, []);
 
-  // 群組 gate 已在 effective view 移除未通過的群組；可見但無可見條目的
-  // 具名群組以「尚未知」佔位顯示，無名稱的空群組與空分類不渲染。
+  // 群組 gate 已在 effective view 移除未通過的群組；有歸屬條目但全部
+  // 未解鎖的具名群組以「尚未知」佔位顯示，沒有歸屬條目的群組、無名稱的
+  // 空群組與空分類不渲染。
   // 沒有任何可顯示群組時走 empty fallback
   const visibleSubcats = useMemo(
     () => buildDossierView(subcategories),
@@ -271,7 +273,13 @@ export function ReaderDossier({
 
   const subcat = visibleSubcats[activeTab];
   const groups = subcat?.groups || [];
-  const currentGroup = groups[activeGroup];
+  // 群組數會隨進度縮減（條目被 revision 整組移走的群組不再顯示）：選取
+  // 超出範圍時落在最後一個群組，渲染當下就用收斂後的索引，state 隨後跟上
+  const groupIndex = Math.min(activeGroup, Math.max(0, groups.length - 1));
+  const currentGroup = groups[groupIndex];
+  useEffect(() => {
+    if (activeGroup !== groupIndex) setActiveGroup(groupIndex);
+  }, [activeGroup, groupIndex]);
 
   // 切換 subcat 時重置 group
   useEffect(() => {
@@ -336,11 +344,11 @@ export function ReaderDossier({
           {groups.map((group, i) => (
             <button
               key={i}
-              className={`conc-dossier-group ${i === activeGroup ? 'active' : ''}`}
+              className={`conc-dossier-group ${i === groupIndex ? 'active' : ''}`}
               onClick={() => setActiveGroup(i)}
             >
               <span className="conc-dossier-group-arrow">
-                {i === activeGroup ? '▸' : '·'}
+                {i === groupIndex ? '▸' : '·'}
               </span>
               <div className="conc-dossier-group-info">
                 <div className="conc-dossier-group-name">
